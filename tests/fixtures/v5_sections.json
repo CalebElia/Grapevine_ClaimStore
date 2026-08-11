@@ -1,0 +1,112 @@
+{
+  "sections": [
+    {
+      "section_topic": "Call to Order & Roll Call",
+      "start_sec": 30.0,
+      "end_sec": 145.0,
+      "start_timestamp": "00:00:30",
+      "end_timestamp": "00:02:25",
+      "source_notes": null,
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Approval of Agenda",
+      "start_sec": 145.0,
+      "end_sec": 168.0,
+      "start_timestamp": "00:02:25",
+      "end_timestamp": "00:02:48",
+      "source_notes": null,
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Approval of Minutes",
+      "start_sec": 168.0,
+      "end_sec": 203.0,
+      "start_timestamp": "00:02:48",
+      "end_timestamp": "00:03:23",
+      "source_notes": null,
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Public Comment",
+      "start_sec": 203.0,
+      "end_sec": 464.0,
+      "start_timestamp": "00:03:23",
+      "end_timestamp": "00:07:44",
+      "source_notes": null,
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Commission Business: Ann Arbor Sustainable Heating Franchise",
+      "start_sec": 464.0,
+      "end_sec": 3726.0,
+      "start_timestamp": "00:07:44",
+      "end_timestamp": "01:02:06",
+      "source_notes": null,
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Commission Business: Update from Office of Sustainability and Innovation AmeriCorps Team",
+      "start_sec": 3726.0,
+      "end_sec": 4409.0,
+      "start_timestamp": "01:02:06",
+      "end_timestamp": "01:13:29",
+      "source_notes": null,
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Commission Business: Joint Statement on Sidewalk Gap Filling",
+      "start_sec": 4409.0,
+      "end_sec": 6141.0,
+      "start_timestamp": "01:13:29",
+      "end_timestamp": "01:42:21",
+      "source_notes": "This section covers the presentation (26-0409) and resolution (26-0410) regarding the sidewalk gap filling implementation, which are listed separately on the agenda but were discussed together.",
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Work Group Updates",
+      "start_sec": 6141.0,
+      "end_sec": 6287.0,
+      "start_timestamp": "01:42:21",
+      "end_timestamp": "01:44:47",
+      "source_notes": "Updates provided for Building Decarbonization, Returnable Containers, and Water Quality. The Sidewalk Gap Filling update was covered in the preceding Commission Business item.",
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "City Council Updates",
+      "start_sec": 6287.0,
+      "end_sec": 6368.0,
+      "start_timestamp": "01:44:47",
+      "end_timestamp": "01:46:08",
+      "source_notes": null,
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Public Comment",
+      "start_sec": 6368.0,
+      "end_sec": 6409.0,
+      "start_timestamp": "01:46:08",
+      "end_timestamp": "01:46:49",
+      "source_notes": "The meeting minutes confirm there were no callers for this second public comment period.",
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Staff Updates",
+      "start_sec": 6409.0,
+      "end_sec": 6701.0,
+      "start_timestamp": "01:46:49",
+      "end_timestamp": "01:51:41",
+      "source_notes": "The Chair initially overlooked this agenda item, but staff interjected to provide the update before adjournment, deviating slightly from the planned agenda order.",
+      "source": "triangulated"
+    },
+    {
+      "section_topic": "Adjournment",
+      "start_sec": 6701.0,
+      "end_sec": 6780.0,
+      "start_timestamp": "01:51:41",
+      "end_timestamp": "01:53:00",
+      "source_notes": "Includes final remarks, personal announcements, and the formal motion to adjourn.",
+      "source": "triangulated"
+    }
+  ]
+}

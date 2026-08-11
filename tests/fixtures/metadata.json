@@ -1,0 +1,104 @@
+{
+  "source_id": "vid_yt_lWvRVUMyLP4",
+  "video_id": "lWvRVUMyLP4",
+  "youtube_url": "https://www.youtube.com/watch?v=lWvRVUMyLP4",
+  "governing_body_id": "ann_arbor_sustainability_commission",
+  "city_or_municipality": "Ann Arbor, MI",
+  "governing_body": "Sustainability Commission",
+  "body_description": "The Sustainability Commission was created by City Council in 2025, combining the Energy and Environmental Commissions. It is comprised of up to 15 members of the public appointed by City Council. The purpose of the Sustainability Commission is to advise City Council and the City Administrator on the City's sustainability goals, including A2ZERO goals and efforts to achieve carbon neutrality City-wide by 2030, and on the protection and enhancement of our air, water, land, and public health.",
+  "video_title": "Sustainability Commission Meeting 3/10/2026",
+  "published_date": "2026-03-11",
+  "youtube_chapters": [],
+  "description": "Sustainability Commission Meeting 3/10/2026",
+  "gemini_file_uri": "https://generativelanguage.googleapis.com/v1beta/files/c7inxcu6x8dj",
+  "video_path": "processing/lWvRVUMyLP4/video.mp4",
+  "audio_path": "processing/lWvRVUMyLP4/audio.mp3",
+  "governing_body_roster": [
+    {
+      "name": "Brooks A Curtis",
+      "role": "Chair",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Christopher Graham",
+      "role": "Vice Chair",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Jennifer Cornell",
+      "role": "Councilmember",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Jon Mallek",
+      "role": "Councilmember",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Mobin O Mazloomian",
+      "role": "Youth Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Mallika Kothari",
+      "role": "Youth Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Olivia Smyth",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Mark Hanss",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Sara M Nedrich",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Rita L Mitchell",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Jonathan T Overpeck",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Noah Levin",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Anya Dale",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Stephen C Brown",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Carlene Colvin-Garcia",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Mike Berkowitz",
+      "role": "Member",
+      "constituency_group": "city_official"
+    },
+    {
+      "name": "Milton Dohoney Jr",
+      "role": "Member",
+      "constituency_group": "city_official"
+    }
+  ],
+  "roster_as_of_date": "2026-05-07"
+}

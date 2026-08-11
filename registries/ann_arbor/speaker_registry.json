@@ -1,0 +1,190 @@
+{
+  "_what": "Speaker registry for the Ann Arbor Sustainability Commission \u2014 the authority for people who are NOT commission members: staff, utility reps, public commenters. The commission roster alone left 71% of this meeting's speech correctly named by the model and then discarded for lack of a matching table.",
+  "_canonical_rule": "The name the person uses in public forums wins over the Legistar record. Missy Stults is canonical even though Legistar carries 'Melissa Stults'; that becomes an alias, not the other way round.",
+  "_how_used": "pipeline/naming.py resolves a model's label against roster -> this registry -> persons -> raw. Entries here are human-confirmed, so a match counts as verified.",
+  "_never": "Do not add a name here from a model proposal. Only from human confirmation.",
+  "body": "ann_arbor_sustainability_commission",
+  "people": {
+    "Missy Stults": {
+      "aliases": [
+        "Melissa Stults",
+        "Missy Stultz"
+      ],
+      "minutes": 38.3,
+      "tier_at_proposal": "proposed",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4",
+      "canonical_note": "Reviewer 2026-08-08: 'Melissa may be on her birth certificate, but she goes by Missy in all forums.' Legistar's 'Melissa Stults' is the alias.",
+      "known_confusions": [
+        "Stoltz"
+      ]
+    },
+    "Erin Donnelly": {
+      "aliases": [
+        "Erin"
+      ],
+      "minutes": 13.6,
+      "tier_at_proposal": "raw",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Rita L Mitchell": {
+      "aliases": [],
+      "minutes": 9.0,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Sara M Nedrich": {
+      "aliases": [],
+      "minutes": 4.8,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Christopher Graham": {
+      "aliases": [],
+      "minutes": 4.3,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Steve Harvey": {
+      "aliases": [
+        "Steve"
+      ],
+      "minutes": 3.4,
+      "tier_at_proposal": "raw",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Ken Garber": {
+      "aliases": [],
+      "minutes": 3.0,
+      "tier_at_proposal": "raw",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Lucas Forgy": {
+      "aliases": [
+        "Lucas Forgey",
+        "Lucas Forgie"
+      ],
+      "minutes": 0.1,
+      "tier_at_proposal": "raw",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4",
+      "canonical_note": "Reviewer 2026-08-08: spelling confirmed from the on-screen name tag in the video. An earlier pass recorded 'Forgey'; that is superseded."
+    },
+    "Jonathan T Overpeck": {
+      "aliases": [],
+      "minutes": 2.6,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Jon Mallek": {
+      "aliases": [],
+      "minutes": 2.4,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Brooks A Curtis": {
+      "aliases": [],
+      "minutes": 1.8,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Carlene Colvin-Garcia": {
+      "aliases": [],
+      "minutes": 0.7,
+      "tier_at_proposal": "proposed",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4",
+      "known_confusions": [
+        "Dharma Akmon"
+      ]
+    },
+    "Maggie Halpern": {
+      "aliases": [
+        "Maggie"
+      ],
+      "minutes": 1.5,
+      "tier_at_proposal": "raw",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Jennifer Cornell": {
+      "aliases": [],
+      "minutes": 1.4,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Mike Berkowitz": {
+      "aliases": [],
+      "minutes": 1.3,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Kate Krick": {
+      "aliases": [
+        "Kate"
+      ],
+      "minutes": 1.1,
+      "tier_at_proposal": "raw",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Noah Levin": {
+      "aliases": [],
+      "minutes": 1.0,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Ashley Currey": {
+      "aliases": [
+        "Ashley"
+      ],
+      "minutes": 0.7,
+      "tier_at_proposal": "raw",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Joe Lange": {
+      "aliases": [
+        "Joe"
+      ],
+      "minutes": 0.1,
+      "tier_at_proposal": "raw",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Mobin O Mazloomian": {
+      "aliases": [],
+      "minutes": 0.0,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Mallika Kothari": {
+      "aliases": [],
+      "minutes": 0.0,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    },
+    "Olivia Smyth": {
+      "aliases": [],
+      "minutes": 0.0,
+      "tier_at_proposal": "roster",
+      "confirmed_by": "human review 2026-08-08",
+      "source_meeting": "lWvRVUMyLP4"
+    }
+  },
+  "_confusion_rule": "known_confusions are names a model WRONGLY produced for this person. They are recorded as a negative signal \u2014 never as a resolution target. Treating one as an alias would make the fabrication permanent."
+}

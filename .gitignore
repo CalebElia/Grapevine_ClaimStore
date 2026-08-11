@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+*.log
+
+# Large cached media and ASR intermediates — pulled from ../video_analysis, never committed
+processing/
+*.mp4
+*.mp3
+*.wav
+
+# Document snapshots for mutable sources (documents.snapshot_path) — content-addressed, bulky
+snapshots/
+
+.DS_Store
+.obsidian/
+
+# Legistar raw response cache — immutable layer, reproducible by re-fetch
+.cache/
