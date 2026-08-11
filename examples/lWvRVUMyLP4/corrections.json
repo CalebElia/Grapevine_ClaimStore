@@ -1,0 +1,440 @@
+{
+  "video_id": "lWvRVUMyLP4",
+  "source_workbook": "sustainability-commission-meeting-3-10-2026.xlsx",
+  "source_sha256": "1ee9d7c24f0b8eb3",
+  "imported_at": "2026-08-04T21:58:46Z",
+  "clusters": [
+    {
+      "cluster": "SPEAKER_20",
+      "decision": "unreviewed",
+      "name": "Missy Stults",
+      "auto_name": "Missy Stults",
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_04",
+      "decision": "confirmed",
+      "name": "Erin Donnelly",
+      "auto_name": "Erin Donnelly",
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_14",
+      "decision": "confirmed",
+      "name": "Rita L Mitchell",
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": true,
+      "note": "From roll-call confirmation"
+    },
+    {
+      "cluster": "SPEAKER_12",
+      "decision": "confirmed",
+      "name": "Christopher Graham",
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": true,
+      "note": "From roll-call confirmation"
+    },
+    {
+      "cluster": "SPEAKER_05",
+      "decision": "confirmed",
+      "name": "Brooks A Curtis",
+      "auto_name": "Brooks A Curtis",
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_03",
+      "decision": "unreviewed",
+      "name": "Maggie Halpern",
+      "auto_name": "Maggie Halpern",
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_13",
+      "decision": "unreviewed",
+      "name": null,
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_08",
+      "decision": "unreviewed",
+      "name": "Ken Garber",
+      "auto_name": "Ken Garber",
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_17",
+      "decision": "unreviewed",
+      "name": null,
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_09",
+      "decision": "unreviewed",
+      "name": "Lucas Forgey",
+      "auto_name": "Lucas Forgey",
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_16",
+      "decision": "confirmed",
+      "name": "Carlene Colvin-Garcia",
+      "auto_name": "Carlene Colvin-Garcia",
+      "auto_method": null,
+      "corrected": false,
+      "note": "From roll-call confirmation"
+    },
+    {
+      "cluster": "SPEAKER_06",
+      "decision": "confirmed",
+      "name": "Jon Mallek",
+      "auto_name": "Jon Mallek",
+      "auto_method": null,
+      "corrected": false,
+      "note": "From roll-call confirmation"
+    },
+    {
+      "cluster": "SPEAKER_18",
+      "decision": "unreviewed",
+      "name": null,
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_07",
+      "decision": "confirmed",
+      "name": "Mike Berkowitz",
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": true,
+      "note": "From roll-call confirmation"
+    },
+    {
+      "cluster": "SPEAKER_01",
+      "decision": "unreviewed",
+      "name": "Noah Levin",
+      "auto_name": "Noah Levin",
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_19",
+      "decision": "unreviewed",
+      "name": null,
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_02",
+      "decision": "confirmed",
+      "name": "Jennifer Cornell",
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": true,
+      "note": "From roll-call confirmation"
+    },
+    {
+      "cluster": "SPEAKER_10",
+      "decision": "unreviewed",
+      "name": null,
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_15",
+      "decision": "unreviewed",
+      "name": null,
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_11",
+      "decision": "unreviewed",
+      "name": "Sara M Nedrich",
+      "auto_name": "Sara M Nedrich",
+      "auto_method": null,
+      "corrected": false,
+      "note": null
+    },
+    {
+      "cluster": "SPEAKER_00",
+      "decision": "confirmed",
+      "name": "Mobin O Mazloomian",
+      "auto_name": null,
+      "auto_method": null,
+      "corrected": true,
+      "note": "From roll-call confirmation"
+    }
+  ],
+  "turns": [
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00000:30085-34422",
+      "speaker": null,
+      "text": null,
+      "flag": null,
+      "note": "Video opens with an incomplete statement preceding, \"Erin, do you mind going through the roll call?\" Not necessary, but interesting why it got dropped.",
+      "anchor": {
+        "cluster": "SPEAKER_05",
+        "start_ms": 30085,
+        "end_ms": 34422,
+        "text_sha1": "10f71db2b66a",
+        "seq": 0,
+        "is_interjection": false
+      },
+      "row": 2
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00001:36785-42185#int@38843",
+      "speaker": "Mike Berkowitz",
+      "text": null,
+      "flag": null,
+      "note": null,
+      "anchor": {
+        "cluster": "SPEAKER_07",
+        "start_ms": 38843,
+        "end_ms": 40008,
+        "text_sha1": "bbdfc8e8dd96",
+        "seq": 1,
+        "is_interjection": true
+      },
+      "row": 4
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00002:45678-47618",
+      "speaker": null,
+      "text": null,
+      "flag": null,
+      "note": "Why is this line separated from the previous line? Even though its the same speaker?",
+      "anchor": {
+        "cluster": "SPEAKER_04",
+        "start_ms": 45678,
+        "end_ms": 47618,
+        "text_sha1": "c4b71319f377",
+        "seq": 2,
+        "is_interjection": false
+      },
+      "row": 5
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00003:49897-54352#int@53677",
+      "speaker": "Carlene Colvin-Garcia",
+      "text": null,
+      "flag": null,
+      "note": null,
+      "anchor": {
+        "cluster": "SPEAKER_16",
+        "start_ms": 53677,
+        "end_ms": 54250,
+        "text_sha1": "9ff2ab346f76",
+        "seq": 3,
+        "is_interjection": true
+      },
+      "row": 7
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00004:54352-54976",
+      "speaker": "Carlene Colvin-Garcia",
+      "text": null,
+      "flag": "boundary",
+      "note": "These two lines are the same speaker with a gap, but should be one line.",
+      "anchor": {
+        "cluster": "SPEAKER_16",
+        "start_ms": 54352,
+        "end_ms": 54976,
+        "text_sha1": "e4daaf1d99bd",
+        "seq": 4,
+        "is_interjection": false
+      },
+      "row": 8
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00005:54976-63160#int@57997",
+      "speaker": "Jennifer Cornell",
+      "text": null,
+      "flag": null,
+      "note": null,
+      "anchor": {
+        "cluster": "SPEAKER_02",
+        "start_ms": 57997,
+        "end_ms": 59498,
+        "text_sha1": "13171699bda7",
+        "seq": 5,
+        "is_interjection": true
+      },
+      "row": 10
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00007:65827-81807#int@74264",
+      "speaker": "Christopher Graham",
+      "text": null,
+      "flag": null,
+      "note": null,
+      "anchor": {
+        "cluster": "SPEAKER_12",
+        "start_ms": 74264,
+        "end_ms": 75327,
+        "text_sha1": "e1cbd0b9835a",
+        "seq": 7,
+        "is_interjection": true
+      },
+      "row": 13
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00008:86617-95172",
+      "speaker": null,
+      "text": null,
+      "flag": null,
+      "note": "\"Here in Ann Arbor\" is an interjection from Mallika Kothari",
+      "anchor": {
+        "cluster": "SPEAKER_04",
+        "start_ms": 86617,
+        "end_ms": 95172,
+        "text_sha1": "8fc116ac57f5",
+        "seq": 8,
+        "is_interjection": false
+      },
+      "row": 14
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00008:86617-95172#int@86633",
+      "speaker": "Erin Donnelly",
+      "text": "Oops. I'm going to let one more person in here, sorry.",
+      "flag": "speaker",
+      "note": "This interjection occurs before \"Commissioner Katari?\"",
+      "anchor": {
+        "cluster": "SPEAKER_11",
+        "start_ms": 86633,
+        "end_ms": 87983,
+        "text_sha1": "da4c9d110fea",
+        "seq": 8,
+        "is_interjection": true
+      },
+      "row": 15
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00011:116384-119067",
+      "speaker": "Mobin O Mazloomian",
+      "text": "Hello. Sorry there was a vacuum going on in the back.",
+      "flag": "asr",
+      "note": null,
+      "anchor": {
+        "cluster": "SPEAKER_00",
+        "start_ms": 116384,
+        "end_ms": 119067,
+        "text_sha1": "6f4a25b28f49",
+        "seq": 11,
+        "is_interjection": false
+      },
+      "row": 19
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00013:124518-131926",
+      "speaker": null,
+      "text": null,
+      "flag": "boundary",
+      "note": "\"Here, Scyo Township\" is an interjection from Sara M Nedrich.",
+      "anchor": {
+        "cluster": "SPEAKER_04",
+        "start_ms": 124518,
+        "end_ms": 131926,
+        "text_sha1": "9a611e4b7273",
+        "seq": 13,
+        "is_interjection": false
+      },
+      "row": 21
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00013:124518-131926#int@126070",
+      "speaker": "Rita L Mitchell",
+      "text": null,
+      "flag": null,
+      "note": null,
+      "anchor": {
+        "cluster": "SPEAKER_14",
+        "start_ms": 126070,
+        "end_ms": 126982,
+        "text_sha1": "9f6aa045dae9",
+        "seq": 13,
+        "is_interjection": true
+      },
+      "row": 22
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00015:136668-137039",
+      "speaker": "Jonathan T Overpeck",
+      "text": "Here in Ann Arbor",
+      "flag": "speaker",
+      "note": null,
+      "anchor": {
+        "cluster": "SPEAKER_11",
+        "start_ms": 136668,
+        "end_ms": 137039,
+        "text_sha1": "740ac61d431c",
+        "seq": 15,
+        "is_interjection": false
+      },
+      "row": 24
+    },
+    {
+      "key": "vid_yt_lWvRVUMyLP4:00016:137039-144734",
+      "speaker": null,
+      "text": "Thank you. Commissioner Smith? Here in Ann Arbor. Thank you. That is a quorum.",
+      "flag": "boundary",
+      "note": "\"Here in Ann Arbor\" is an interjection from Olivia Smyth",
+      "anchor": {
+        "cluster": "SPEAKER_04",
+        "start_ms": 137039,
+        "end_ms": 144734,
+        "text_sha1": "c9e3d8ce2e7e",
+        "seq": 16,
+        "is_interjection": false
+      },
+      "row": 25
+    }
+  ],
+  "orphan_keys": [],
+  "unknown_flags": [],
+  "machine_cells_edited": [],
+  "notes": [],
+  "summary": {
+    "turn_corrections": 14,
+    "speaker_overrides": 9,
+    "text_corrections": 4,
+    "flags": 6,
+    "clusters_confirmed": 9,
+    "clusters_rejected": 0,
+    "clusters_unreviewed": 12,
+    "clusters_renamed": 5,
+    "orphan_keys": 0,
+    "unknown_flags": 0,
+    "machine_cells_edited": 0
+  }
+}

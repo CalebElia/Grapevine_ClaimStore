@@ -55,10 +55,11 @@ ground.
 | 2 | [`docs/video-analysis-argumentation-orientation-brief.md`](docs/video-analysis-argumentation-orientation-brief.md) | **the brief** — why the pipeline looks like this, and what we build first |
 | 3 | [`docs/PLAN.md`](docs/PLAN.md) | the approved architecture, including what was rejected and why |
 | 4 | [`schema/claim_store.sql`](schema/claim_store.sql) | the DDL — the comments carry the reasoning, not just the types |
-| 5 | `pipeline/transcribe_v2.py` → `naming.py` → `turns_v2.py` | the transcription path |
-| 6 | `pipeline/export_review_v2.py` + `import_review.py` | the human review round-trip |
-| 7 | [`tests/`](tests/) | 164 tests; the schema suite rebuilds Postgres from the DDL every run |
-| 8 | [`docs/asr-benchmark.md`](docs/asr-benchmark.md) | full vendor evidence behind the stack choice |
+| 5 | [`examples/lWvRVUMyLP4/`](examples/) | **the reference run** — one meeting end to end, with the review workbook and a human's annotations still in it |
+| 6 | `pipeline/transcribe_v2.py` → `naming.py` → `turns_v2.py` | the transcription path |
+| 7 | `pipeline/export_review_v2.py` + `import_review.py` | the human review round-trip |
+| 8 | [`tests/`](tests/) | 164 tests; the schema suite rebuilds Postgres from the DDL every run |
+| 9 | [`docs/asr-benchmark.md`](docs/asr-benchmark.md) | full vendor evidence behind the stack choice |
 
 ## Running it
 

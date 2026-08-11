@@ -1,0 +1,101 @@
+{
+  "SPEAKER_03": {
+    "name": "Maggie Halpern",
+    "method": "human",
+    "evidence": "confirmed by listening",
+    "confidence": 1.0
+  },
+  "SPEAKER_04": {
+    "name": "Erin Donnelly",
+    "method": "human",
+    "evidence": "confirmed in review of sustainability-commission-meeting-3-10-2026.xlsx",
+    "confidence": 1.0,
+    "review_confirmed": true
+  },
+  "SPEAKER_08": {
+    "name": "Ken Garber",
+    "method": "human",
+    "evidence": "confirmed by listening",
+    "confidence": 1.0
+  },
+  "SPEAKER_09": {
+    "name": "Lucas Forgey",
+    "method": "human",
+    "evidence": "confirmed by listening",
+    "confidence": 1.0
+  },
+  "SPEAKER_20": {
+    "name": "Missy Stults",
+    "method": "self_id",
+    "evidence": "\"I'm Missy Stults\" @ 473s (not on roster)",
+    "confidence": 0.9
+  },
+  "SPEAKER_16": {
+    "name": "Carlene Colvin-Garcia",
+    "method": "human",
+    "evidence": "confirmed in review of sustainability-commission-meeting-3-10-2026.xlsx",
+    "confidence": 1.0,
+    "review_confirmed": true
+  },
+  "SPEAKER_05": {
+    "name": "Brooks A Curtis",
+    "method": "human",
+    "evidence": "confirmed in review of sustainability-commission-meeting-3-10-2026.xlsx",
+    "confidence": 1.0,
+    "review_confirmed": true
+  },
+  "SPEAKER_01": {
+    "name": "Noah Levin",
+    "method": "roll_call",
+    "evidence": "called \"Levin\" -> \"Here in Ann Arbor.\"",
+    "confidence": 0.85
+  },
+  "SPEAKER_11": {
+    "name": "Sara M Nedrich",
+    "method": "roll_call",
+    "evidence": "called \"Nederich\" -> \"Here in\"",
+    "confidence": 0.85
+  },
+  "SPEAKER_06": {
+    "name": "Jon Mallek",
+    "method": "human",
+    "evidence": "confirmed in review of sustainability-commission-meeting-3-10-2026.xlsx",
+    "confidence": 1.0,
+    "review_confirmed": true
+  },
+  "SPEAKER_14": {
+    "name": "Rita L Mitchell",
+    "method": "human",
+    "evidence": "confirmed in review of sustainability-commission-meeting-3-10-2026.xlsx",
+    "confidence": 1.0,
+    "review_confirmed": true
+  },
+  "SPEAKER_12": {
+    "name": "Christopher Graham",
+    "method": "human",
+    "evidence": "confirmed in review of sustainability-commission-meeting-3-10-2026.xlsx",
+    "confidence": 1.0,
+    "review_confirmed": true
+  },
+  "SPEAKER_07": {
+    "name": "Mike Berkowitz",
+    "method": "human",
+    "evidence": "confirmed in review of sustainability-commission-meeting-3-10-2026.xlsx",
+    "confidence": 1.0,
+    "review_confirmed": true
+  },
+  "SPEAKER_02": {
+    "name": "Jennifer Cornell",
+    "method": "human",
+    "evidence": "confirmed in review of sustainability-commission-meeting-3-10-2026.xlsx",
+    "confidence": 1.0,
+    "review_confirmed": true
+  },
+  "SPEAKER_00": {
+    "name": "Mobin O Mazloomian",
+    "method": "human",
+    "evidence": "confirmed in review of sustainability-commission-meeting-3-10-2026.xlsx",
+    "confidence": 1.0,
+    "review_confirmed": true
+  }
+}
