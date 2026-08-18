@@ -150,3 +150,53 @@ Which lands exactly where the plan anticipated: figure-derived content has no ch
 primary text, so it cannot be spliced into it. It becomes a claim with a **different provenance
 kind** — page and figure rather than character span — recorded as such. The bake-off did not
 choose between arms; it established which layer each one is trustworthy for.
+
+---
+
+# Correction, and a hallucination risk in chart extraction
+
+## The "zero charts" finding was partly my own bug
+
+`chart_data` is a `TableData` object, not a list, and calling `len()` on it raises. The crash was
+diagnostic: it can only fire *when a chart exists*. So "0 charts" on years 2 and 4 was real, while
+**year 5 found a chart and took the counter down with it**. Fixed; year 5 re-run reports
+**1 chart, 90 extracted cells**.
+
+A second defect sat behind it: chart data does not appear in `export_to_markdown()`. Even a
+successful extraction was invisible to every downstream consumer until the cells were explicitly
+appended.
+
+## Docling and Azure CU extract DIFFERENT charts
+
+Not better or worse — different figures on the same page range:
+
+| known chart value | Docling | Azure CU |
+|---|---|---|
+| 11.88 MW · 711 installations (solar) | – | **found** |
+| GHG time series by fuel type, 2015-2020 | **found (90 cells)** | – |
+| 78 MW · 2,770 · 1,390 · 1,090 | – | – |
+
+Neither is a superset. Both miss the same four values.
+
+## The extracted chart data shows signs of fabrication
+
+Docling's 90 cells parse as a clean table — and that is the problem:
+
+| Year | Electricity | Vehicle Fuel | Natural Gas | Waste | Propane | AvGas | Rail |
+|---|---|---|---|---|---|---|---|
+| 2015 | 1.33 | 0.6 | 0.6 | 0.2 | 0.1 | 0.1 | 0.1 |
+| 2016 | 1.22 | 0.6 | 0.6 | 0.2 | 0.1 | 0.1 | 0.1 |
+| 2020 | 0.69 | 0.6 | 0.6 | 0.2 | 0.1 | 0.1 | 0.1 |
+
+**Only the Electricity column varies.** Six of seven categories are identical to one decimal
+place across every year. Real emissions inventories do not behave that way. The header also
+contains `A22ERC`, garbled from `A2ZERO`, which is direct evidence of OCR strain on the same
+figure.
+
+The structure is right, the values are plausible, and nothing errors — so these would land as six
+years of well-formed `quantities` rows. This is the founding failure mode reproduced inside the
+one capability that was supposed to close the infographic gap.
+
+**Therefore: chart-derived numerics are `unverified` by default, never publishable without human
+adjudication.** They are a lead, not a fact. The same rule already applies to unverified
+transcript spans, and for the same reason.

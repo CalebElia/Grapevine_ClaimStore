@@ -71,12 +71,29 @@ def run(pdf: Path, out: Path, chart_extraction: bool = True) -> dict:
 
     # Chart data does NOT appear in export_to_markdown() -- it lives on the item metadata.
     # Pull it out explicitly, or the entire point of do_chart_extraction is invisible.
-    charts, chart_cells = 0, 0
+    # chart_data is a TableData object, NOT a list -- len() on it raises TypeError.
+    # The first version did exactly that, and the crash was diagnostic: it can only
+    # fire WHEN a chart exists, so "0 charts" on years 2 and 4 was real while year 5
+    # actually found one and took the counter down with it. Extract the cells rather
+    # than measuring the container.
+    charts, chart_cells, chart_text = 0, 0, []
     for item, _ in doc.iterate_items():
         tab = getattr(getattr(item, "meta", None), "tabular_chart", None)
-        if tab is not None:
-            charts += 1
-            chart_cells += len(getattr(tab, "chart_data", None) or [])
+        if tab is None:
+            continue
+        charts += 1
+        data = getattr(tab, "chart_data", None)
+        cells = getattr(data, "table_cells", None) or []
+        chart_cells += len(cells)
+        for c in cells:
+            t = (getattr(c, "text", "") or "").strip()
+            if t:
+                chart_text.append(t)
+    # Chart data does not appear in export_to_markdown(), so append it explicitly or
+    # the entire capability stays invisible to every downstream consumer.
+    if chart_text:
+        md = md + "\n\n<!-- docling chart data -->\n" + " | ".join(chart_text)
+        out.write_text(md)
     return {"seconds": round(elapsed, 1), "words": len(md.split()),
             "charts": charts, "chart_cells": chart_cells, "out": str(out)}
 
