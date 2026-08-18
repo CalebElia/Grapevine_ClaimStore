@@ -34,9 +34,28 @@ KNOWN = {
     "GRAPEVINE_DEPLOYMENT_EXTRACT_ALT": ("optional benchmark", "second deployment; may be blank"),
     "HF_TOKEN":         ("re-running diarization", "accept BOTH pyannote licences first"),
     "GRAPEVINE_DSN":    ("database access", "defaults to the local socket"),
+
+    # Text path (pipeline/convert_document.py, parse_audit.py, convert_compare.py).
+    # A SEPARATE Azure resource from OPENAI_BASE_URL above -- do not conflate the two
+    # endpoints when debugging a 404.
+    "CU_ENDPOINT":                  ("Content Understanding", "own resource, not the OpenAI one"),
+    "CU_API_KEY":                   ("Content Understanding", "Keys and Endpoint page"),
+    "CU_API_VERSION":               ("Content Understanding", "GA 2025-11-01; preview unlocks agentic mode"),
+    "CU_ANALYZER_ID":               ("Content Understanding", "Document Layout Analyzer's id"),
+    "GRAPEVINE_DEPLOYMENT_VISION":     ("Tier 3 vision census", "deployment must accept image input"),
+    "GRAPEVINE_DEPLOYMENT_VISION_ALT": ("Tier 3 cross-check", "second vision deployment; may be blank"),
+    "GRAPEVINE_VISION_API_VERSION":    ("Tier 3 vision census", "chat-completions version, not CU's"),
+    "FIRECRAWL_API_KEY":               ("Tier 2 fourth-read cross-check", "Collin's account credits"),
 }
 
-OPTIONAL = {"GRAPEVINE_DEPLOYMENT_EXTRACT_ALT", "GRAPEVINE_DSN", "HF_TOKEN"}
+OPTIONAL = {
+    "GRAPEVINE_DEPLOYMENT_EXTRACT_ALT", "GRAPEVINE_DSN", "HF_TOKEN",
+    # Text path — every one of these gates a single optional converter/audit arm,
+    # not the pdfplumber baseline, so an unfilled value is a choice, not an error.
+    "CU_ENDPOINT", "CU_API_KEY", "CU_API_VERSION", "CU_ANALYZER_ID",
+    "GRAPEVINE_DEPLOYMENT_VISION", "GRAPEVINE_DEPLOYMENT_VISION_ALT",
+    "GRAPEVINE_VISION_API_VERSION", "FIRECRAWL_API_KEY",
+}
 
 
 def load_dotenv(path: Path | None = None) -> int:
