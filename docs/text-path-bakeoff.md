@@ -86,3 +86,67 @@ python -m pipeline.convert_firecrawl --pdf X --out Y
 /opt/miniconda3/envs/grapevine-docling/bin/python -m pipeline.convert_docling --pdf X --out Y
 python -m pipeline.convert_score --truth vetted.md --against "label=out.md" --grants
 ```
+
+---
+
+# Years 4 and 5 — the text-layer regime
+
+Year 2 has no text layer. Years 3–5 do, and pdfplumber reads it at ~98% parity. That makes
+these documents a different test: not *can an arm recover anything*, but **does an arm preserve
+a text layer that is already good, and does it add the chart content nobody has ever mined?**
+
+## The arms turn out to be complementary, not competing
+
+**Chart recovery.** Year 5's hand-made `data_points` block records nine numeric facts read out
+of one dashboard chart. Testing who finds them:
+
+| known chart value | pdfplumber | Azure CU | FireCrawl |
+|---|---|---|---|
+| 6.5 MW · 11.88 · 711 · $3.8 million · $400,000 | – | **found** | – |
+| 78 MW · 2,770 · 1,390 · 1,090 | – | – | – |
+
+**Azure CU recovers 5 of 9; pdfplumber and FireCrawl recover 0 of 9.** CU detected 27 figures on
+year 4 and 33 on year 5 — essentially every chart-sized figure in each — and its alt-text is
+genuinely reading pictures ("City officials break ground on Fire Station 4, Michigan's first
+net-zero fire station"). This is the capability nothing else in the stack has.
+
+Caveat on scale: detecting 33 figures yielded only 6 genuinely new numeric values on year 5 and
+2 on year 4. Most figures are photographs, not data graphics. The gap is real but smaller than
+the raw figure count suggests.
+
+Caveat on noise: 3 of 33 alt-texts contain garbled OCR of stylised logos. Roughly 9%, and it is
+decorative text, not data — but it is text that will enter the corpus unless filtered.
+
+**Verbatim fidelity.** Against pdfplumber as the text-layer reference:
+
+| | Azure CU intact | FireCrawl intact |
+|---|---|---|
+| year 4 (174 sentences) | **14%** | 39% |
+| year 5 (250 sentences) | **44%** | 51% |
+
+CU's mid-phrase truncation is **systematic, not a year-2 artifact**. It loses prose on every
+document tested, in the regime where the text layer is known-good.
+
+## Docling's chart extraction did not fire on these either
+
+Zero charts on year 4, despite 28 chart-sized figures — the same result as year 2, and again not
+a misconfiguration. Two documents, two regimes, zero charts. The capability that justified
+retesting Docling does not apply to this corpus. It ran in 70s on year 4 (versus 1188s on year 2,
+where the missing text layer forced heavy VLM work), so the cost is regime-dependent, but the
+benefit has not appeared in either regime.
+
+## What this implies for the architecture
+
+The result is **not** "pick a winner." It is that two arms do different, non-overlapping jobs:
+
+- **Text layer → pdfplumber.** It *is* the text layer, it is free, it is instant, and it carries
+  a native page map. On years 3–5 nothing beat it on fidelity because nothing can: the other arms
+  are transcribing what pdfplumber reads directly.
+- **Figure content → Azure CU.** The only arm that recovers numbers locked in images, in both
+  regimes.
+- **No text layer (year 2) → CU or FireCrawl.** FireCrawl for prose completeness, CU for figures.
+
+Which lands exactly where the plan anticipated: figure-derived content has no char offset in the
+primary text, so it cannot be spliced into it. It becomes a claim with a **different provenance
+kind** — page and figure rather than character span — recorded as such. The bake-off did not
+choose between arms; it established which layer each one is trustworthy for.
