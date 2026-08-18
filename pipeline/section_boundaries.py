@@ -50,6 +50,9 @@ _LEADING_NUM = re.compile(r"^(?:STRATEGY\s+)?(\d+)\s*:", re.I)
 class Section:
     heading: str                  # CU's heading text, first occurrence verbatim
     anchor: str                   # opening phrase used to locate this section
+    cu_body: str = ""             # CU's own text for this section -- the fallback
+                                   # when pdfplumber's span can't be located (see
+                                   # orchestrate_document.py's UNVERIFIED handling)
     pdf_start: int | None = None  # located span in pdfplumber's text
     pdf_end: int | None = None
     page_start: int | None = None
@@ -132,8 +135,15 @@ def cu_sections(cu_text: str) -> list[Section]:
     out: list[Section] = []
     for heading, body in raw:
         if out and _same_section(heading, out[-1].heading):
-            continue    # continuation of the previous section -- same anchor still applies
-        out.append(Section(heading=heading, anchor=_anchor_phrase(body)))
+            # Continuation: its BODY still belongs to the section, even though its own
+            # heading line is dropped. An earlier version discarded the continuation's
+            # text entirely here, which only stayed invisible because a located
+            # section's span comes from pdfplumber, not cu_body -- the omission would
+            # have silently truncated exactly the sections that most need cu_body
+            # complete: the ones whose pdfplumber anchor fails to locate.
+            out[-1].cu_body += "\n\n" + body
+            continue
+        out.append(Section(heading=heading, anchor=_anchor_phrase(body), cu_body=body))
     return out
 
 

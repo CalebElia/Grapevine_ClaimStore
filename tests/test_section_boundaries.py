@@ -153,3 +153,17 @@ def test_an_unlocated_section_does_not_break_boundaries_for_the_ones_that_are():
     secs = locate(cu_sections(cu), pdf)
     assert secs[0].located and not secs[1].located and secs[2].located
     assert secs[0].pdf_end == secs[2].pdf_start   # B contributed no boundary at all
+
+
+def test_continuation_body_text_is_accumulated_not_dropped():
+    """An earlier version dropped a continuation's BODY along with its heading -- only
+    invisible because a LOCATED section's span comes from pdfplumber, not cu_body. The
+    omission would have silently truncated cu_body exactly for the sections that most
+    need it complete: the ones whose pdfplumber anchor fails to locate, where cu_body
+    is the only fallback content available.
+    """
+    cu = "## STRATEGY 1: Long Title\n\nPage one body.\n\n## STRATEGY 1: SHORT\n\nPage two body."
+    secs = cu_sections(cu)
+    assert len(secs) == 1
+    assert "Page one body." in secs[0].cu_body
+    assert "Page two body." in secs[0].cu_body
