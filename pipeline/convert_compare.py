@@ -63,7 +63,11 @@ def _norm_money(s: str) -> str:
 
 
 def extract(kind: str, rx: re.Pattern, text: str) -> Counter:
-    vals = [m.strip() for m in rx.findall(text)]
+    # Collapse internal whitespace before comparing. A converter that wraps a line
+    # between "10,000" and "Trees" has not reported a DIFFERENT quantity, and counting
+    # it as one produced a false hallucination flag against Content Understanding --
+    # which matters, because that column is meant to be the disqualifying one.
+    vals = [" ".join(m.split()) for m in rx.findall(text)]
     if kind == "money":
         vals = [_norm_money(v) for v in vals]
     return Counter(v for v in vals if v)
