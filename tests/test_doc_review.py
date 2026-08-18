@@ -146,7 +146,7 @@ def test_a_capitalised_sentence_ending_in_punctuation_is_not_mistaken_for_a_head
     """
     from pipeline.export_doc_review import _paragraphs
     t = "Some long lead-in text that runs on for a while here.\nThank You."
-    paras = _paragraphs(t)
+    paras, _ = _paragraphs(t)
     assert any("Thank You." in p for p in paras)
 
 
@@ -159,3 +159,60 @@ def test_within_paragraph_line_wraps_still_collapse_to_one_line():
         "in the source PDF and should read as one continuous sentence when reviewed.")
     sents = _sentences(t)
     assert any("\n" not in s and "wrap across two lines" in s for s in sents)
+
+
+# ── the heading heuristic's known failure mode, made loud instead of silent ────────────
+
+def test_all_caps_heading_matches_but_title_case_does_not():
+    """Confirmed directly, not assumed: this heuristic is corpus-specific. A document
+    using Title Case headings instead of ALL CAPS regresses to the exact bug this module
+    fixed, and nothing about the regex itself signals that -- check_heading_density()
+    exists because of this gap, not despite it.
+    """
+    from pipeline.export_doc_review import _HEADING
+    assert _HEADING.match("CLOSING REMARKS")
+    assert not _HEADING.match("Closing Remarks")
+
+
+def test_a_long_title_case_document_raises_rather_than_silently_degrading():
+    from pipeline.export_doc_review import HeadingDetectionUnreliable, check_heading_density
+    body = ("This is an ordinary sentence about municipal sustainability programs and "
+           "their measurable outcomes across the reporting period. ") * 90
+    t = "Introduction\n\n" + body + "\nClosing Remarks\n\n" + body
+    assert len(t.split()) > 1500, "test document must clear the length threshold"
+    try:
+        check_heading_density(t, "synthetic")
+        assert False, "a heading-free long document must raise, not pass silently"
+    except HeadingDetectionUnreliable as e:
+        assert "synthetic" in str(e)
+
+
+def test_the_real_year5_document_does_not_false_fire():
+    """The check must not cry wolf on the exact document it was tuned against."""
+    from pipeline.export_doc_review import check_heading_density
+    t = ("STRATEGY 1: RENEWABLES\n\n" + ("Ordinary body text about renewables. " * 30) +
+        "\n\nSTRATEGY 2: EFFICIENCY\n\n" + ("Ordinary body text about efficiency. " * 30) +
+        "\n\nCLOSING\n\n" + ("Ordinary closing body text here. " * 30)) * 8
+    n = check_heading_density(t, "synthetic-caps")
+    assert n > 0
+
+
+def test_a_short_heading_free_document_does_not_false_fire():
+    """The length gate matters: a genuinely short document with few headings is normal,
+    not a signal the heuristic is broken. Only a LONG heading-free document is suspicious.
+    """
+    from pipeline.export_doc_review import check_heading_density
+    short = "Just a short memo with no section headings at all, a few sentences long."
+    check_heading_density(short, "short-doc")   # must not raise
+
+
+def test_require_headings_false_skips_the_check_entirely():
+    """A caller who already knows a document doesn't use ALL CAPS can opt out rather
+    than being blocked from generating a workbook that is still useful without it.
+    """
+    from pipeline.export_doc_review import build_rows
+    body = ("This is an ordinary sentence about municipal programs and measurable "
+           "outcomes across the period. ") * 90
+    arms = {"pdfplumber": body, "other": body}
+    rows = build_rows(arms, lambda off: 1, require_headings=False)
+    assert isinstance(rows, list)   # did not raise

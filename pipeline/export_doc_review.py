@@ -56,7 +56,20 @@ def row_key(section: str, text: str) -> str:
 _HEADING = re.compile(r"^[A-Z0-9][A-Z0-9 ,:%&'\-]{1,58}$")
 
 
-def _paragraphs(t: str) -> list[str]:
+# Below this, a document of ordinary report length is implausibly heading-free -- more
+# likely the heading convention isn't ALL CAPS on this document and the heuristic is
+# silently doing nothing. Measured on the real Year 5 document: 44 regex matches across
+# ~7,100 words. That count is inflated (it also catches Table-of-Contents entries, each
+# heading repeated as a sub-header, and bare residual page-number digits, which trivially
+# satisfy a single-character match) and should not be read as "44 real headings" -- but
+# the inflation only matters for precision, not for this check's purpose, which is
+# telling "roughly zero" apart from "plausible". The threshold is set far enough under
+# even a conservative real-heading estimate (~15) that it won't false-fire on a document
+# merely light on section breaks.
+_MIN_HEADING_DENSITY = 1 / 2000  # headings per word
+
+
+def _paragraphs(t: str) -> tuple[list[str], int]:
     """Split on blank-line breaks AND heading lines, so neither can fuse with adjacent
     prose. A heading has no ".!?" and is short; a real sentence fragment from mid-page
     line-wrapping either ends in punctuation or is not a self-contained line at all.
@@ -69,8 +82,23 @@ def _paragraphs(t: str) -> list[str]:
     structured, with the heading on its own line -- and the old flattening step turned
     that into "23 CLOSING A2ZERO is our community's plan..." for the reviewer to read,
     making a real pdfplumber page-number defect look like a lost-heading defect too.
+
+    THE LIMIT THIS DOES NOT SOLVE. _HEADING requires an all-caps line, because every
+    real heading measured in this corpus is all-caps. A Title Case report ("Closing
+    Remarks") will silently match NOTHING -- confirmed directly: _HEADING.match("Closing
+    Remarks") is False, _HEADING.match("CLOSING REMARKS") is True. On such a document
+    this function degrades exactly back to the bug it replaces, with no exception raised.
+    The general fix is font-size/weight from pdfplumber's own page.chars, which every
+    typeset heading uses regardless of case convention -- deferred, because CU is now the
+    intended structure source for the real pipeline (its heading detection already beat
+    pdfplumber's own on this test) and building a parallel font-metadata detector for a
+    role pdfplumber is being retired from is not worth it right now.
+    So instead of a better heuristic: a COUNT, returned alongside the paragraphs, so the
+    caller can refuse to trust a suspiciously heading-free result rather than silently
+    ship it. See _MIN_HEADING_DENSITY and its use in build_rows().
     """
     out: list[str] = []
+    n_headings = 0
     for block in re.split(r"\n\s*\n+", t):          # real paragraph / page gaps
         buf: list[str] = []
         for ln in block.split("\n"):
@@ -79,17 +107,19 @@ def _paragraphs(t: str) -> list[str]:
                 if buf:
                     out.append(" ".join(buf))
                     buf = []
+                n_headings += 1
                 # the heading itself is not a prose sentence -- do not emit it
             else:
                 buf.append(ln)
         if buf:
             out.append(" ".join(buf))
-    return out
+    return out, n_headings
 
 
 def _sentences(t: str, lo=60, hi=250) -> list[str]:
+    paras, _ = _paragraphs(t)
     out = []
-    for para in _paragraphs(t):
+    for para in paras:
         for s in re.split(r"(?<=[.!?])\s+", para):
             flat = " ".join(s.split())          # collapse WITHIN-paragraph line wraps only
             if lo <= len(flat) <= hi:
@@ -97,10 +127,49 @@ def _sentences(t: str, lo=60, hi=250) -> list[str]:
     return out
 
 
-def build_rows(arms: dict[str, str], page_of, seed: int = 7, n_control: int = 12) -> list[dict]:
-    """arms: {label: text}. `page_of` maps a char offset in the reference arm to a page."""
+class HeadingDetectionUnreliable(RuntimeError):
+    """Raised when a document is long enough to expect headings but the all-caps
+    heuristic found none -- see _paragraphs()'s docstring for exactly what this heuristic
+    does and does not generalize to. Silently proceeding here reproduces the bug this
+    module was written to fix, on the next document that happens to use Title Case.
+    """
+
+
+def check_heading_density(text: str, label: str = "document") -> int:
+    """Refuse to trust a suspiciously heading-free result rather than ship it quietly.
+
+    See _MIN_HEADING_DENSITY for the measurement this threshold is set against. It does
+    not fire on documents that are merely light on section breaks -- only on the "found
+    approximately zero headings in a real report" case that means the heuristic itself
+    is not matching this document's convention.
+    """
+    _, n = _paragraphs(text)
+    words = len(text.split())
+    if words > 1500 and n < words * _MIN_HEADING_DENSITY:
+        raise HeadingDetectionUnreliable(
+            f"{label}: {n} all-caps heading(s) detected across {words:,} words -- "
+            f"implausibly low for a report this length. The heading heuristic in "
+            f"_paragraphs() requires ALL CAPS and this document likely uses a different "
+            f"convention (e.g. Title Case), meaning headings are silently fusing with "
+            f"body text again. Do not trust this workbook's Disagreement/Control rows "
+            f"until this is resolved -- either the document's real heading style, or a "
+            f"font-metadata-based detector (see _paragraphs() docstring).")
+    return n
+
+
+def build_rows(arms: dict[str, str], page_of, seed: int = 7, n_control: int = 12,
+              require_headings: bool = True) -> list[dict]:
+    """arms: {label: text}. `page_of` maps a char offset in the reference arm to a page.
+
+    require_headings=False skips check_heading_density() -- for a document already
+    KNOWN not to use ALL CAPS headings, where the workbook is still useful (Disagreement
+    and Control sections do not depend on heading detection at all) and the caller is
+    choosing to accept degraded paragraph splitting rather than block on it.
+    """
     ref_label = "pdfplumber" if "pdfplumber" in arms else sorted(arms)[0]
     ref = arms[ref_label]
+    if require_headings:
+        check_heading_density(ref, ref_label)
     rows: list[dict] = []
 
     # ── Disagreements: reference sentence present in one arm, absent/truncated in another
