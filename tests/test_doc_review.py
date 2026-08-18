@@ -95,3 +95,25 @@ def test_dropdown_offers_every_verdict_the_importer_accepts():
 def test_header_and_column_map_cannot_drift_apart():
     assert list(COL) == HEADER
     assert COL["row_key"] == len(HEADER)
+
+
+def test_identical_true_text_on_both_fine_is_not_counted_as_wrong():
+    """Measured on the real Year 5 review: a reviewer filled True text with the SAME
+    wording as Version A on a row marked 'both fine' -- habit, not a correction. That
+    inflated the control error rate from 8% to 17% before this was caught. Only a
+    true_text that actually DIFFERS from the machine's version is a real correction.
+    """
+    from pipeline.import_doc_review import report
+    import io, contextlib
+
+    rows = [{"section": "Control", "page": 1, "verdict": "both fine",
+            "true_text": "same wording", "version_a": "same wording", "notes": "",
+            "check": "k", "version_b": "-", "row_key": "a"},
+            {"section": "Control", "page": 1, "verdict": "both wrong",
+            "true_text": "the real text", "version_a": "wrong text", "notes": "",
+            "check": "k", "version_b": "-", "row_key": "b"}]
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        report({"rows": rows, "unknown_verdicts": []})
+    out = buf.getvalue()
+    assert "1/2" in out and "50%" in out

@@ -85,13 +85,18 @@ def report(d: dict) -> None:
              (r["verdict"] or r["true_text"] or r["notes"])]
         if not s:
             continue
+        # A "both fine" verdict with an IDENTICAL true_text is not a correction -- it is
+        # a reviewer habitually filling the column. Measured: this inflated the Year 5
+        # control error rate from 8% to 17% before being caught. Only count true_text
+        # when it actually differs from the machine's version.
         wrong = sum(1 for r in s if r["verdict"] in ("A is right", "B is right", "both wrong")
-                    or r["true_text"])
+                    or (r["true_text"] and r["true_text"] != r["version_a"]))
         print(f"  {sec:<16}{len(s):>10}{wrong:>8}{wrong/len(s):>11.0%}")
 
     ctl = [r for r in rows if r["section"] == "Control" and r["verdict"]]
     if ctl:
-        bad = sum(1 for r in ctl if r["verdict"] != "both fine" or r["true_text"])
+        bad = sum(1 for r in ctl if r["verdict"] != "both fine"
+                  or (r["true_text"] and r["true_text"] != r["version_a"]))
         print(f"\n  FALSE-NEGATIVE ESTIMATE: {bad}/{len(ctl)} = {bad/len(ctl):.0%} of passages")
         print("  the automation flagged NOTHING on were wrong anyway.")
         print("  This is the only number here that tests whether the automation is trustworthy.")

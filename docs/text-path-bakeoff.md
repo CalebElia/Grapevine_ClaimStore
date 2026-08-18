@@ -200,3 +200,72 @@ one capability that was supposed to close the infographic gap.
 **Therefore: chart-derived numerics are `unverified` by default, never publishable without human
 adjudication.** They are a lead, not a fact. The same rule already applies to unverified
 transcript spans, and for the same reason.
+
+---
+
+# Human review of the Year 5 workbook — 52/52 rows
+
+The reviewer completed all three sections. One bug was found in the import script's own
+scoring before the numbers below could be trusted — a "both fine" row where the reviewer
+had also filled ✎ True text with wording IDENTICAL to the machine's version was counted as
+a correction. That inflated the control error rate from 8% to 17%. Fixed, with a regression
+test pinned to this exact case.
+
+## Corrected results
+
+| section | rows | flagged wrong | rate |
+|---|---|---|---|
+| Disagreement | 20 | 20 | 100% |
+| Chart data | 20 | 19 | 95% |
+| **Control** | 12 | **1** | **8%** |
+
+**8% false-negative rate.** Of passages the automation flagged nothing on, 1 in 12 was
+still wrong. Better than feared, and it has a specific, nameable cause (below) rather than
+being unexplained noise.
+
+## The disagreement outcome breaks down as: pdfplumber wins or nobody does
+
+`{'A is right': 11, 'both wrong': 9}` — B (whichever arm diverged from pdfplumber, mostly
+Azure CU) **never won outright**. This matches the automated sentence-completeness numbers
+exactly (CU 15-44% intact vs. pdfplumber's own text). But "both wrong" at 9/20 is new
+information: pdfplumber's own text — the thing being used as the de facto reference for
+years 4-5 — has real defects nearly half the time a disagreement was flagged.
+
+## Independent human confirmation of the GHG chart fabrication
+
+The reviewer, with no knowledge of our automated finding, wrote **"Don't know where this is
+from"** on eight consecutive rows of Docling's extracted GHG table — the same table flagged
+earlier for having six of seven fuel-type columns identical to one decimal place across six
+years. Other notes on the same figure: *"mangled text from a bar chart,"* *"useless in this
+format."* This upgrades that finding from statistical inference to human-verified.
+
+By contrast, the three Azure CU chart values marked **unsure** (not wrong) are exactly the
+three we had already independently confirmed as genuine, pulled from the same dashboard
+screengrab: 11.88 (MW new solar), $400,000, $3.8 million. The reviewer's uncertainty was
+honest — hard to verify a screengrab by eye — and it landed precisely on the real ones.
+
+## Two pdfplumber defects, neither known before this review
+
+**Page-number bleed.** Three rows start with a bare 1-2 digit number lifted from the
+PREVIOUS page's footer: `"23 CLOSING A2ZERO is..."`, `"19 7: OTHER - AmeriCorps..."`,
+`"6 1: 100% RENEWABLES - The City..."`. Checked for scale: **16 such prefixes** appear
+across the document, not an isolated glitch. A cheap regex strip at page-join time removes
+it; the fix belongs in `convert_document.py`, since pdfplumber is the production text-layer
+backend.
+
+**Column interleaving.** *"three Electronics Collection events this last year! At each
+[Local Food Festival.] event, over 6,000 pounds..."* — a caption from an adjacent column
+spliced mid-sentence, because pdfplumber reads left-to-right across the physical page
+rather than column-by-column. This is the Control-section false negative: nothing is
+missing and nothing disagrees between arms (every arm made the same reading-order error,
+if they touched this region at all), so it is invisible to both Tier 1 and Tier 2 by
+construction. Only a human, or a semantic-coherence pass of the kind discussed for a
+possible adjudicator, would catch it.
+
+## Net effect on the architecture decision
+
+Nothing here overturns the earlier conclusion — pdfplumber remains the right text-layer
+backend, Azure CU remains the only source of real figure content, chart-derived numerics
+remain unverified-by-default. What it adds: two concrete, fixable pdfplumber defects, human
+confirmation strong enough to stop hedging on the chart-fabrication finding, and a real
+(not assumed) 8% baseline for what "nothing flagged" is worth.
