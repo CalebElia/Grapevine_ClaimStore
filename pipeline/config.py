@@ -44,7 +44,9 @@ KNOWN = {
     "CU_ANALYZER_ID":               ("Content Understanding", "Document Layout Analyzer's id"),
     "GRAPEVINE_DEPLOYMENT_VISION":     ("Tier 3 vision census", "deployment must accept image input"),
     "GRAPEVINE_DEPLOYMENT_VISION_ALT": ("Tier 3 cross-check", "second vision deployment; may be blank"),
-    "GRAPEVINE_VISION_API_VERSION":    ("Tier 3 vision census", "chat-completions version, not CU's"),
+    # No GRAPEVINE_VISION_API_VERSION -- checked against Microsoft's v1 API docs and
+    # removed. /openai/v1/chat/completions is GA with no api-version parameter; see
+    # .env.example for the full reasoning and the one signal that would overturn it.
     "FIRECRAWL_API_KEY":               ("Tier 2 fourth-read cross-check", "Collin's account credits"),
 }
 
@@ -53,8 +55,7 @@ OPTIONAL = {
     # Text path — every one of these gates a single optional converter/audit arm,
     # not the pdfplumber baseline, so an unfilled value is a choice, not an error.
     "CU_ENDPOINT", "CU_API_KEY", "CU_API_VERSION", "CU_ANALYZER_ID",
-    "GRAPEVINE_DEPLOYMENT_VISION", "GRAPEVINE_DEPLOYMENT_VISION_ALT",
-    "GRAPEVINE_VISION_API_VERSION", "FIRECRAWL_API_KEY",
+    "GRAPEVINE_DEPLOYMENT_VISION", "GRAPEVINE_DEPLOYMENT_VISION_ALT", "FIRECRAWL_API_KEY",
 }
 
 
