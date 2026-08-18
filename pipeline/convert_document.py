@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import json
 import time
 from dataclasses import dataclass, asdict
@@ -76,6 +77,31 @@ def _assemble(pages: list[str]) -> tuple[str, list[tuple[int, int, int]]]:
     return "".join(parts), page_map
 
 
+# The trailing footer-number bleed, MEASURED not assumed. Checked every page's raw
+# trailing token against its own 1-based page index across a24-page real report: page 1
+# ends "...2025\n1", page 23 ends "...level. 23", page 24 ends "...org.\n24" -- 18 of 24
+# pages end in exactly their own page number, on its own line or glued to the last
+# sentence with a single space. Validating the strip against the ACTUAL page index (not
+# just "looks like a small number") is what makes this safe: real content coincidentally
+# being both the LAST token on a page AND numerically equal to that exact page's ordinal
+# position is not a thing that happens by chance across 24 pages.
+#
+# Left unstripped, this is what corrupted the human review workbook: pdfplumber's raw
+# text for the Year 5 closing section is genuinely well-formed --
+# "...household\nlevel. 23\n\nCLOSING\nA2ZERO is our community's plan..." -- but the
+# trailing "23" from the PRIOR page reads as glued onto the following heading once
+# whitespace is collapsed for display, and it has no place in a claim's verbatim text
+# regardless of formatting: a page footer is not part of the document's prose.
+_FOOTER_TAIL = re.compile(r"\s*\b(\d{1,3})\s*$")
+
+
+def _strip_footer_number(text: str, page_no: int) -> str:
+    m = _FOOTER_TAIL.search(text)
+    if m and int(m.group(1)) == page_no:
+        return text[:m.start()]
+    return text
+
+
 def convert_pdfplumber(pdf_path: Path) -> Conversion:
     import pdfplumber
     try:
@@ -84,7 +110,8 @@ def convert_pdfplumber(pdf_path: Path) -> Conversion:
     except Exception:
         ver = "unknown"
     with pdfplumber.open(str(pdf_path)) as pdf:
-        pages = [(p.extract_text() or "") for p in pdf.pages]
+        pages = [_strip_footer_number(p.extract_text() or "", i)
+                for i, p in enumerate(pdf.pages, 1)]
     text, page_map = _assemble(pages)
     return Conversion(
         source_path=str(pdf_path), converter="pdfplumber", converter_version=ver,

@@ -45,9 +45,56 @@ def row_key(section: str, text: str) -> str:
     return hashlib.sha256(f"{section}::{text}".encode()).hexdigest()[:16]
 
 
+# A heading line, MEASURED against every standalone short line in the real Year 5
+# document, not guessed. Every genuine heading found -- "CLOSING", "STRATEGY 2:
+# BENEFICIAL", "1: 100% RENEWABLES" -- is entirely uppercase (digits/%/: allowed).
+# An earlier version matched "short + capitalised + no terminal punctuation" instead,
+# which also matches the FIRST LINE of an ordinary wrapped sentence ("This is a
+# perfectly ordinary sentence that happens to wrap") -- caught by its own test before
+# being trusted. Requiring the whole line to be uppercase is what ordinary sentence-case
+# prose can never satisfy, wrapped or not.
+_HEADING = re.compile(r"^[A-Z0-9][A-Z0-9 ,:%&'\-]{1,58}$")
+
+
+def _paragraphs(t: str) -> list[str]:
+    """Split on blank-line breaks AND heading lines, so neither can fuse with adjacent
+    prose. A heading has no ".!?" and is short; a real sentence fragment from mid-page
+    line-wrapping either ends in punctuation or is not a self-contained line at all.
+
+    THE BUG THIS REPLACES. The previous version ran `t.split()` across the WHOLE
+    document before splitting on sentence punctuation, which discards every newline —
+    including the ones separating a page footer, a section heading, and the paragraph
+    that follows it. Measured on the real Year 5 output: pdfplumber's raw text is
+    "...household\nlevel. 23\n\nCLOSING\nA2ZERO is our community's plan..." -- correctly
+    structured, with the heading on its own line -- and the old flattening step turned
+    that into "23 CLOSING A2ZERO is our community's plan..." for the reviewer to read,
+    making a real pdfplumber page-number defect look like a lost-heading defect too.
+    """
+    out: list[str] = []
+    for block in re.split(r"\n\s*\n+", t):          # real paragraph / page gaps
+        buf: list[str] = []
+        for ln in block.split("\n"):
+            s = ln.strip()
+            if s and _HEADING.match(s) and not re.search(r"[.!?]$", s):
+                if buf:
+                    out.append(" ".join(buf))
+                    buf = []
+                # the heading itself is not a prose sentence -- do not emit it
+            else:
+                buf.append(ln)
+        if buf:
+            out.append(" ".join(buf))
+    return out
+
+
 def _sentences(t: str, lo=60, hi=250) -> list[str]:
-    return [" ".join(s.split()) for s in re.split(r"(?<=[.!?])\s+", t)
-            if lo <= len(s.strip()) <= hi]
+    out = []
+    for para in _paragraphs(t):
+        for s in re.split(r"(?<=[.!?])\s+", para):
+            flat = " ".join(s.split())          # collapse WITHIN-paragraph line wraps only
+            if lo <= len(flat) <= hi:
+                out.append(flat)
+    return out
 
 
 def build_rows(arms: dict[str, str], page_of, seed: int = 7, n_control: int = 12) -> list[dict]:

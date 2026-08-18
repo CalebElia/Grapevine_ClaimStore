@@ -117,3 +117,45 @@ def test_identical_true_text_on_both_fine_is_not_counted_as_wrong():
         report({"rows": rows, "unknown_verdicts": []})
     out = buf.getvalue()
     assert "1/2" in out and "50%" in out
+
+
+def test_a_heading_never_fuses_with_the_paragraph_that_follows_it():
+    """Measured on the real Year 5 conversion: pdfplumber's raw text is genuinely
+    well-structured -- 'level.\\n\\nCLOSING\\nA2ZERO is our community's plan...' -- with
+    the heading on its own line. The old flattener destroyed that boundary; this pins
+    the fix so the destruction cannot silently return.
+    """
+    from pipeline.export_doc_review import _sentences
+    t = ("household\nlevel.\n\nCLOSING\nA2ZERO is our community's plan to become carbon "
+        "neutral in a just and equitable way by the year 2030, per the report.")
+    sents = _sentences(t)
+    assert not any(s.startswith("CLOSING") for s in sents)
+    assert any("A2ZERO is our community's plan" in s for s in sents)
+
+
+def test_a_heading_line_is_never_emitted_as_its_own_short_sentence():
+    """A heading is not prose to review as if it were a claim-bearing quote."""
+    from pipeline.export_doc_review import _sentences
+    t = "STRATEGY 2: BENEFICIAL ELECTRIFICATION\nOSI launched a rebate program for residents to use."
+    assert "STRATEGY 2: BENEFICIAL ELECTRIFICATION" not in _sentences(t)
+
+
+def test_a_capitalised_sentence_ending_in_punctuation_is_not_mistaken_for_a_heading():
+    """The heading heuristic excludes anything ending in .!? -- a short final line of a
+    paragraph must not be discarded just because it is short and capitalised.
+    """
+    from pipeline.export_doc_review import _paragraphs
+    t = "Some long lead-in text that runs on for a while here.\nThank You."
+    paras = _paragraphs(t)
+    assert any("Thank You." in p for p in paras)
+
+
+def test_within_paragraph_line_wraps_still_collapse_to_one_line():
+    """Ordinary PDF line-wrapping (no blank line, no heading) must still join into a
+    single readable sentence -- only structural boundaries should survive as breaks.
+    """
+    from pipeline.export_doc_review import _sentences
+    t = ("This is a perfectly ordinary sentence that happens to wrap\nacross two lines "
+        "in the source PDF and should read as one continuous sentence when reviewed.")
+    sents = _sentences(t)
+    assert any("\n" not in s and "wrap across two lines" in s for s in sents)

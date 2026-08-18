@@ -73,3 +73,34 @@ def test_preexisting_markdown_is_wrapped_with_an_honest_single_page_map(tmp_path
     assert c.converter_version == "preexisting"
     assert c.page_map == [(1, 0, len(c.text))]
     assert c.page_for(3) == 1
+
+
+def test_footer_number_matching_the_page_index_is_stripped():
+    """Measured on the real Year 5 PDF: page 23's raw text ends '...level. 23', and
+    that trailing '23' is the page's OWN printed footer -- confirmed because it equals
+    the page's own 1-based index, checked across all 24 pages of the real document.
+    """
+    from pipeline.convert_document import _strip_footer_number
+    assert _strip_footer_number("household\nlevel. 23", 23) == "household\nlevel."
+    assert _strip_footer_number("some text\n24", 24) == "some text"
+
+
+def test_a_number_that_does_not_match_the_page_index_is_left_alone():
+    """The safety property: only strip when the trailing number IS that exact page's
+    ordinal position. A real content number that happens to be small and trailing
+    must survive -- e.g. a dollar figure, a count, a year fragment.
+    """
+    from pipeline.convert_document import _strip_footer_number
+    assert _strip_footer_number("we secured $5,000,000 to help launch the SEU", 6) == \
+        "we secured $5,000,000 to help launch the SEU"
+    assert _strip_footer_number("something ending in 23", 24) == "something ending in 23"
+
+
+def test_toc_page_references_are_never_touched():
+    """A table of contents legitimately pairs numbers with headings ('3 INTRODUCTION' =
+    the Introduction starts on page 3). That is real content on ONE page, not a footer
+    bleeding across a page boundary, and the strip must not remove it.
+    """
+    from pipeline.convert_document import _strip_footer_number
+    toc_page_text = "CONTENTS\n3 INTRODUCTION\n4 GREENHOUSE GAS EMISSIONS SUMMARY"
+    assert _strip_footer_number(toc_page_text, 2) == toc_page_text
