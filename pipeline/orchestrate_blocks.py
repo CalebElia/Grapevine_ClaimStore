@@ -38,12 +38,19 @@ def main() -> int:
                     help="emit <!-- p.N --> at each page change, for the human review pass")
     a = ap.parse_args()
 
-    conv, blocks, ambiguous = convert(a.pdf, a.blocks)
+    conv, blocks, report = convert(a.pdf, a.blocks)
+    ambiguous = report["ambiguous_hyphens"]
     print(f"[blocks] {len(blocks)} blocks, {len(conv.text.split()):,} words, "
           f"{conv.n_pages} pages")
     recovered = [b for b in blocks if b["kind"] == "UncoveredText"]
     print(f"[blocks] {len(recovered)} region(s) recovered by the coverage sweep "
           f"({sum(1 for b in recovered if b.get('caption_for'))} of them captions)")
+    if report["captions_associated"]:
+        print(f"[blocks] {len(report['captions_associated'])} unlinked block(s) "
+              f"associated to a picture and dropped as captions -- listed so a wrong "
+              f"association is auditable, not an invisible deletion:")
+        for pno, txt in report["captions_associated"]:
+            print(f"[blocks]   p.{pno}: {txt}")
 
     figs = []
     if a.pictures:

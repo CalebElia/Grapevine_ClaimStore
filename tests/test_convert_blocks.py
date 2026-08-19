@@ -409,3 +409,44 @@ def test_every_block_is_independently_addressable_for_chunking():
     for blk in out:
         assert text[blk["char_start"]:blk["char_end"]] == blk["text"]
         assert blk["kind"] == "ListItem"
+
+
+# ── captions Docling emits but does not LINK ───────────────────────────────────────────
+# Second review found two surviving caption bleeds: "Michael Hagan from the Green Energy
+# Neighbors..." (p.11) and "Emergency kit supplies distribution." (p.23). Both are proper
+# Docling TextItems with caption_for=None, sitting 6pt and 17pt from a photograph -- well
+# inside the association gap. The rule only ran on uncovered strays, never on Docling's
+# own unlinked blocks. Widening it needs a guard: a body paragraph beside a photo must
+# never be mistaken for a caption and silently deleted.
+
+from pipeline.convert_blocks import looks_like_caption
+
+
+def test_a_short_textitem_beside_a_photo_is_caption_shaped():
+    assert looks_like_caption({"kind": "TextItem",
+                               "text": "Emergency kit supplies distribution."})
+
+
+def test_a_long_paragraph_is_never_caption_shaped_however_close_to_a_photo():
+    """The guard that matters: dropping a body paragraph is invisible data loss."""
+    body = ("Every year the Office of Sustainability and Innovations conducts a "
+            "greenhouse gas emissions inventory for City operations and the community "
+            "as a whole, measuring progress towards the community's climate goals and "
+            "guiding science-based target setting across every strategy area.")
+    assert not looks_like_caption({"kind": "TextItem", "text": body})
+
+
+def test_a_list_item_is_never_a_caption():
+    """Bullets are the document's substance; a photo beside one changes nothing."""
+    assert not looks_like_caption({"kind": "ListItem",
+                                   "text": "- Solar reached 5.4MW."})
+
+
+def test_a_section_header_is_never_a_caption():
+    assert not looks_like_caption({"kind": "SectionHeaderItem", "text": "CLOSING"})
+
+
+def test_the_real_p11_caption_is_caption_shaped():
+    assert looks_like_caption({"kind": "TextItem", "text":
+        "Michael Hagan from the Green Energy Neighbors leading the Net-Zero Home "
+        "Energy Tour, 2024."})

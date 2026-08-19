@@ -91,7 +91,52 @@ def anchor_span(anchor: str, block: dict) -> tuple[int, int] | None:
     return block["char_start"] + pos, block["char_start"] + pos + len(a)
 
 
-def harvest(pdf_path, blocks: list[dict], content_hash: str = "") -> list[dict]:
+# A sentence ends at . ! or ? followed by whitespace and a capital/quote/dash -- but NOT
+# after a known abbreviation, and NOT when the period sits inside a number. Both cases are
+# live in this corpus: "Dr. Missy Stults" appears throughout, and "5.4MW" / "$5,000,000"
+# would otherwise split a sentence mid-figure, truncating exactly the quantity a claim
+# would cite.
+_ABBREV = r"(?<!\bDr)(?<!\bMr)(?<!\bMrs)(?<!\bMs)(?<!\bSt)(?<!\bAve)(?<!\bInc)(?<!\bNo)(?<!\bU\.S)"
+_SENT_END = re.compile(r"(?<![0-9])" + _ABBREV + r"[.!?](?=\s+[\"\u201c(A-Z0-9-])")
+
+
+def sentence_around(text: str, start: int, end: int) -> str:
+    """The whole sentence containing [start, end) in the compiled spine.
+
+    Read from the COMPILED text on purpose. In the raw converter arms a sentence may
+    still be broken across visual lines, or -- on a two-column page -- interleaved with a
+    neighbouring column, so a "sentence" harvested there can be a splice of two unrelated
+    ones. The spine has already had blocks flattened and columns ordered, so a sentence
+    read here is the sentence the document actually contains.
+
+    Block boundaries (the blank line between blocks) always terminate a sentence: bullets
+    are separate assertions, and letting one run into the next would attribute a link to
+    text from a different bullet.
+    """
+    if not (0 <= start < len(text)) or end > len(text):
+        return ""
+    # rfind returns -1 when absent; -1 + 2 = 1 would silently chop the document's first
+    # character, which looked like a sentence-splitting bug rather than an offset one.
+    prev_break = text.rfind("\n\n", 0, start)
+    lo = 0 if prev_break < 0 else prev_break + 2
+    hi = text.find("\n\n", end)
+    hi = len(text) if hi < 0 else hi
+    # Searched unbounded then filtered, NOT finditer(text, lo, start): passing an endpos
+    # truncates the string the regex can see, so the trailing lookahead (whitespace then a
+    # capital) fails for a sentence end sitting right before `start` -- the boundary is
+    # missed exactly when it matters most and the whole preceding sentence bleeds in.
+    for m in _SENT_END.finditer(text, lo):
+        if m.end() > start:
+            break
+        lo = m.end()
+    m = _SENT_END.search(text, max(end - 1, lo), hi)
+    if m:
+        hi = m.end()
+    return text[lo:hi].strip()
+
+
+def harvest(pdf_path, blocks: list[dict], content_hash: str = "",
+            spine: str = "") -> list[dict]:
     """Every link in the PDF, tied to the block whose text cites it."""
     import pdfplumber
 
@@ -117,6 +162,8 @@ def harvest(pdf_path, blocks: list[dict], content_hash: str = "") -> list[dict]:
                         break
                 out.append({
                     "uri": ln["uri"], "page_no": pno, "anchor_text": anchor,
+                    "context_sentence": (sentence_around(spine, span[0], span[1])
+                                         if span and spine else ""),
                     "char_start": span[0] if span else None,
                     "char_end": span[1] if span else None,
                     "block_kind": owner["kind"] if owner else None,
@@ -136,7 +183,7 @@ def main() -> int:
 
     from pipeline.convert_blocks import convert
     conv, blocks, _ = convert(a.pdf, a.blocks)
-    links = harvest(a.pdf, blocks, conv.content_hash)
+    links = harvest(a.pdf, blocks, conv.content_hash, conv.text)
     Path(a.out).write_text(json.dumps(links, indent=2))
 
     located = sum(1 for l in links if l["located"])

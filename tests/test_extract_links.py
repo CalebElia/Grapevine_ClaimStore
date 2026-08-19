@@ -80,3 +80,55 @@ def test_anchor_matching_tolerates_whitespace_differences():
     """Block text is flattened; the cropped anchor may carry a line break."""
     block = {"text": "the net zero fire station opened", "char_start": 0}
     assert anchor_span("net  zero\nfire station", block) is not None
+
+
+# ── context_sentence ───────────────────────────────────────────────────────────────────
+# Requested in review: anchor_text stays the exact hyperlinked words, and a separate
+# context_sentence carries the whole sentence around it. Pulled from the COMPILED spine,
+# where blocks are already flattened into clean prose -- not from any raw converter arm,
+# where a sentence may still be split across visual lines or interleaved across columns.
+
+from pipeline.extract_links import sentence_around
+
+
+def test_the_sentence_containing_the_span_is_returned_whole():
+    t = "First sentence here. The City secured $5,000,000 for the SEU. Third one."
+    i = t.index("secured")
+    assert sentence_around(t, i, i + 7) == "The City secured $5,000,000 for the SEU."
+
+
+def test_a_decimal_inside_a_figure_does_not_end_the_sentence():
+    """Real corpus text: '5.4MW' and '$5,000,000' must not split a sentence."""
+    t = "Our Solarize program reached 5.4MW of solar installed. Next sentence."
+    i = t.index("Solarize")
+    assert sentence_around(t, i, i + 8).endswith("installed.")
+    assert "5.4MW" in sentence_around(t, i, i + 8)
+
+
+def test_an_abbreviation_does_not_end_the_sentence():
+    """Real corpus text: 'Dr. Missy Stults' appears throughout."""
+    t = "We met Dr. Missy Stults at the event. Then we left."
+    i = t.index("Missy")
+    assert sentence_around(t, i, i + 5) == "We met Dr. Missy Stults at the event."
+
+
+def test_a_span_in_the_first_sentence_has_no_leading_bleed():
+    t = "The first sentence. The second one."
+    assert sentence_around(t, 4, 9) == "The first sentence."
+
+
+def test_a_span_in_the_last_sentence_returns_to_the_end():
+    t = "First. Learn more at www.a2gov.org/a2seu"
+    i = t.index("Learn")
+    assert sentence_around(t, i, i + 5) == "Learn more at www.a2gov.org/a2seu"
+
+
+def test_a_span_crossing_a_block_boundary_does_not_swallow_the_next_block():
+    """Blocks are separated by a blank line in the spine; a sentence never spans one."""
+    t = "- First bullet ends here.\n\n- Second bullet begins."
+    i = t.index("First")
+    assert "Second bullet" not in sentence_around(t, i, i + 5)
+
+
+def test_an_out_of_range_span_returns_empty_rather_than_raising():
+    assert sentence_around("short", 900, 950) == ""

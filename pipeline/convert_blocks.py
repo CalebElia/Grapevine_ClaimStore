@@ -186,6 +186,29 @@ def assemble_blocks(blocks: list[dict], n_pages: int
     return text, page_map, out
 
 
+_CAPTION_MAX_WORDS = 25
+
+
+def looks_like_caption(block: dict) -> bool:
+    """Whether a block is SHAPED like a caption, before geometry is consulted.
+
+    Needed because widening caption association from uncovered strays to Docling's own
+    unlinked blocks (which is what the p.11 and p.23 bleeds require) also widens the blast
+    radius: a body paragraph beside a photograph would be dropped as if it were a caption,
+    and a silent deletion of real prose is far worse than a stray caption left in.
+
+    So a caption must be a plain TextItem -- never a ListItem, which carries the bullets
+    that are this corpus's actual substance, and never a heading -- and must be short.
+    Measured against the real captions: the longest on Year 5 is 15 words ("Michael Hagan
+    from the Green Energy Neighbors leading the Net-Zero Home Energy Tour, 2024."), while
+    the shortest body paragraph beside a photo runs well past 25.
+    """
+    if block.get("kind") != "TextItem":
+        return False
+    words = (block.get("text") or "").split()
+    return 0 < len(words) <= _CAPTION_MAX_WORDS
+
+
 _CAPTION_GAP = 40.0     # pt; a caption sits within this of its picture's edge
 
 
@@ -312,6 +335,7 @@ def convert(pdf_path, blocks_path):
     words, hyph = build_evidence("\n".join(raws))
 
     ambiguous: list[tuple[str, str]] = []
+    captioned: list[tuple[int, str]] = []
     resolved: list[dict] = []
     for i, (b, raw) in enumerate(zip(blocks, raws)):
         if b["kind"] == "PictureItem":
@@ -353,6 +377,7 @@ def convert(pdf_path, blocks_path):
                        for p2 in blocks
                        if p2["kind"] == "PictureItem" and p2["page_no"] == pno]
             for s in strays:
+                s["_swept"] = True
                 s["top"], s["bottom"] = s["bbox"][1], s["bbox"][3]
                 s["x0"], s["x1"] = s["bbox"][0], s["bbox"][2]
                 owner = associate_caption(s, pics_tl)
@@ -365,6 +390,38 @@ def convert(pdf_path, blocks_path):
                 for k, s in enumerate(strays):
                     s["_ord"] = prev + 0.001 * (k + 1)
                 resolved[at:at] = strays
+
+    # WIDEN CAPTION ASSOCIATION TO DOCLING'S OWN UNLINKED BLOCKS. Docling links only some
+    # captions (13 on Year 5); others it emits as ordinary TextItems with no link, which
+    # then render as prose stranded where a photo used to be -- both surviving bleeds in
+    # the second review were this. Guarded by looks_like_caption() so a body paragraph
+    # beside a photograph can never be swallowed, and every association is recorded so a
+    # wrong one is auditable rather than an invisible deletion.
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        for pno in range(1, n_pages + 1):
+            H = pdf.pages[pno - 1].height
+            pics_tl = [{"page_no": p2["page_no"], "self_ref": p2["self_ref"],
+                        "worth_extraction": p2.get("worth_extraction", False),
+                        "x0": min(p2["bbox"][0], p2["bbox"][2]),
+                        "x1": max(p2["bbox"][0], p2["bbox"][2]),
+                        "top": min(H - p2["bbox"][1], H - p2["bbox"][3]),
+                        "bottom": max(H - p2["bbox"][1], H - p2["bbox"][3])}
+                       for p2 in blocks
+                       if p2["kind"] == "PictureItem" and p2["page_no"] == pno]
+            for b in resolved:
+                if b["page_no"] != pno or b.get("caption_for") or b.get("_swept"):
+                    continue
+                if not looks_like_caption(b):
+                    continue
+                bb = b["bbox"]
+                probe = {"page_no": pno,
+                         "x0": min(bb[0], bb[2]), "x1": max(bb[0], bb[2]),
+                         "top": min(H - bb[1], H - bb[3]),
+                         "bottom": max(H - bb[1], H - bb[3])}
+                owner = associate_caption(probe, pics_tl)
+                if owner is not None:
+                    b["caption_for"] = owner["self_ref"]
+                    captioned.append((pno, b["text"][:70]))
 
     text, page_map, with_offsets = assemble_blocks(resolved, n_pages)
     try:
@@ -389,4 +446,5 @@ def convert(pdf_path, blocks_path):
         content_hash=hashlib.sha256(text.encode()).hexdigest(),
         n_pages=n_pages,
         converted_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
-    return conv, render_stream, ambiguous
+    return conv, render_stream, {"ambiguous_hyphens": ambiguous,
+                                 "captions_associated": captioned}
