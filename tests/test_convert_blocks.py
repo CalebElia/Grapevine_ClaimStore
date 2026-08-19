@@ -358,3 +358,54 @@ def test_a_trailing_number_that_is_not_the_page_number_is_kept():
     words = [_w("installed", 10, 700), _w("2024", 130, 700)]
     g = group_uncovered(words, page_no=7)
     assert g[0]["text"].endswith("2024")
+
+
+# ── the citation spine carries no markup, by construction ──────────────────────────────
+# Asked directly during review: "Do any of the HTML blocks in the document pose an ingest
+# risk?" They cannot, PROVIDED ingest reads the Conversion rather than the rendered
+# markdown. That proviso is the whole answer, so it is pinned here rather than left as a
+# convention someone could unknowingly break.
+
+def test_the_text_spine_is_exactly_block_text_plus_separators():
+    """assemble_blocks may join and separate, never annotate. Every HTML comment, figure
+    XML block and page marker in the review markdown is added by render_blocks and exists
+    only in that artifact -- so no model-generated content can reach a verbatim span.
+    """
+    blocks = [_b("SectionHeaderItem", 1, "CLOSING"),
+              _b("TextItem", 1, "A2ZERO is our community's plan."),
+              _b("ListItem", 2, "- Solar reached 5.4MW.")]
+    text, _, _ = assemble_blocks(blocks, n_pages=2)
+    for ch in "<>":
+        assert ch not in text, f"the spine must never contain {ch!r} -- it carries no markup"
+    stripped = text
+    for b in blocks:
+        assert b["text"] in text
+        stripped = stripped.replace(b["text"], "", 1)
+    assert stripped.strip() == "", "nothing but separators may remain between blocks"
+
+
+def test_figure_xml_never_enters_the_spine():
+    """Vision output is model-generated. If it reached the citation text it could be
+    cited as though the document had said it -- the exact fabrication mode `verbatim`
+    exists to prevent.
+    """
+    text, _, _ = assemble_blocks([_b("PictureItem", 1, ""),
+                                  _b("TextItem", 1, "Real prose.")], n_pages=1)
+    assert "figure_description" not in text
+    assert text.strip() == "Real prose."
+
+
+def test_every_block_is_independently_addressable_for_chunking():
+    """Raised during review: blank lines between bullets made semantic chunking hard on
+    an earlier prototype. With typed blocks a consumer never needs to chunk on whitespace
+    at all -- each block already carries its kind, page and character span, so chunking
+    is a structural join, not a text-splitting heuristic.
+    """
+    blocks = [_b("ListItem", 1, "- First accomplishment."),
+              _b("ListItem", 1, "- Second accomplishment."),
+              _b("ListItem", 1, "- Third accomplishment.")]
+    text, _, out = assemble_blocks(blocks, n_pages=1)
+    assert len(out) == 3
+    for blk in out:
+        assert text[blk["char_start"]:blk["char_end"]] == blk["text"]
+        assert blk["kind"] == "ListItem"
