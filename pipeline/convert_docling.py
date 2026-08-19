@@ -26,10 +26,23 @@ wearing a config file, so it is set to 0.0 explicitly.
 TableFormer stays on v1 ACCURATE. v2 exists but issue #3158 reports it parsing tables
 incorrectly where v1 succeeded, and no maintainer resolution was found. Newer is not
 evidence of better.
+
+PER-PICTURE PAGE/LOCATION RECORDS. `run()` also writes `<out>.pictures.json`: one row per
+picture with page_no, bbox (Docling's own PDF-point space, BOTTOMLEFT origin -- confirmed
+empirically, not assumed), area_frac relative to that page, and the classifier's top
+label. This is the missing piece a crop-and-extract step needs -- classification alone
+answers "what labels appear in this document," never "which specific image on which page
+is worth a vision call." Measured on the real Year 5 PDF: 32 of 33 pictures clear a
+5%-of-page-area threshold, and of those 32, exactly TWO carry a non-photograph,
+non-logo label -- the page 4 bar_chart (0.997 confidence) and the page 5
+screenshot_from_computer (0.543 confidence, the GHG dashboard). Both were independently
+confirmed by hand as the only two data-bearing images in the report, so this is the
+correct filter, not a guess at one.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import time
 from pathlib import Path
 
@@ -41,29 +54,69 @@ from pathlib import Path
 # picture's TYPE (chart, photo, logo...); extraction reads a chart's numbers into cells.
 # They are independently controllable so triage can run without paying for extraction on
 # every picture -- classify first, extract only what classification says is data-bearing.
+# "screenshot_from_computer" is here because of a real miss, not by design: the Year 5
+# GHG dashboard -- a genuine data-bearing image, hand-confirmed -- classifies as
+# screenshot_from_computer at only 0.543 confidence, not as any chart label. A chart-type
+# allowlist alone would have silently dropped the one image on this document most worth
+# the vision-extraction cost it exists to gate.
 CLASSIFY_LABELS = {"bar_chart", "pie_chart", "line_chart", "scatter_chart", "map",
-                   "flow_chart", "table"}   # data-bearing kinds worth extracting
+                   "flow_chart", "table", "screenshot_from_computer"}
 
 
-def _count_top_label(cls, labels: dict[str, int]) -> None:
-    """Tally one picture's TOP classification only.
+def _top_label(cls) -> tuple[str | None, float | None]:
+    """One picture's top-ranked (class_name, confidence), or (None, None).
 
     `.predictions` is the FULL ranked probability distribution over ~26 classes, one
     entry per class, for EVERY picture -- confirmed by a raw dump on Year 2: each of the
     26 class names appeared exactly 13 times, matching 13 pictures, not 13 distinct
     labels. predictions[0] is the top guess (confidence-descending, verified against the
-    raw values: 'other' at 0.48 led 'icon' at 0.27). An earlier version iterated the
-    whole distribution and summed every class at once into one nonsense dict entry keyed
-    on the full object repr.
+    raw values: 'other' at 0.48 led 'icon' at 0.27).
     """
     if cls is None:
-        return
+        return None, None
     preds = getattr(cls, "predictions", None) or []
     if not preds:
-        return
+        return None, None
     top = preds[0]
     name = getattr(top, "class_name", None) or str(top)
-    labels[name] = labels.get(name, 0) + 1
+    return name, getattr(top, "confidence", None)
+
+
+def _count_top_label(cls, labels: dict[str, int]) -> None:
+    """Tally one picture's top classification. An earlier version iterated the WHOLE
+    prediction distribution and summed every class at once into one nonsense dict entry
+    keyed on the full object repr; see `_top_label` for the fix.
+    """
+    name, _ = _top_label(cls)
+    if name is not None:
+        labels[name] = labels.get(name, 0) + 1
+
+
+def _picture_record(page_no: int, bbox: tuple[float, float, float, float],
+                    coord_origin: str, page_w: float | None, page_h: float | None,
+                    cls) -> dict:
+    """One picture's page/location/classification -- the record a crop-and-extract step
+    needs to answer "is this specific image on this specific page worth a vision call,"
+    which a per-document label count cannot answer.
+
+    bbox is (l, t, r, b) in Docling's own PDF-point coordinate space, not pixels -- a
+    caller rendering the page at a chosen DPI must scale before cropping. coord_origin is
+    carried through rather than assumed, since a wrong assumption here silently crops the
+    wrong region rather than raising.
+    """
+    l, t, r, b = bbox
+    w, h = abs(r - l), abs(t - b)
+    area_frac = (w * h) / (page_w * page_h) if page_w and page_h else None
+    name, conf = _top_label(cls)
+    return {
+        "page_no": page_no,
+        "bbox": [l, t, r, b],
+        "coord_origin": coord_origin,
+        "area_frac": round(area_frac, 4) if area_frac is not None else None,
+        "top_label": name,
+        "top_conf": round(conf, 3) if conf is not None else None,
+        "worth_extraction": name in CLASSIFY_LABELS if name else False,
+    }
 
 
 def build_converter(chart_extraction: bool = True, classification: bool = True):
@@ -108,10 +161,24 @@ def run(pdf: Path, out: Path, chart_extraction: bool = True,
     # fire WHEN a chart exists, so "0 charts" on years 2 and 4 was real while year 5
     # actually found one and took the counter down with it. Extract the cells rather
     # than measuring the container.
+    from docling_core.types.doc.document import PictureItem
+
+    # (page_no -> (width, height)) so a picture's bbox can be turned into an area
+    # fraction of the page it actually sits on, not some document-wide average.
+    pages = {p.page_no: (p.size.width, p.size.height) for p in doc.pages.values()}
+
     charts, chart_cells, chart_text = 0, 0, []
     labels: dict[str, int] = {}
+    pictures: list[dict] = []
     for item, _ in doc.iterate_items():
-        _count_top_label(getattr(getattr(item, "meta", None), "classification", None), labels)
+        cls = getattr(getattr(item, "meta", None), "classification", None)
+        _count_top_label(cls, labels)
+        if isinstance(item, PictureItem) and item.prov:
+            prov = item.prov[0]
+            pw, ph = pages.get(prov.page_no, (None, None))
+            b = prov.bbox
+            pictures.append(_picture_record(
+                prov.page_no, (b.l, b.t, b.r, b.b), str(b.coord_origin), pw, ph, cls))
         tab = getattr(getattr(item, "meta", None), "tabular_chart", None)
         if tab is None:
             continue
@@ -128,8 +195,15 @@ def run(pdf: Path, out: Path, chart_extraction: bool = True,
     if chart_text:
         md = md + "\n\n<!-- docling chart data -->\n" + " | ".join(chart_text)
     out.write_text(md)
+
+    # Markdown has nowhere to put a page/bbox/classification record; a JSON sidecar next
+    # to it is where a crop-and-extract step will look.
+    pictures_out = out.with_suffix(".pictures.json")
+    pictures_out.write_text(json.dumps(pictures, indent=2))
+
     return {"seconds": round(elapsed, 1), "words": len(md.split()),
-            "charts": charts, "chart_cells": chart_cells, "labels": labels, "out": str(out)}
+            "charts": charts, "chart_cells": chart_cells, "labels": labels,
+            "pictures": pictures, "out": str(out), "pictures_out": str(pictures_out)}
 
 
 def main() -> int:
@@ -150,6 +224,12 @@ def main() -> int:
           f"{r['charts']} chart(s) with {r['chart_cells']} extracted cell(s)")
     if r["labels"]:
         print(f"[docling] picture classifications: {r['labels']}")
+    worth = [p for p in r["pictures"] if p["worth_extraction"]]
+    print(f"[docling] {len(r['pictures'])} picture(s), {len(worth)} worth extraction "
+          f"-> wrote {r['pictures_out']}")
+    for p in worth:
+        print(f"[docling]   page {p['page_no']}: {p['top_label']} "
+              f"(conf {p['top_conf']}, {p['area_frac']:.1%} of page)")
     print(f"[docling] wrote {r['out']}")
     return 0
 
