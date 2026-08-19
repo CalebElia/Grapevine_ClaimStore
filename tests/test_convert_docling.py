@@ -128,3 +128,52 @@ def test_a_missing_page_size_yields_no_area_fraction_rather_than_a_zero_division
     rec = _picture_record(1, (0, 0, 10, 10), "x", page_w=None, page_h=None,
                           cls=_Cls([_Pred("photograph", 0.9)]))
     assert rec["area_frac"] is None
+
+
+# ── per-block records: the text spine for convert_blocks.py ────────────────────────────
+# Confirmed on the real Year 5 document: all 13 picture captions ALSO appear in the main
+# item stream as ordinary TextItems. So a caption is not automatically distinguishable
+# from body prose -- it has to be tagged by matching its self_ref against the refs its
+# picture declares, or captions silently render as stray sentences (exactly what the
+# review flagged: "This is a photo caption to a photo that was dropped").
+
+from pipeline.convert_docling import _block_record
+
+
+def test_a_body_block_is_not_marked_as_a_caption():
+    rec = _block_record(kind="TextItem", page_no=3, bbox=(1.0, 2.0, 3.0, 4.0),
+                        coord_origin="CoordOrigin.BOTTOMLEFT", page_w=612.0, page_h=792.0,
+                        text="Ordinary body prose.", self_ref="#/texts/5",
+                        caption_refs=set())
+    assert rec["caption_for"] is None
+    assert rec["kind"] == "TextItem"
+    assert rec["page_no"] == 3
+
+
+def test_a_caption_block_is_tagged_with_the_picture_it_belongs_to():
+    """Real case: '#/texts/19' captions the page 3 photograph."""
+    rec = _block_record(kind="TextItem", page_no=3, bbox=(1.0, 2.0, 3.0, 4.0),
+                        coord_origin="CoordOrigin.BOTTOMLEFT", page_w=612.0, page_h=792.0,
+                        text="The Office of Sustainability and Innovations pictured...",
+                        self_ref="#/texts/19", caption_refs={"#/texts/19": "#/pictures/2"})
+    assert rec["caption_for"] == "#/pictures/2"
+
+
+def test_a_block_carries_the_geometry_convert_blocks_needs_to_crop_it():
+    rec = _block_record(kind="ListItem", page_no=6, bbox=(54.0, 408.0, 493.0, 396.0),
+                        coord_origin="CoordOrigin.BOTTOMLEFT", page_w=612.0, page_h=792.0,
+                        text="- Our Solarize program reached 5.4MW", self_ref="#/texts/7",
+                        caption_refs={})
+    assert rec["bbox"] == [54.0, 408.0, 493.0, 396.0]
+    assert rec["coord_origin"] == "CoordOrigin.BOTTOMLEFT"
+    assert rec["page_h"] == 792.0 and rec["page_w"] == 612.0
+
+
+def test_doclings_own_text_is_kept_alongside_for_cross_checking():
+    """pdfplumber supplies the characters, but keeping Docling's reading of the same
+    block makes a converter disagreement detectable instead of invisible.
+    """
+    rec = _block_record(kind="TextItem", page_no=1, bbox=(0.0, 1.0, 1.0, 0.0),
+                        coord_origin="x", page_w=1.0, page_h=1.0,
+                        text="A 2 ZERO Annual Report", self_ref="#/texts/0", caption_refs={})
+    assert rec["docling_text"] == "A 2 ZERO Annual Report"

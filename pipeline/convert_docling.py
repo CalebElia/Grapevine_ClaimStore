@@ -124,6 +124,38 @@ def _picture_record(page_no: int, bbox: tuple[float, float, float, float],
     }
 
 
+def _block_record(kind: str, page_no: int, bbox: tuple[float, float, float, float],
+                  coord_origin: str, page_w: float, page_h: float, text: str,
+                  self_ref: str, caption_refs) -> dict:
+    """One text block's kind, geometry and reading-order position -- what
+    convert_blocks.py crops pdfplumber against.
+
+    `caption_refs` maps a caption's self_ref -> the picture ref it belongs to. Confirmed
+    on the real Year 5 document: all 13 picture captions ALSO appear in the main item
+    stream as ordinary TextItems, indistinguishable from body prose by kind or geometry.
+    Without this tag they render as stray sentences stranded where their photo used to
+    be -- which is exactly what the human review caught ("This is a photo caption to a
+    photo that was dropped"). Tagging them here is what lets the renderer drop a caption
+    with its dropped picture, or fold it into a kept picture's description.
+
+    Docling's own reading of the block is carried alongside, even though pdfplumber
+    supplies the characters, so a disagreement between the two is detectable rather than
+    invisible.
+    """
+    l, t, r, b = bbox
+    return {
+        "kind": kind,
+        "page_no": page_no,
+        "bbox": [l, t, r, b],
+        "coord_origin": coord_origin,
+        "page_w": page_w,
+        "page_h": page_h,
+        "self_ref": self_ref,
+        "caption_for": (caption_refs or {}).get(self_ref) if hasattr(caption_refs, "get") else None,
+        "docling_text": text,
+    }
+
+
 def build_converter(chart_extraction: bool = True, classification: bool = True):
     from docling.document_converter import DocumentConverter, PdfFormatOption
     from docling.datamodel.base_models import InputFormat
@@ -172,18 +204,52 @@ def run(pdf: Path, out: Path, chart_extraction: bool = True,
     # fraction of the page it actually sits on, not some document-wide average.
     pages = {p.page_no: (p.size.width, p.size.height) for p in doc.pages.values()}
 
+    # Materialised once: the stream is walked twice (captions first, then blocks) and
+    # iterate_items() is a generator, so re-iterating it would silently yield nothing.
+    items = [it for it, _ in doc.iterate_items()]
+
+    # caption self_ref -> the picture it captions. Built BEFORE the block pass because a
+    # caption appears in the stream as an ordinary TextItem, so it can only be recognised
+    # by a ref its picture declares.
+    caption_refs: dict[str, str] = {}
+    for item in items:
+        if isinstance(item, PictureItem):
+            for c in (item.captions or []):
+                ref = getattr(c, "cref", None) or str(c)
+                caption_refs[ref] = item.self_ref
+
     charts, chart_cells, chart_text = 0, 0, []
     labels: dict[str, int] = {}
     pictures: list[dict] = []
-    for item, _ in doc.iterate_items():
+    blocks: list[dict] = []
+    for item in items:
         cls = getattr(getattr(item, "meta", None), "classification", None)
         _count_top_label(cls, labels)
-        if isinstance(item, PictureItem) and item.prov:
-            prov = item.prov[0]
+        kind = type(item).__name__
+        prov = item.prov[0] if getattr(item, "prov", None) else None
+
+        # Pictures ride in the SAME ordered stream as text. That is what makes figure
+        # placement structural rather than guessed: the page 4 GHG chart sits after
+        # exactly three page 4 paragraphs in Docling's reading order, which is precisely
+        # where the human review said it belonged.
+        if isinstance(item, PictureItem) and prov:
             pw, ph = pages.get(prov.page_no, (None, None))
             b = prov.bbox
-            pictures.append(_picture_record(
-                prov.page_no, (b.l, b.t, b.r, b.b), str(b.coord_origin), pw, ph, cls))
+            rec = _picture_record(prov.page_no, (b.l, b.t, b.r, b.b),
+                                  str(b.coord_origin), pw, ph, cls)
+            pictures.append(rec)
+            blocks.append({**_block_record(kind, prov.page_no, (b.l, b.t, b.r, b.b),
+                                           str(b.coord_origin), pw, ph, "",
+                                           item.self_ref, caption_refs),
+                           "top_label": rec["top_label"], "top_conf": rec["top_conf"],
+                           "area_frac": rec["area_frac"],
+                           "worth_extraction": rec["worth_extraction"]})
+        elif prov and getattr(item, "text", ""):
+            pw, ph = pages.get(prov.page_no, (None, None))
+            b = prov.bbox
+            blocks.append(_block_record(kind, prov.page_no, (b.l, b.t, b.r, b.b),
+                                        str(b.coord_origin), pw, ph, item.text,
+                                        item.self_ref, caption_refs))
         tab = getattr(getattr(item, "meta", None), "tabular_chart", None)
         if tab is None:
             continue
@@ -206,9 +272,17 @@ def run(pdf: Path, out: Path, chart_extraction: bool = True,
     pictures_out = out.with_suffix(".pictures.json")
     pictures_out.write_text(json.dumps(pictures, indent=2))
 
+    # The text spine for convert_blocks.py: blocks in reading order with the geometry
+    # pdfplumber needs to crop each one.
+    blocks_out = out.with_suffix(".blocks.json")
+    blocks_out.write_text(json.dumps(
+        {"n_pages": len(pages), "blocks": blocks}, indent=1))
+
     return {"seconds": round(elapsed, 1), "words": len(md.split()),
             "charts": charts, "chart_cells": chart_cells, "labels": labels,
-            "pictures": pictures, "out": str(out), "pictures_out": str(pictures_out)}
+            "pictures": pictures, "blocks": blocks, "n_pages": len(pages),
+            "out": str(out), "pictures_out": str(pictures_out),
+            "blocks_out": str(blocks_out)}
 
 
 def main() -> int:
@@ -235,6 +309,7 @@ def main() -> int:
     for p in worth:
         print(f"[docling]   page {p['page_no']}: {p['top_label']} "
               f"(conf {p['top_conf']}, {p['area_frac']:.1%} of page)")
+    print(f"[docling] {len(r['blocks'])} text/picture blocks -> {r['blocks_out']}")
     print(f"[docling] wrote {r['out']}")
     return 0
 
