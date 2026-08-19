@@ -102,7 +102,10 @@ def _picture_record(page_no: int, bbox: tuple[float, float, float, float],
     bbox is (l, t, r, b) in Docling's own PDF-point coordinate space, not pixels -- a
     caller rendering the page at a chosen DPI must scale before cropping. coord_origin is
     carried through rather than assumed, since a wrong assumption here silently crops the
-    wrong region rather than raising.
+    wrong region rather than raising. page_w/page_h are carried through too, alongside the
+    area_frac they already produce, so a later crop step reads page size from the same
+    place area_frac came from rather than reopening the PDF through a second library and
+    risking the two silently disagreeing.
     """
     l, t, r, b = bbox
     w, h = abs(r - l), abs(t - b)
@@ -112,6 +115,8 @@ def _picture_record(page_no: int, bbox: tuple[float, float, float, float],
         "page_no": page_no,
         "bbox": [l, t, r, b],
         "coord_origin": coord_origin,
+        "page_w": page_w,
+        "page_h": page_h,
         "area_frac": round(area_frac, 4) if area_frac is not None else None,
         "top_label": name,
         "top_conf": round(conf, 3) if conf is not None else None,
