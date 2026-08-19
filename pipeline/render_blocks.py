@@ -25,11 +25,13 @@ from __future__ import annotations
 
 import time
 
+from pipeline.convert_blocks import _matches_heading_shape
 from pipeline.section_boundaries import _same_section
 
 
 def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
-                  page_markers: bool = False) -> str:
+                  page_markers: bool = False,
+                  heading_shapes: set[str] | None = None) -> str:
     """blocks in reading order + {page_no: figure XML} -> markdown.
 
     figure_xml is keyed by page because that is what pipeline/extract_figures.py records
@@ -89,6 +91,14 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             if not pics[ref].get("worth_extraction"):
                 stats["captions_dropped"] += 1  # its photo is gone; the caption is noise
             continue                            # kept figures render their own caption
+
+        # A HEADING DOCLING MISTYPED IS STILL A HEADING. Year 4: the long-form strategy
+        # headings are SectionHeaderItem on pages 5, 13, 15 and 19 but plain TextItem on
+        # 8, 11 and 17 -- same document, same visual style. Promoting on the document's
+        # own confirmed shapes also lets the existing continuation merge fold the
+        # short-form repeat that follows into one section, rather than opening a second.
+        if kind in ("TextItem", "UncoveredText") and _matches_heading_shape(b, heading_shapes):
+            kind = "SectionHeaderItem"
 
         if kind == "SectionHeaderItem":
             if last_heading is not None and _same_section(text, last_heading):

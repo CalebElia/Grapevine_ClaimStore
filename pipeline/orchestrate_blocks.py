@@ -18,7 +18,7 @@ import argparse
 import json
 from pathlib import Path
 
-from pipeline.convert_blocks import convert
+from pipeline.convert_blocks import convert, heading_shapes
 from pipeline.extract_figures import extract_figures, render_figure_block
 from pipeline.render_blocks import render_blocks
 
@@ -64,7 +64,8 @@ def main() -> int:
     figure_xml = {f["page_no"]: render_figure_block(f) for f in figs}
     print(f"[blocks] {len(figure_xml)} figure(s) available")
 
-    md = render_blocks(blocks, figure_xml, a.title, page_markers=a.page_markers)
+    md = render_blocks(blocks, figure_xml, a.title, page_markers=a.page_markers,
+                       heading_shapes=heading_shapes(blocks))
     Path(a.out).write_text(md)
     print(f"[blocks] wrote {a.out} ({len(md.split()):,} words)")
 

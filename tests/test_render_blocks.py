@@ -131,3 +131,43 @@ def test_the_first_page_is_marked_too():
 def test_page_markers_are_off_by_default():
     out = render_blocks([_blk("TextItem", 3, "x")], {}, "T")
     assert "<!-- p." not in out
+
+
+# ── a mistyped heading renders AS a heading ────────────────────────────────────────────
+# Year 4's audit: Docling typed the long-form strategy headings as SectionHeaderItem on
+# pages 5, 13, 15 and 19 but as plain TextItem on 8, 11 and 17. Recovering them from
+# deletion was step one; they still rendered as body prose. The document's own confirmed
+# heading shapes say what they are, and the existing continuation-merge then correctly
+# folds the short-form repeat that follows ("STRATEGY 6: RESILIENCE") into the same
+# section instead of opening a second one.
+
+def test_a_textitem_matching_a_confirmed_heading_shape_renders_as_a_heading():
+    blocks = [_blk("SectionHeaderItem", 5, "STRATEGY 1: Powering Our Electrical Grid"),
+              _blk("TextItem", 17, "STRATEGY 6: Enhance the Resilience of Our People")]
+    out = render_blocks(blocks, {}, "T", heading_shapes={"strategy 1", "strategy 6"})
+    assert "## STRATEGY 6: Enhance the Resilience of Our People" in out
+
+
+def test_the_short_form_repeat_folds_into_the_promoted_heading():
+    """Year 4 pages 17-18: the long form then 'STRATEGY 6: RESILIENCE' -- one section."""
+    blocks = [_blk("TextItem", 17, "STRATEGY 6: Enhance the Resilience of Our People"),
+              _blk("TextItem", 17, "Body prose about resilience."),
+              _blk("SectionHeaderItem", 18, "STRATEGY 6: RESILIENCE"),
+              _blk("TextItem", 18, "More body prose.")]
+    out = render_blocks(blocks, {}, "T", heading_shapes={"strategy 6"})
+    assert out.count("## ") == 1
+    assert "Body prose about resilience." in out and "More body prose." in out
+
+
+def test_ordinary_prose_mentioning_a_strategy_is_not_promoted():
+    """'Strategy 2 of A2ZERO focuses on...' opens many body paragraphs; it is not a
+    heading, and only the WORD-N-COLON shape marks one."""
+    blocks = [_blk("TextItem", 9, "Strategy 2 of A2ZERO focuses on beneficial "
+                                  "electrification, or the switching of appliances.")]
+    out = render_blocks(blocks, {}, "T", heading_shapes={"strategy 2"})
+    assert "## " not in out
+
+
+def test_heading_shapes_are_optional():
+    out = render_blocks([_blk("TextItem", 1, "STRATEGY 6: Something")], {}, "T")
+    assert "## " not in out

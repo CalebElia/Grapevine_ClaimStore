@@ -419,7 +419,8 @@ def test_every_block_is_independently_addressable_for_chunking():
 # own unlinked blocks. Widening it needs a guard: a body paragraph beside a photo must
 # never be mistaken for a caption and silently deleted.
 
-from pipeline.convert_blocks import is_caption_candidate, looks_like_caption
+from pipeline.convert_blocks import (is_caption_candidate, is_page_footer,
+                                     looks_like_caption)
 
 
 def test_a_short_textitem_beside_a_photo_is_caption_shaped():
@@ -538,3 +539,87 @@ def test_a_real_caption_is_unaffected_by_the_heading_shapes():
 
 def test_shapes_are_optional_so_existing_callers_keep_working():
     assert is_caption_candidate({"kind": "TextItem", "page_no": 5, "text": "A caption."})
+
+
+# ── every caption drop is validated and audited, whatever proposed it ──────────────────
+# Year 4's line-by-line human audit found two SECTION HEADINGS deleted as captions, and
+# the audit trail reported "0 unlinked captions dropped" while it happened -- because both
+# arrived through paths that bypassed both the guard and the log:
+#   STRATEGY 6  DOCLING ITSELF linked "STRATEGY 6: Enhance the Resilience of Our People
+#               and Our Place" as the caption of picture 16. Docling's structural linkage
+#               was being trusted as ground truth; it is a proposal like any other.
+#   STRATEGY 2  the coverage sweep's own association loop, which applied geometry with no
+#               shape guard and recorded nothing.
+# A guard that only covers the path you were thinking about is not a guard.
+
+def test_a_docling_supplied_caption_link_is_still_validated():
+    """The STRATEGY 6 case: a heading Docling declared to be a caption stays a heading."""
+    shapes = {"strategy 6"}
+    blk = {"kind": "TextItem", "page_no": 17, "caption_for": "#/pictures/16",
+           "text": "STRATEGY 6: Enhance the Resilience of Our People and Our Place"}
+    assert not is_caption_candidate(blk, shapes)
+
+
+def test_a_swept_region_matching_a_heading_shape_is_still_validated():
+    """The STRATEGY 2 case: recovered by the sweep, then dropped by unguarded geometry."""
+    shapes = {"strategy 2"}
+    blk = {"kind": "UncoveredText", "page_no": 8, "caption_for": "#/pictures/5",
+           "text": "STRATEGY 2: Switch our Appliances and Vehicles from Gasoline, "
+                   "Diesel, Propane, Coal, and Natural Gas to Electric"}
+    assert not is_caption_candidate(blk, shapes)
+
+
+def test_an_uncovered_region_can_still_be_a_caption_when_it_is_not_a_heading():
+    """The sweep must keep working for the cases it was built for."""
+    assert is_caption_candidate({"kind": "UncoveredText", "page_no": 6,
+                                 "text": "City officials break ground on Fire Station 4."},
+                                {"strategy 1"})
+
+
+def test_line_grouping_scales_with_font_size_not_a_fixed_gap():
+    """Year 4 page 8: the STRATEGY 2 heading is large-font, so its LEADING is 24pt --
+    above the 18pt constant tuned on body text. The sweep shredded the heading into three
+    groups, and the fragments ("Vehicles from Gasoline, Diesel, Propane, Coal,") no longer
+    began with "STRATEGY 2:", so the heading-shape guard could not recognise them and two
+    thirds of a section heading were deleted. Line spacing scales with font size; a fixed
+    gap cannot.
+    """
+    big = [{"text": "STRATEGY 2: Switch our Appliances and", "x0": 50, "x1": 400,
+            "top": 250, "bottom": 270},
+           {"text": "Vehicles from Gasoline, Diesel, Propane, Coal,", "x0": 50, "x1": 400,
+            "top": 274, "bottom": 294},
+           {"text": "and Natural Gas to Electric", "x0": 50, "x1": 300,
+            "top": 298, "bottom": 318}]
+    groups = group_uncovered(big, page_no=8)
+    assert len(groups) == 1, "one heading, not three fragments"
+    assert "Natural Gas to Electric" in groups[0]["text"]
+
+
+def test_small_body_text_still_splits_at_a_real_paragraph_break():
+    """The scaling must not merge genuinely separate small-text regions."""
+    small = [{"text": "first region", "x0": 50, "x1": 200, "top": 100, "bottom": 110},
+             {"text": "far away region", "x0": 50, "x1": 200, "top": 700, "bottom": 710}]
+    assert len(group_uncovered(small, page_no=3)) == 2
+
+
+# ── page-number footers Docling emits as ordinary blocks ───────────────────────────────
+# Year 4's audit flagged bare "1" on page 1 and bare "24" on page 24. convert_document
+# strips these for the pdfplumber backend (_strip_footer_number, validated against each
+# page's own index), and the coverage sweep strips them from recovered groups -- but
+# Docling emits some footers as ordinary TextItem blocks, and that third path had no
+# strip at all. A page footer is not prose and has no place in a citable span.
+
+def test_a_block_that_is_only_its_own_page_number_is_dropped():
+    assert is_page_footer({"text": "24", "page_no": 24})
+    assert is_page_footer({"text": "1", "page_no": 1})
+
+
+def test_a_number_that_is_not_this_pages_number_is_kept():
+    """Validated against the page's own index, exactly as the pdfplumber backend does --
+    a standalone '2,862' or a year is real content."""
+    assert not is_page_footer({"text": "17", "page_no": 24})
+    assert not is_page_footer({"text": "2,862", "page_no": 3})
+
+
+def test_real_prose_is_never_a_footer():
+    assert not is_page_footer({"text": "Reached 8,903 trees planted.", "page_no": 17})

@@ -192,6 +192,19 @@ _CAPTION_MAX_WORDS = 25
 _HEADING_SHAPE = re.compile(r"^\s*([A-Za-z]+\s+\d+)\s*:", re.I)
 
 
+def is_page_footer(block: dict) -> bool:
+    """A block that is nothing but this page's own number.
+
+    Third strip site for the same defect: convert_document handles it for the pdfplumber
+    backend and group_uncovered handles recovered regions, but Docling emits some footers
+    as ordinary TextItem blocks and that path had none. Validated against the page's OWN
+    index rather than "looks like a small number", so a standalone figure that happens to
+    be numeric ("2,862") is never mistaken for a footer.
+    """
+    t = (block.get("text") or "").strip()
+    return t.isdigit() and int(t) == block.get("page_no")
+
+
 def heading_shapes(blocks: list[dict]) -> set[str]:
     """Leading "WORD N" shapes taken from blocks Docling CONFIRMED as headings.
 
@@ -206,6 +219,14 @@ def heading_shapes(blocks: list[dict]) -> set[str]:
             if m:
                 out.add(re.sub(r"\s+", " ", m.group(1)).strip().lower())
     return out
+
+
+def _matches_heading_shape(block: dict, shapes: set[str] | None) -> bool:
+    """Whether this block opens with a "WORD N:" shape the document confirms elsewhere."""
+    if not shapes:
+        return False
+    m = _HEADING_SHAPE.match(block.get("text") or "")
+    return bool(m and re.sub(r"\s+", " ", m.group(1)).strip().lower() in shapes)
 
 
 def is_caption_candidate(block: dict, shapes: set[str] | None = None) -> bool:
@@ -229,11 +250,7 @@ def is_caption_candidate(block: dict, shapes: set[str] | None = None) -> bool:
     """
     if block.get("page_no") == 1 or not looks_like_caption(block):
         return False
-    if shapes:
-        m = _HEADING_SHAPE.match(block.get("text") or "")
-        if m and re.sub(r"\s+", " ", m.group(1)).strip().lower() in shapes:
-            return False
-    return True
+    return not _matches_heading_shape(block, shapes)
 
 
 def looks_like_caption(block: dict) -> bool:
@@ -250,7 +267,10 @@ def looks_like_caption(block: dict) -> bool:
     from the Green Energy Neighbors leading the Net-Zero Home Energy Tour, 2024."), while
     the shortest body paragraph beside a photo runs well past 25.
     """
-    if block.get("kind") != "TextItem":
+    # UncoveredText counts: the coverage sweep recovers genuine captions (Year 5's p.6
+    # and p.23 among them), and they must pass through the same validation as any other
+    # candidate rather than around it.
+    if block.get("kind") not in ("TextItem", "UncoveredText"):
         return False
     words = (block.get("text") or "").split()
     return 0 < len(words) <= _CAPTION_MAX_WORDS
@@ -302,7 +322,14 @@ def associate_caption(cap: dict, pictures: list[dict]):
     return best
 
 
-_LINE_TOL = 18.0        # pt; two lines closer than this belong to one caption/paragraph
+# Line spacing scales with font size, so the "same block" gap has to as well. Measured on
+# Year 4 page 8: the STRATEGY 2 heading is large-font with 24pt leading, which a fixed
+# 18pt tolerance split into three fragments -- and the fragments no longer began with
+# "STRATEGY 2:", so the heading-shape guard could not recognise them and two thirds of a
+# section heading were deleted as captions. Expressed as a multiple of the region's own
+# glyph height instead.
+_LINE_TOL_RATIO = 1.6
+_LINE_TOL_MIN = 14.0
 
 
 def uncovered_words(words: list[dict], text_boxes: list[tuple]) -> list[dict]:
@@ -334,9 +361,11 @@ def group_uncovered(words: list[dict], page_no: int) -> list[dict]:
     if not words:
         return []
     rows = sorted(words, key=lambda w: (w["top"], w["x0"]))
+    heights = sorted(w["bottom"] - w["top"] for w in rows)
+    tol = max(_LINE_TOL_MIN, heights[len(heights) // 2] * _LINE_TOL_RATIO)
     groups, cur = [], [rows[0]]
     for w in rows[1:]:
-        if w["top"] - cur[-1]["top"] <= _LINE_TOL:
+        if w["top"] - cur[-1]["top"] <= tol:
             cur.append(w)
         else:
             groups.append(cur)
@@ -404,8 +433,11 @@ def convert(pdf_path, blocks_path):
         fixed, amb = apply_hyphen_decisions(raw, words, hyph)
         ambiguous.extend(amb)
         text = flatten_block(fixed)
+        if text and is_page_footer({"text": text, "page_no": b["page_no"]}):
+            continue                     # a page footer is not prose
         if text:
-            resolved.append({**b, "text": text, "_ord": float(i)})
+            resolved.append({**b, "text": text, "_ord": float(i),
+                             "_caption_src": "docling" if b.get("caption_for") else None})
 
     # COVERAGE SWEEP. Anything pdfplumber can see on a page that no TEXT block claims is
     # appended to that page, typed UncoveredText. Without this, Docling's block list is
@@ -483,7 +515,30 @@ def convert(pdf_path, blocks_path):
                 owner = associate_caption(probe, pics_tl)
                 if owner is not None:
                     b["caption_for"] = owner["self_ref"]
-                    captioned.append((pno, b["text"][:70]))
+
+    # ONE GATE FOR EVERY CAPTION PROPOSAL, WHOEVER MADE IT. Three sources can set
+    # caption_for -- Docling's own structural linkage, the coverage sweep's geometry, and
+    # the widened association above -- and previously only the last was validated or
+    # logged. Year 4's line-by-line audit found the cost: two SECTION HEADINGS deleted as
+    # captions while the report cheerfully said "0 unlinked captions dropped". Docling's
+    # linkage is a proposal like any other, not ground truth, and a guard that only
+    # covers the path you were thinking about is not a guard.
+    for b in resolved:
+        if not b.get("caption_for"):
+            continue
+        # DOCLING'S OWN LINKAGE IS EVIDENCE; A GEOMETRIC GUESS IS NOT. Docling resolved
+        # its 13 Year 5 captions structurally and correctly, so subjecting those to the
+        # same word-count/kind heuristic used for geometric guesses just breaks working
+        # links -- it wrongly restored a long, genuine p.9 caption on the first attempt.
+        # Only POSITIVE counter-evidence overrides Docling: the block matching a heading
+        # shape the document itself confirms elsewhere. Geometric proposals, having no
+        # such backing, must clear the full candidate test.
+        ok = (not _matches_heading_shape(b, shapes) if b.get("_caption_src") == "docling"
+              else is_caption_candidate(b, shapes))
+        if ok:
+            captioned.append((b["page_no"], b["text"][:70]))
+        else:
+            b["caption_for"] = None          # not a caption; keep it in the document
 
     text, page_map, with_offsets = assemble_blocks(resolved, n_pages)
     try:
