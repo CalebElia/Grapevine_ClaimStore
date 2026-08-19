@@ -52,9 +52,28 @@ def test_an_unsorted_bbox_still_yields_a_valid_box():
 
 def test_figure_block_carries_page_label_and_provenance():
     fig = {"page_no": 4, "top_label": "bar_chart", "top_conf": 0.997,
-          "deployment": "gpt-5.6-sol", "xml": "<figure_description>x</figure_description>"}
+          "deployment": "gpt-5.6-sol", "extracted_at": "2026-08-19T00:17:47Z",
+          "xml": "<figure_description>x</figure_description>"}
     block = render_figure_block(fig)
     assert "page 4" in block
     assert "bar_chart" in block
     assert "gpt-5.6-sol" in block
     assert "<figure_description>x</figure_description>" in block
+
+
+def test_the_provenance_timestamp_is_the_extraction_time_not_the_render_time():
+    """The real bug this pins, caught by diffing two renders of the SAME figures.json:
+    the timestamp was generated at render time, so re-rendering markdown restamped every
+    block with a moment when no vision call happened. A provenance comment that quietly
+    updates itself looks like evidence and isn't.
+    """
+    fig = {"page_no": 4, "top_label": "bar_chart", "top_conf": 0.997,
+          "deployment": "gpt-5.6-sol", "extracted_at": "2026-08-19T00:17:47Z", "xml": "<x/>"}
+    assert "2026-08-19T00:17:47Z" in render_figure_block(fig)
+    assert render_figure_block(fig) == render_figure_block(fig), "must be deterministic"
+
+
+def test_a_record_with_no_extraction_time_says_so_rather_than_inventing_one():
+    fig = {"page_no": 4, "top_label": "bar_chart", "top_conf": 0.997,
+          "deployment": "gpt-5.6-sol", "xml": "<x/>"}
+    assert "at ? -->" in render_figure_block(fig)

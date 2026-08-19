@@ -78,8 +78,15 @@ def render_figure_block(fig: dict) -> str:
     """One figure's markdown block: the raw XML wrapped in a provenance comment, so a
     reader sees which page, which classifier label led to the call, which deployment
     answered, and when -- not just a set of numbers with no trail back to their source.
+
+    The timestamp is READ from the figure record, never generated here. It was generated
+    here originally, and re-rendering markdown from a saved figures.json then restamped
+    every block with the render time -- claiming a vision call happened at a moment when
+    none did. A provenance comment that silently updates itself is worse than no
+    provenance comment: it looks like evidence and isn't. `?` rather than a fabricated
+    "now" if a record predates this field.
     """
-    ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    ts = fig.get("extracted_at") or "?"
     return (f"<!-- figure: page {fig['page_no']}, classified {fig['top_label']} "
            f"(conf {fig['top_conf']}), extracted by {fig['deployment']} at {ts} -->\n"
            f"{fig['xml'].strip()}")
@@ -109,6 +116,9 @@ def extract_figures(pdf_path: Path, pictures: list[dict], out_dir: Path,
             "top_conf": pic["top_conf"], "crop_path": str(crop_path),
             "xml": r["text"], "deployment": r["deployment"], "seconds": r["seconds"],
             "finish_reason": r["finish_reason"],
+            # Stamped where the call actually happened, so re-rendering markdown from a
+            # saved figures.json cannot restamp it with a later, false time.
+            "extracted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         })
     return results
 

@@ -3,7 +3,7 @@ needs those lives in orchestrate(), a thin wrapper this file does not exercise.
 """
 from __future__ import annotations
 
-from pipeline.orchestrate_document import render
+from pipeline.orchestrate_document import insert_page_markers, render
 from pipeline.section_boundaries import Section
 
 
@@ -68,3 +68,72 @@ def test_no_figures_is_the_default_and_does_not_crash():
     out = render([sec], "x", "Doc")
     assert "## A" in out
     assert "FIGURES NOT MATCHED" not in out
+
+
+# ── page markers: the anchors the human verification pass depends on ───────────────────
+
+def test_every_page_boundary_inside_a_span_gets_its_own_marker():
+    text = "page one text" + "page two text" + "page three text"
+    page_map = [(1, 0, 13), (2, 13, 26), (3, 26, 41)]
+    out = insert_page_markers(text, 0, 41, page_map)
+    assert "<!-- p.2 -->" in out
+    assert "<!-- p.3 -->" in out
+
+
+def test_markers_land_at_the_right_offsets_not_shifted_by_earlier_insertions():
+    """The trap this pins: splicing front-to-back makes every insertion shift the
+    offsets of the ones after it, so marker N lands N*len(marker) characters early.
+    Both markers here must sit immediately before their own page's first word.
+    """
+    text = "aaaa" + "bbbb" + "cccc"
+    page_map = [(1, 0, 4), (2, 4, 8), (3, 8, 12)]
+    out = insert_page_markers(text, 0, 12, page_map)
+    assert "<!-- p.2 -->\nbbbb" in out
+    assert "<!-- p.3 -->\ncccc" in out
+
+
+def test_no_marker_at_the_spans_own_start_because_the_heading_already_says_it():
+    text = "aaaabbbb"
+    page_map = [(1, 0, 4), (2, 4, 8)]
+    out = insert_page_markers(text, 4, 8, page_map)
+    assert "<!-- p.2 -->" not in out, "the section starts on page 2; its heading says so"
+
+
+def test_a_boundary_outside_the_span_is_not_pulled_in():
+    text = "aaaabbbbcccc"
+    page_map = [(1, 0, 4), (2, 4, 8), (3, 8, 12)]
+    out = insert_page_markers(text, 0, 8, page_map)
+    assert "<!-- p.2 -->" in out
+    assert "<!-- p.3 -->" not in out, "page 3 belongs to the next section, not this one"
+
+
+def test_the_text_itself_is_unchanged_apart_from_the_inserted_markers():
+    """Markers must be additive -- a verbatim span that lost or gained a character while
+    being annotated would break the one property this whole file exists to preserve.
+    """
+    text = "The City secured $5,000,000 for the SEU." + "Second page content here."
+    page_map = [(1, 0, 40), (2, 40, 65)]
+    out = insert_page_markers(text, 0, 65, page_map)
+    assert out.replace("<!-- p.2 -->\n", "") == text
+
+
+def test_heading_carries_a_page_range_when_the_section_spans_several_pages():
+    sec = Section(heading="STRATEGY 7: OTHER", anchor="", pdf_start=0, pdf_end=4,
+                 located=True, page_start=19, page_end=23)
+    out = render([sec], "text", "Doc", page_map=[(19, 0, 4)])
+    assert "pages 19–23" in out
+
+
+def test_a_single_page_section_says_page_not_pages():
+    sec = Section(heading="CLOSING", anchor="", pdf_start=0, pdf_end=4, located=True,
+                 page_start=24, page_end=24)
+    out = render([sec], "text", "Doc", page_map=[(24, 0, 4)])
+    assert "(page 24)" in out
+    assert "pages" not in out
+
+
+def test_omitting_the_page_map_yields_a_body_with_no_markers():
+    """The --no-page-markers path: a machine consumer gets the text unadorned."""
+    sec = Section(heading="A", anchor="", pdf_start=0, pdf_end=8, located=True)
+    out = render([sec], "aaaabbbb", "Doc", page_map=None)
+    assert "<!-- p." not in out
