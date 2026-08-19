@@ -189,6 +189,20 @@ def assemble_blocks(blocks: list[dict], n_pages: int
 _CAPTION_MAX_WORDS = 25
 
 
+def is_caption_candidate(block: dict) -> bool:
+    """Caption-shaped AND not front matter.
+
+    THE COVER PAGE IS EXEMPT, and this is a structural claim rather than a tuned one: a
+    cover carries a title, a subtitle and imagery, with no body prose for a caption to
+    describe. It is exempt because geometry provably cannot decide it -- Year 5's cover
+    subtitle sits INSIDE a collage photo on both axes (dy=0, dx=0), indistinguishable
+    from a real caption -- and losing a report's own reporting period is a worse error
+    than leaving one cover-page caption in. A document whose first page is body text
+    would forfeit a genuine page-1 caption here; that trade is deliberate.
+    """
+    return block.get("page_no") != 1 and looks_like_caption(block)
+
+
 def looks_like_caption(block: dict) -> bool:
     """Whether a block is SHAPED like a caption, before geometry is consulted.
 
@@ -209,7 +223,7 @@ def looks_like_caption(block: dict) -> bool:
     return 0 < len(words) <= _CAPTION_MAX_WORDS
 
 
-_CAPTION_GAP = 40.0     # pt; a caption sits within this of its picture's edge
+_CAPTION_ADJACENT = 15.0   # pt; a caption touches its picture on BOTH axes     # pt; a caption sits within this of its picture's edge
 
 
 def associate_caption(cap: dict, pictures: list[dict]):
@@ -230,12 +244,26 @@ def associate_caption(cap: dict, pictures: list[dict]):
     for p in pictures:
         if p.get("page_no") != cap.get("page_no"):
             continue
-        inside = (p["top"] <= cap["top"] <= p["bottom"]
-                  and p["x0"] - 5 <= cap["x0"] <= p["x1"] + 5)
-        gap = min(abs(cap["top"] - p["bottom"]), abs(p["top"] - cap["bottom"]))
-        if not inside and gap > _CAPTION_GAP:
+        # ADJACENCY IN BOTH AXES. A caption touches its picture vertically AND
+        # horizontally; text near on only one axis belongs to a different region.
+        # Measured on the six real Year 5 cases, and both errors below were made before
+        # arriving here -- a below-only rule wrongly restored three real captions, and a
+        # not-entirely-above rule wrongly swallowed the cover's date subtitle:
+        #   drop   p.11 Michael Hagan  dy=6  dx=0     p.23 Emergency kit  dy=0  dx=5
+        #          p.18 Bicentennial   dy=0  dx=0     p.22 SunBundle      dy=0  dx=0
+        #   KEEP   p.1  "June 1, 2024 - May 31, 2025"  dy=0  dx=134  (cover subtitle,
+        #          vertically level with a collage photo but far across the page)
+        #          p.3  "Missy, Simi, Steve..."        dy=40 dx=0    (the letter's
+        #          sign-off, directly above the team photo but a clear gap away)
+        # Margin is wide on the discriminating axis in both keeps (40 and 134 against a
+        # 15pt threshold), which is why this separates rather than merely fits.
+        dy = 0.0 if (cap["top"] <= p["bottom"] and cap["bottom"] >= p["top"]) else \
+             min(abs(cap["top"] - p["bottom"]), abs(p["top"] - cap["bottom"]))
+        dx = 0.0 if (cap["x0"] <= p["x1"] and cap["x1"] >= p["x0"]) else \
+             min(abs(cap["x0"] - p["x1"]), abs(p["x0"] - cap["x1"]))
+        if dy > _CAPTION_ADJACENT or dx > _CAPTION_ADJACENT:
             continue
-        d = 0.0 if inside else gap
+        d = dy + dx
         if best_d is None or d < best_d:
             best, best_d = p, d
     return best
@@ -411,7 +439,7 @@ def convert(pdf_path, blocks_path):
             for b in resolved:
                 if b["page_no"] != pno or b.get("caption_for") or b.get("_swept"):
                     continue
-                if not looks_like_caption(b):
+                if not is_caption_candidate(b):
                     continue
                 bb = b["bbox"]
                 probe = {"page_no": pno,

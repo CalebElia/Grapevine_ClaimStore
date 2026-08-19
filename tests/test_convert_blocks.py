@@ -419,7 +419,7 @@ def test_every_block_is_independently_addressable_for_chunking():
 # own unlinked blocks. Widening it needs a guard: a body paragraph beside a photo must
 # never be mistaken for a caption and silently deleted.
 
-from pipeline.convert_blocks import looks_like_caption
+from pipeline.convert_blocks import is_caption_candidate, looks_like_caption
 
 
 def test_a_short_textitem_beside_a_photo_is_caption_shaped():
@@ -450,3 +450,53 @@ def test_the_real_p11_caption_is_caption_shaped():
     assert looks_like_caption({"kind": "TextItem", "text":
         "Michael Hagan from the Green Energy Neighbors leading the Net-Zero Home "
         "Energy Tour, 2024."})
+
+
+# ── a caption sits BELOW its picture, or inside it -- never above ──────────────────────
+# Measured on all 13 Docling-LINKED captions in Year 5: 13 below, 0 above, 0 beside. The
+# false positive this pins was mine, caught by the association audit trail on its first
+# run: the introduction letter's sign-off ("Missy, Simi, Steve, DeAndre'...") sits 27pt
+# ABOVE the team photo, was short enough to look caption-shaped, and got dropped as a
+# caption -- deleting the OSI staff roster, which is real content and a seed for the
+# actor registry besides.
+
+def test_a_block_above_a_picture_is_not_its_caption():
+    """The real Year 5 page 3 sign-off case."""
+    pic = {"page_no": 3, "self_ref": "#/pictures/5", "worth_extraction": False,
+           "x0": 119.0, "x1": 566.0, "top": 544.0, "bottom": 712.0}
+    signoff = {"page_no": 3, "x0": 119.0, "x1": 566.0, "top": 494.0, "bottom": 517.0}
+    assert associate_caption(signoff, [pic]) is None
+
+
+def test_a_block_below_a_picture_is_its_caption():
+    """The shape all 13 linked Year 5 captions take -- e.g. p.3's real caption at
+    y720-741 under the photo at y544-712."""
+    pic = {"page_no": 3, "self_ref": "#/pictures/5", "worth_extraction": False,
+           "x0": 119.0, "x1": 566.0, "top": 544.0, "bottom": 712.0}
+    cap = {"page_no": 3, "x0": 119.0, "x1": 566.0, "top": 720.0, "bottom": 741.0}
+    assert associate_caption(cap, [pic]) is pic
+
+
+def test_a_block_inside_a_picture_is_still_its_caption():
+    """Page 6: Docling absorbed the caption region into the photograph's own bbox."""
+    pic = {"page_no": 6, "self_ref": "#/pictures/8", "worth_extraction": False,
+           "x0": 117.0, "x1": 565.0, "top": 280.0, "bottom": 520.0}
+    cap = {"page_no": 6, "x0": 148.0, "x1": 499.0, "top": 300.0, "bottom": 312.0}
+    assert associate_caption(cap, [pic]) is pic
+
+
+def test_front_matter_on_the_cover_is_never_treated_as_a_caption():
+    """Geometry cannot separate this one, which is why it is a structural exemption
+    rather than another threshold. Year 5's cover subtitle "June 1, 2024 - May 31, 2025"
+    occupies x111-375, y435-452; a cover collage photo occupies x293-599, y398-580. The
+    date sits INSIDE the photo on both axes -- dy=0, dx=0 -- exactly like a caption. Four
+    successive geometric rules each fixed one case and broke another; a cover page simply
+    has no captions to find, because it has no body prose to caption.
+    """
+    assert not is_caption_candidate({"kind": "TextItem", "page_no": 1,
+                                     "text": "June 1, 2024 - May 31, 2025"})
+
+
+def test_the_same_text_shape_on_a_body_page_is_still_a_candidate():
+    assert is_caption_candidate({"kind": "TextItem", "page_no": 11,
+                                 "text": "Michael Hagan leading the tour, 2024."})
