@@ -177,3 +177,44 @@ def test_doclings_own_text_is_kept_alongside_for_cross_checking():
                         coord_origin="x", page_w=1.0, page_h=1.0,
                         text="A 2 ZERO Annual Report", self_ref="#/texts/0", caption_refs={})
     assert rec["docling_text"] == "A 2 ZERO Annual Report"
+
+
+# ── OCR engine selection ───────────────────────────────────────────────────────────────
+# Benchmarked on Year 2 (image-based). force_full_page_ocr is the variable that decides
+# correctness -- both local engines drop wrapped continuation lines without it and are
+# perfect with it -- so it is not optional and not exposed as a choice.
+#
+# Engine choice is only about speed and availability, because at full page the two local
+# engines score IDENTICALLY: 0 truncations, 3/3 recovered tails, and all 15 currency
+# figures matching the human-healed reference exactly.
+#     ocrmac/full-page     24.0s   macOS Vision, no install beyond the wrapper
+#     rapidocr/full-page   60.4s   pure python, runs anywhere
+# Azure CU is faster still (6.8s) but is a paid network call that sends the document off
+# the machine, and it reads text INSIDE images -- 233 extra token occurrences on Year 2,
+# only 37% of them dictionary words ("aaid", "abost", "arnage"), none present in the human
+# reference. That is garbled screenshot chrome, not recovered prose, so CU is opt-in
+# rather than an automatic fallback.
+
+from pipeline.convert_docling import choose_ocr_engine
+
+
+def test_macos_with_vision_available_prefers_ocrmac():
+    assert choose_ocr_engine(is_macos=True, ocrmac_available=True) == "ocrmac"
+
+
+def test_macos_without_the_wrapper_falls_back_to_rapidocr():
+    """ocrmac needs a pip wrapper around the system framework; absent it, the free
+    cross-platform engine scores the same and merely takes longer."""
+    assert choose_ocr_engine(is_macos=False, ocrmac_available=False) == "rapidocr"
+    assert choose_ocr_engine(is_macos=True, ocrmac_available=False) == "rapidocr"
+
+
+def test_a_non_mac_never_selects_ocrmac_even_if_the_module_imports():
+    """The wrapper can install on other platforms; the Vision framework cannot."""
+    assert choose_ocr_engine(is_macos=False, ocrmac_available=True) == "rapidocr"
+
+
+def test_an_explicit_choice_always_wins():
+    """Batch runs may prefer CU's 6.8s, accepting the cost and the image noise."""
+    assert choose_ocr_engine(is_macos=True, ocrmac_available=True,
+                             requested="rapidocr") == "rapidocr"

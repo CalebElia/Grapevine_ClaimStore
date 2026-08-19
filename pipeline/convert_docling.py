@@ -63,6 +63,47 @@ CLASSIFY_LABELS = {"bar_chart", "pie_chart", "line_chart", "scatter_chart", "map
                    "flow_chart", "table", "screenshot_from_computer"}
 
 
+def choose_ocr_engine(is_macos: bool | None = None,
+                      ocrmac_available: bool | None = None,
+                      requested: str | None = None) -> str:
+    """Which OCR engine to use. Speed and availability only -- never correctness.
+
+    Benchmarked on Year 2, the corpus's image-based document, against the human-healed
+    reference. At FULL PAGE the two local engines are indistinguishable on quality: both
+    recover all three previously-truncated grant bullets character-identically, both end
+    with zero truncated blocks, and both reproduce all 15 currency figures exactly.
+
+        ocrmac/full-page     24.0s
+        rapidocr/full-page   60.4s
+
+    So the choice is availability: ocrmac wraps the macOS Vision framework and needs both
+    a Mac and the pip wrapper; rapidocr is pure python and runs anywhere. The wrapper can
+    INSTALL on other platforms while the framework cannot exist there, so the platform
+    check is separate from the import check.
+
+    AZURE CU IS NOT AN AUTOMATIC FALLBACK, despite being fastest at 6.8s. It reads text
+    INSIDE images, which on Year 2 added 233 token occurrences of which only 37% are
+    dictionary words -- "aaid", "abost", "arnage", scraped off an ENERGY STAR screenshot
+    and a recycling infographic -- and not one of them appears in the human reference.
+    That is garbled screenshot chrome, not recovered prose, and mixing it into a citation
+    spine is worse than omitting it. Image content is the vision-extraction path's job,
+    where it arrives as typed points with per-value confidence instead. CU stays an
+    explicit opt-in for bulk runs that want the speed and will accept the noise.
+    """
+    if requested:
+        return requested
+    if is_macos is None:
+        import platform
+        is_macos = platform.system() == "Darwin"
+    if ocrmac_available is None:
+        try:
+            import ocrmac  # noqa: F401
+            ocrmac_available = True
+        except Exception:
+            ocrmac_available = False
+    return "ocrmac" if (is_macos and ocrmac_available) else "rapidocr"
+
+
 def _top_label(cls) -> tuple[str | None, float | None]:
     """One picture's top-ranked (class_name, confidence), or (None, None).
 
@@ -156,15 +197,34 @@ def _block_record(kind: str, page_no: int, bbox: tuple[float, float, float, floa
     }
 
 
-def build_converter(chart_extraction: bool = True, classification: bool = True):
+def build_converter(chart_extraction: bool = True, classification: bool = True,
+                    ocr_engine: str | None = None):
     from docling.document_converter import DocumentConverter, PdfFormatOption
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import (
         PdfPipelineOptions, TableStructureOptions, TableFormerMode,
     )
 
+    from docling.datamodel.pipeline_options import RapidOcrOptions, OcrMacOptions
+
     o = PdfPipelineOptions()
     o.generate_page_images = True        # required by chart extraction
+
+    # FULL-PAGE OCR IS NOT OPTIONAL. Benchmarked on Year 2: by default Docling OCRs only
+    # the regions its layout model proposes, so a region clipped short takes the text
+    # with it -- 26 blocks ended mid-sentence and all three of the grant table's wrapped
+    # continuation lines were lost. At full page both local engines recover them
+    # character-identically to the human-healed reference, and rapidocr is also FASTER
+    # that way (60.4s against 86.5s), so the setting costs nothing.
+    engine = choose_ocr_engine(requested=ocr_engine)
+    if engine == "ocrmac":
+        o.ocr_options = OcrMacOptions(force_full_page_ocr=True)
+    else:
+        # backend="torch": RapidOcrOptions defaults to onnxruntime, which is absent here,
+        # while Docling's OcrAutoOptions picks torch. Constructing options explicitly
+        # therefore fails where the default path works.
+        o.ocr_options = RapidOcrOptions(force_full_page_ocr=True, backend="torch")
+    o.do_ocr = True
     o.generate_picture_images = True
     o.do_chart_extraction = chart_extraction
     o.do_picture_classification = classification or chart_extraction
@@ -178,13 +238,15 @@ def build_converter(chart_extraction: bool = True, classification: bool = True):
         if target is not None and hasattr(target, "picture_area_threshold"):
             target.picture_area_threshold = 0.0
 
+    print(f"[docling] OCR engine: {engine} (full-page)", flush=True)
     return DocumentConverter(
         format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=o)})
 
 
 def run(pdf: Path, out: Path, chart_extraction: bool = True,
-        classification: bool = True) -> dict:
-    conv = build_converter(chart_extraction=chart_extraction, classification=classification)
+        classification: bool = True, ocr_engine: str | None = None) -> dict:
+    conv = build_converter(chart_extraction=chart_extraction,
+                           classification=classification, ocr_engine=ocr_engine)
     t0 = time.time()
     res = conv.convert(str(pdf))
     elapsed = time.time() - t0
@@ -291,6 +353,9 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--no-charts", action="store_true",
                     help="control arm: disable chart extraction to isolate its effect")
+    ap.add_argument("--ocr-engine", choices=["ocrmac", "rapidocr"],
+                    help="override automatic selection (macOS Vision if available, "
+                         "else rapidocr). Both are equivalent in quality at full page.")
     ap.add_argument("--no-classify", action="store_true",
                     help="disable picture classification too (only meaningful with --no-charts)")
     a = ap.parse_args()
@@ -298,7 +363,7 @@ def main() -> int:
     print(f"[docling] v{m.version('docling')}  charts={'off' if a.no_charts else 'ON'}  "
           f"classify={'off' if a.no_classify else 'ON'}", flush=True)
     r = run(Path(a.pdf), Path(a.out), chart_extraction=not a.no_charts,
-            classification=not a.no_classify)
+            classification=not a.no_classify, ocr_engine=a.ocr_engine)
     print(f"[docling] {r['seconds']}s  {r['words']:,} words  "
           f"{r['charts']} chart(s) with {r['chart_cells']} extracted cell(s)")
     if r["labels"]:
