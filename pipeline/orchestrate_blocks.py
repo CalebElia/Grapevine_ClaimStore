@@ -20,6 +20,8 @@ from pathlib import Path
 
 from pipeline.convert_blocks import convert, heading_shapes
 from pipeline.extract_figures import extract_figures, render_figure_block
+from pipeline.quality_gate import assess, find_numbers, verdict
+from pipeline.quality_gate import report as gate_report
 from pipeline.render_blocks import render_blocks
 
 
@@ -34,12 +36,17 @@ def main() -> int:
     ap.add_argument("--dpi", type=int, default=600)
     ap.add_argument("--title", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--allow-refused", action="store_true",
+                    help="write the file even when the gate refuses. Requires a reason, "
+                         "recorded in the output, so an override is never silent.")
+    ap.add_argument("--override-reason", default="",
+                    help="why the refusal is being overridden")
     ap.add_argument("--page-markers", action="store_true",
                     help="emit <!-- p.N --> at each page change, for the human review pass")
     a = ap.parse_args()
 
-    conv, blocks, report = convert(a.pdf, a.blocks)
-    ambiguous = report["ambiguous_hyphens"]
+    conv, blocks, conv_report = convert(a.pdf, a.blocks)
+    ambiguous = conv_report["ambiguous_hyphens"]
     print(f"[blocks] {len(blocks)} blocks, {len(conv.text.split()):,} words, "
           f"{conv.n_pages} pages")
     srcs = [b.get("text_source") for b in blocks
@@ -51,11 +58,11 @@ def main() -> int:
     recovered = [b for b in blocks if b["kind"] == "UncoveredText"]
     print(f"[blocks] {len(recovered)} region(s) recovered by the coverage sweep "
           f"({sum(1 for b in recovered if b.get('caption_for'))} of them captions)")
-    if report["captions_associated"]:
-        print(f"[blocks] {len(report['captions_associated'])} unlinked block(s) "
+    if conv_report["captions_associated"]:
+        print(f"[blocks] {len(conv_report['captions_associated'])} unlinked block(s) "
               f"associated to a picture and dropped as captions -- listed so a wrong "
               f"association is auditable, not an invisible deletion:")
-        for pno, txt in report["captions_associated"]:
+        for pno, txt in conv_report["captions_associated"]:
             print(f"[blocks]   p.{pno}: {txt}")
 
     figs = []
@@ -70,8 +77,35 @@ def main() -> int:
     figure_xml = {f["page_no"]: render_figure_block(f) for f in figs}
     print(f"[blocks] {len(figure_xml)} figure(s) available")
 
+    # THE GATE, against the OTHER arm's read of the same PDF. Comparing a conversion
+    # only against itself cannot detect that it lost the document: a converter that read
+    # nothing is perfectly self-consistent.
+    dl_text = Path(a.blocks).with_suffix("").with_suffix(".md")
+    ref = dl_text.read_text() if dl_text.exists() else ""
+    findings = assess(conv.text, conv.page_map, blocks,
+                      reference_words=len(ref.split()),
+                      reference_numbers=find_numbers(ref))
+    print(gate_report(findings, Path(a.pdf).name))
+    v = verdict(findings)
+
+    if v == "refuse" and not a.allow_refused:
+        print("[gate] REFUSING to write. This document is not readable as converted, and "
+              "storing claims against it would anchor them to text that is not there.")
+        print("[gate] Override with --allow-refused --override-reason '...' if you have "
+              "a reason; it will be recorded in the file.")
+        return 2
+
     md = render_blocks(blocks, figure_xml, a.title, page_markers=a.page_markers,
                        heading_shapes=heading_shapes(blocks))
+    banner = [f"<!-- gate: {v.upper()} -->"]
+    for f in findings:
+        banner.append(f"<!-- gate {f.severity}: {f.check} -- {f.evidence} -->")
+    if v == "refuse":
+        banner.append(f"<!-- gate OVERRIDDEN by operator. Reason: "
+                      f"{a.override_reason or 'NONE GIVEN'} -->")
+    # banner sits directly under the H1 so the verdict travels with the document
+    head, rest = md.split("\n", 1)
+    md = "\n".join([head, *banner, rest])
     Path(a.out).write_text(md)
     print(f"[blocks] wrote {a.out} ({len(md.split()):,} words)")
 
