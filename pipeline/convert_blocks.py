@@ -195,6 +195,35 @@ _HEADING_SHAPE = re.compile(r"^\s*([A-Za-z]+\s+\d+)\s*:", re.I)
 _INDEX_ENTRY = re.compile(r"\S.*\s\d{1,3}$")
 
 
+_OCR_MIN_WORDS = 3       # below this there is not enough signal to call pdfplumber broken
+_OCR_RATIO = 0.5         # pdfplumber below this share of Docling's words = no text layer
+
+
+def choose_block_text(pdf_text: str, docling_text: str) -> tuple[str, str]:
+    """(text, source) for one block: pdfplumber's characters, or Docling's OCR.
+
+    pdfplumber is PREFERRED wherever it actually has a text layer, because it is
+    character-exact and Docling fragments styled glyph runs (A2ZERO -> "A 2 ZERO" 40
+    times of 53 on Year 5). That fragmentation also means Docling frequently reports MORE
+    words than pdfplumber on a perfectly healthy page, so "Docling has more" cannot be
+    the trigger -- only pdfplumber having almost NOTHING can.
+
+    Year 2 is why this exists. It is an image-based PDF: the prose is rendered as
+    pictures, so pdfplumber's text layer yields 9 words across the first 22 blocks where
+    Docling's OCR yields 445. Cropping pdfplumber to Docling's blocks discarded a
+    document Docling had read successfully -- reproducing the corpus's signature
+    234-word, zero-dollar-figure failure, and reporting success while doing it.
+
+    THE SOURCE IS RETURNED, NOT JUST THE TEXT. OCR output is a model's reading of pixels,
+    the same category as the vision figure extraction and NOT character-exact verbatim.
+    Mixing the two silently would let an OCR guess be cited exactly like a quotation.
+    """
+    p_words, d_words = len(pdf_text.split()), len(docling_text.split())
+    if d_words >= _OCR_MIN_WORDS and p_words < _OCR_RATIO * d_words:
+        return docling_text, "docling_ocr"
+    return pdf_text, "pdfplumber"
+
+
 def split_index_lines(raw: str) -> list[str] | None:
     """The lines of `raw` if it is an index (contents list), else None.
 
@@ -474,19 +503,21 @@ def convert(pdf_path, blocks_path):
     for i, (b, raw) in enumerate(zip(blocks, raws)):
         if b["kind"] == "PictureItem":
             continue                      # no text; re-interleaved for the renderer below
+        raw, src = choose_block_text(raw, b.get("docling_text") or "")
         fixed, amb = apply_hyphen_decisions(raw, words, hyph)
         ambiguous.extend(amb)
         idx = split_index_lines(fixed)
         if idx:
             for j, ln in enumerate(idx):
                 resolved.append({**b, "text": ln, "_ord": float(i) + 0.001 * j,
+                                 "text_source": src,
                                  "_caption_src": None, "caption_for": None})
             continue
         text = flatten_block(fixed)
         if text and is_page_footer({"text": text, "page_no": b["page_no"]}):
             continue                     # a page footer is not prose
         if text:
-            resolved.append({**b, "text": text, "_ord": float(i),
+            resolved.append({**b, "text": text, "_ord": float(i), "text_source": src,
                              "_caption_src": "docling" if b.get("caption_for") else None})
 
     # COVERAGE SWEEP. Anything pdfplumber can see on a page that no TEXT block claims is

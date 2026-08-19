@@ -52,17 +52,38 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
     # it -- a `##` heading on Year 5, plain prose on Year 4. The first block on page 1 is
     # the title, taken verbatim; the caller's string drops to provenance, where it still
     # says which run produced the file without claiming to be what the document is called.
-    doc_title = next((b.get("text", "").strip() for b in blocks
-                      if b.get("page_no") == 1 and b["kind"] != "PictureItem"
-                      and (b.get("text") or "").strip()), "")
-    title_ref = next((b for b in blocks if (b.get("text") or "").strip() == doc_title
-                      and b.get("page_no") == 1), None) if doc_title else None
+    # A page-1 HEADING outranks an earlier plain block: Year 2's first page-1 block is
+    # OCR of the city logo ("City Ann Arbor of", word order scrambled) and the real title
+    # follows it as a SectionHeaderItem. Docling's heading type is evidence about which
+    # block is the title; position alone is not. Year 4 has no page-1 heading at all, so
+    # position remains the fallback.
+    p1 = [b for b in blocks if b.get("page_no") == 1 and b["kind"] != "PictureItem"
+          and (b.get("text") or "").strip()]
+    title_ref = next((b for b in p1 if b["kind"] in ("SectionHeaderItem", "TitleItem")),
+                     p1[0] if p1 else None)
+    doc_title = (title_ref.get("text") or "").strip() if title_ref else ""
+
+    # OCR PROVENANCE. Year 2's prose is rendered as images, so 94% of its blocks come
+    # from Docling's OCR rather than a text layer; Years 4 and 5 are 0%. OCR output is a
+    # model's reading of pixels, not character-exact text, and the difference has to
+    # travel with the document. The fraction is always stated; individual blocks are
+    # marked only when they differ from the document's dominant source, because marking
+    # every block in a 94% document buries the very signal the mark exists to carry.
+    srcs = [b.get("text_source") for b in blocks if (b.get("text") or "").strip()
+            and b["kind"] != "PictureItem"]
+    n_ocr = sum(1 for x in srcs if x == "docling_ocr")
+    ocr_pct = round(100 * n_ocr / len(srcs)) if srcs else 0
+    dominant = "docling_ocr" if n_ocr * 2 > len(srcs) else "pdfplumber"
+    mark = {"docling_ocr": "[OCR]", "pdfplumber": "[text layer]"}
 
     out = [f"# {doc_title or title}", "",
            f"<!-- generated {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} -- "
            f"structure and reading order from Docling, characters from pdfplumber, "
            f"figures from vision extraction -->",
-           f"<!-- run: {title} -->", ""]
+           f"<!-- run: {title} -->",
+           f"<!-- {ocr_pct}% OCR: {n_ocr} of {len(srcs)} text blocks were read by OCR "
+           f"(no usable text layer), not extracted character-exact. Dominant source: "
+           f"{dominant}. -->", ""]
     last_heading = None
     stats = {"figures": 0, "captions_dropped": 0, "recovered": 0}
 
@@ -137,7 +158,10 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             out += [f"> {text}", ""]
             continue
 
-        out += [text, ""]
+        tag = ""
+        if srcs and b.get("text_source") and b["text_source"] != dominant:
+            tag = f"{mark[b['text_source']]} "
+        out += [f"{tag}{text}", ""]
 
     out.insert(3, f"<!-- {stats['figures']} figure(s) · {stats['captions_dropped']} "
                   f"caption(s) dropped with their photos · {stats['recovered']} "

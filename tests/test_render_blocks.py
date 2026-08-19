@@ -236,3 +236,62 @@ def test_a_recovered_region_after_ordinary_prose_gets_its_own_marker():
               _blk("UncoveredText", 4, "recovered two")]
     out = render_blocks(blocks, {}, "T")
     assert out.lower().count("recovered by coverage sweep") == 2
+
+
+# ── OCR provenance is stated, and the exception is what gets marked ────────────────────
+# Year 2 is read 94% by OCR; Years 4 and 5 are 0%. Marking every OCR block in a 94%
+# document buries the signal in noise, and marking none in a 5% document hides it. So the
+# document-level fraction is always stated, and individual blocks are marked only when
+# they DIFFER from the document's dominant source -- mark the exception, not the rule.
+
+def test_the_ocr_fraction_is_always_stated():
+    blocks = [_blk("TextItem", 3, "Read by OCR.", text_source="docling_ocr"),
+              _blk("TextItem", 4, "Read from the text layer.", text_source="pdfplumber")]
+    out = render_blocks(blocks, {}, "T")
+    assert "50%" in out and "OCR" in out
+
+
+def test_a_minority_ocr_block_is_marked_individually():
+    blocks = [_blk("TextItem", 3, "one", text_source="pdfplumber"),
+              _blk("TextItem", 3, "two", text_source="pdfplumber"),
+              _blk("TextItem", 3, "three", text_source="pdfplumber"),
+              _blk("TextItem", 4, "the odd one out", text_source="docling_ocr")]
+    out = render_blocks(blocks, {}, "T")
+    assert out.count("[OCR]") == 1
+
+
+def test_in_a_majority_ocr_document_the_text_layer_block_is_the_one_marked():
+    blocks = [_blk("TextItem", 3, "one", text_source="docling_ocr"),
+              _blk("TextItem", 3, "two", text_source="docling_ocr"),
+              _blk("TextItem", 3, "three", text_source="docling_ocr"),
+              _blk("TextItem", 4, "the odd one out", text_source="pdfplumber")]
+    out = render_blocks(blocks, {}, "T")
+    assert out.count("[text layer]") == 1
+    assert "[OCR]" not in out
+
+
+def test_a_document_with_no_ocr_says_so_and_marks_nothing():
+    blocks = [_blk("TextItem", 3, "clean", text_source="pdfplumber")]
+    out = render_blocks(blocks, {}, "T")
+    assert "0% OCR" in out
+    assert "[OCR]" not in out
+
+
+def test_a_page_one_heading_outranks_an_earlier_plain_text_block():
+    """Year 2's first page-1 block is OCR of the city logo -- 'City Ann Arbor of', word
+    order scrambled -- while the actual title follows it as a SectionHeaderItem. Docling's
+    heading type is evidence about which block is the title; position alone is not.
+    """
+    blocks = [_blk("TextItem", 1, "City Ann Arbor of"),
+              _blk("SectionHeaderItem", 1, "A²ZERO ANNUAL REPORT"),
+              _blk("TextItem", 3, "Body.")]
+    out = render_blocks(blocks, {}, "T")
+    assert out.startswith("# A²ZERO ANNUAL REPORT")
+
+
+def test_with_no_page_one_heading_the_first_block_is_still_the_title():
+    """Year 4: no SectionHeaderItem on the cover at all."""
+    blocks = [_blk("TextItem", 1, "A2ZERO YEAR FOUR ANNUAL REPORT JULY 1, 2023"),
+              _blk("TextItem", 3, "Body.")]
+    out = render_blocks(blocks, {}, "T")
+    assert out.startswith("# A2ZERO YEAR FOUR ANNUAL REPORT")

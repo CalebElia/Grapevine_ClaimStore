@@ -42,6 +42,12 @@ def main() -> int:
     ambiguous = report["ambiguous_hyphens"]
     print(f"[blocks] {len(blocks)} blocks, {len(conv.text.split()):,} words, "
           f"{conv.n_pages} pages")
+    srcs = [b.get("text_source") for b in blocks
+            if (b.get("text") or "").strip() and b["kind"] != "PictureItem"]
+    n_ocr = sum(1 for x in srcs if x == "docling_ocr")
+    if n_ocr:
+        print(f"[blocks] {n_ocr}/{len(srcs)} text block(s) ({100*n_ocr//max(len(srcs),1)}%) "
+              f"read by OCR -- no usable text layer, NOT character-exact")
     recovered = [b for b in blocks if b["kind"] == "UncoveredText"]
     print(f"[blocks] {len(recovered)} region(s) recovered by the coverage sweep "
           f"({sum(1 for b in recovered if b.get('caption_for'))} of them captions)")

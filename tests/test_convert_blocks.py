@@ -419,8 +419,9 @@ def test_every_block_is_independently_addressable_for_chunking():
 # own unlinked blocks. Widening it needs a guard: a body paragraph beside a photo must
 # never be mistaken for a caption and silently deleted.
 
-from pipeline.convert_blocks import (is_caption_candidate, is_page_footer,
-                                     looks_like_caption, split_index_lines)
+from pipeline.convert_blocks import (choose_block_text, is_caption_candidate,
+                                     is_page_footer, looks_like_caption,
+                                     split_index_lines)
 
 
 def test_a_short_textitem_beside_a_photo_is_caption_shaped():
@@ -681,3 +682,53 @@ def test_an_ordinary_paragraph_crop_is_not_split():
 def test_a_two_line_crop_ending_in_numbers_is_not_enough_to_be_an_index():
     """Guard against splitting a wrapped sentence that happens to end in figures."""
     assert split_index_lines("saving residents $101,650\non costs in 2024") is None
+
+
+# ── falling back to Docling's OCR when pdfplumber has no text layer ────────────────────
+# Year 2 is an IMAGE-BASED PDF: its prose is rendered as pictures, so pdfplumber's text
+# layer is nearly empty (9 words across the first 22 blocks, against Docling's 445) while
+# Docling's OCR reads the document fine (2,995 words, all 15 dollar figures). Cropping
+# pdfplumber to Docling's blocks therefore threw away a document that had been
+# successfully read -- reproducing the exact 234-word, zero-dollar-figure catastrophe
+# this corpus is famous for, and reporting success.
+#
+# OCR TEXT IS NOT CHARACTER-EXACT TEXT. It is a model's reading of pixels, the same
+# category as the vision figure extraction, so it is marked rather than silently mixed in.
+
+def test_pdfplumber_is_preferred_when_it_has_the_text():
+    """Normal case: the two readings are comparable, so the character-exact one wins."""
+    assert choose_block_text("Installed an additional 1.7MW of new solar",
+                             "Installed an additional 1.7MW of new solar") == \
+        ("Installed an additional 1.7MW of new solar", "pdfplumber")
+
+
+def test_a_small_ordinary_difference_does_not_trigger_the_fallback():
+    """Docling routinely differs slightly -- it fragments A2ZERO into three tokens, so it
+    often reports MORE words than pdfplumber on a perfectly good page. That must not be
+    read as pdfplumber failing."""
+    p = "Strategy 1 of A2ZERO focuses on powering our electrical grid"
+    d = "Strategy 1 of A 2 ZERO focuses on powering our electrical grid"
+    assert choose_block_text(p, d)[1] == "pdfplumber"
+
+
+def test_docling_ocr_is_used_when_pdfplumber_yields_almost_nothing():
+    """The real Year 2 shape: one stray glyph against a full sentence."""
+    d = ("Installed an additional 1.7Mw of new residential solar, bringing the "
+         "total installed capacity in Ann Arbor to over 10MW")
+    text, src = choose_block_text(".", d)
+    assert src == "docling_ocr"
+    assert text == d
+
+
+def test_an_empty_pdfplumber_block_falls_back():
+    text, src = choose_block_text("", "A2ZERO is Ann Arbor's plan for a just transition")
+    assert src == "docling_ocr"
+
+
+def test_neither_source_having_text_yields_nothing():
+    assert choose_block_text("", "") == ("", "pdfplumber")
+
+
+def test_a_short_docling_reading_never_triggers_the_fallback():
+    """Below a few words there is not enough signal to call pdfplumber broken."""
+    assert choose_block_text("", "2021 2022")[1] == "pdfplumber"
