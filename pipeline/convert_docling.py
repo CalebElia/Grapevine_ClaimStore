@@ -81,14 +81,23 @@ def choose_ocr_engine(is_macos: bool | None = None,
     INSTALL on other platforms while the framework cannot exist there, so the platform
     check is separate from the import check.
 
-    AZURE CU IS NOT AN AUTOMATIC FALLBACK, despite being fastest at 6.8s. It reads text
-    INSIDE images, which on Year 2 added 233 token occurrences of which only 37% are
-    dictionary words -- "aaid", "abost", "arnage", scraped off an ENERGY STAR screenshot
-    and a recycling infographic -- and not one of them appears in the human reference.
-    That is garbled screenshot chrome, not recovered prose, and mixing it into a citation
-    spine is worse than omitting it. Image content is the vision-extraction path's job,
-    where it arrives as typed points with per-value confidence instead. CU stays an
-    explicit opt-in for bulk runs that want the speed and will accept the noise.
+    AZURE CU IS NOT AN AUTOMATIC FALLBACK, despite being fastest at 6.8s. A page-by-page
+    side-by-side puts its real text at 3,461 words against ocrmac's 3,110 and the human
+    reference's 3,108 -- and page 6 ALONE, an ENERGY STAR Portfolio Manager screenshot,
+    accounts for +196 of that gap. CU reads text inside images; on Year 2 that is 233
+    token occurrences at 37% dictionary words ("aaid", "abost", "arnage"), none of them
+    in the human reference. Garbled screenshot chrome, not recovered prose, and mixing it
+    into a citation spine is worse than omitting it -- image content is the
+    vision-extraction path's job, where it arrives as typed points with per-value
+    confidence. So CU is an explicit opt-in for bulk runs wanting the speed.
+
+    CREDIT WHERE IT IS DUE, and a correction: CU semantically classifies page furniture,
+    emitting the recurring "For more information ... please contact <staff>" block as
+    <!-- PageFooter: ... -->. Three successive analyses of mine stripped HTML comments
+    before counting and therefore DELETED 111 words of real CU text, making it look like
+    CU had dropped the staff contact blocks when it had merely labelled them. ocrmac
+    keeps that text inline and does not distinguish it from body prose. Neither behaviour
+    is wrong; they are different, and only CU's is machine-actionable.
     """
     if requested:
         return requested
