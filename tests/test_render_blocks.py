@@ -26,7 +26,9 @@ def _blk(kind, page, text, **kw):
 
 
 def test_a_section_header_block_becomes_a_markdown_heading():
-    out = render_blocks([_blk("SectionHeaderItem", 1, "CLOSING")], {}, "T")
+    # page 24, not page 1: the first page-1 block is the document's H1 title, so a cover
+    # page cannot also be used as an arbitrary stand-in for "some body page".
+    out = render_blocks([_blk("SectionHeaderItem", 24, "CLOSING")], {}, "T")
     assert "## CLOSING" in out
 
 
@@ -171,3 +173,66 @@ def test_ordinary_prose_mentioning_a_strategy_is_not_promoted():
 def test_heading_shapes_are_optional():
     out = render_blocks([_blk("TextItem", 1, "STRATEGY 6: Something")], {}, "T")
     assert "## " not in out
+
+
+# ── the document's own title is the title ──────────────────────────────────────────────
+# Flagged on both years: the `#` line carried a title typed on the command line, while
+# the document's REAL title appeared again below it -- as a `##` heading on Year 5
+# ("A2ZER0 Annual Report Year Five") and as plain prose on Year 4 ("A2ZERO YEAR FOUR
+# ANNUAL REPORT JULY 1, 2023 - JUNE 3, 2024"). Two titles, one of them not the
+# document's. The first block on page 1 is the document's own title, verbatim.
+
+def test_the_first_page_one_block_becomes_the_h1_title():
+    blocks = [_blk("SectionHeaderItem", 1, "A2ZER0 Annual Report Year Five"),
+              _blk("TextItem", 3, "Body prose.")]
+    out = render_blocks(blocks, {}, "CLI Title")
+    assert out.startswith("# A2ZER0 Annual Report Year Five")
+
+
+def test_the_documents_title_is_not_also_repeated_below():
+    blocks = [_blk("SectionHeaderItem", 1, "A2ZER0 Annual Report Year Five"),
+              _blk("TextItem", 3, "Body prose.")]
+    out = render_blocks(blocks, {}, "CLI Title")
+    assert out.count("A2ZER0 Annual Report Year Five") == 1
+
+
+def test_a_year_4_style_plain_text_title_is_promoted_too():
+    blocks = [_blk("TextItem", 1,
+                   "A2ZERO YEAR FOUR ANNUAL REPORT JULY 1, 2023 - JUNE 3, 2024"),
+              _blk("TextItem", 3, "Body prose.")]
+    out = render_blocks(blocks, {}, "CLI Title")
+    assert out.startswith("# A2ZERO YEAR FOUR ANNUAL REPORT")
+
+
+def test_the_cli_title_survives_as_provenance_not_as_the_heading():
+    """It still names which run produced the file; it just is not the document's title."""
+    out = render_blocks([_blk("SectionHeaderItem", 1, "Real Title")], {}, "CLI Title")
+    assert "CLI Title" in out
+    assert "# CLI Title" not in out
+
+
+def test_a_document_with_no_page_one_text_falls_back_to_the_given_title():
+    out = render_blocks([_blk("TextItem", 3, "Body only.")], {}, "Fallback Title")
+    assert out.startswith("# Fallback Title")
+
+
+def test_consecutive_recovered_regions_share_one_marker():
+    """Year 5's table of contents recovers as 11 separate entries, each of which was
+    emitting its own identical provenance comment. One run, one marker -- the caveat is
+    about the run, not about each line in it.
+    """
+    blocks = [_blk("UncoveredText", 2, "3 INTRODUCTION"),
+              _blk("UncoveredText", 2, "4 GREENHOUSE GAS"),
+              _blk("UncoveredText", 2, "6 STRATEGY 1")]
+    out = render_blocks(blocks, {}, "T")
+    assert out.lower().count("recovered by coverage sweep") == 1
+    for t in ("3 INTRODUCTION", "4 GREENHOUSE GAS", "6 STRATEGY 1"):
+        assert t in out
+
+
+def test_a_recovered_region_after_ordinary_prose_gets_its_own_marker():
+    blocks = [_blk("UncoveredText", 2, "recovered one"),
+              _blk("TextItem", 3, "Ordinary prose."),
+              _blk("UncoveredText", 4, "recovered two")]
+    out = render_blocks(blocks, {}, "T")
+    assert out.lower().count("recovered by coverage sweep") == 2

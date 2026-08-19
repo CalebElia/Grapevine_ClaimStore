@@ -47,16 +47,34 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
         if ref and ref in pics:
             captions.setdefault(ref, b["text"])
 
-    out = [f"# {title}", "",
+    # THE DOCUMENT'S OWN TITLE IS THE TITLE. Both years' reviews flagged the same thing:
+    # an H1 carrying a command-line string, with the document's real title repeated below
+    # it -- a `##` heading on Year 5, plain prose on Year 4. The first block on page 1 is
+    # the title, taken verbatim; the caller's string drops to provenance, where it still
+    # says which run produced the file without claiming to be what the document is called.
+    doc_title = next((b.get("text", "").strip() for b in blocks
+                      if b.get("page_no") == 1 and b["kind"] != "PictureItem"
+                      and (b.get("text") or "").strip()), "")
+    title_ref = next((b for b in blocks if (b.get("text") or "").strip() == doc_title
+                      and b.get("page_no") == 1), None) if doc_title else None
+
+    out = [f"# {doc_title or title}", "",
            f"<!-- generated {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} -- "
            f"structure and reading order from Docling, characters from pdfplumber, "
-           f"figures from vision extraction -->", ""]
+           f"figures from vision extraction -->",
+           f"<!-- run: {title} -->", ""]
     last_heading = None
     stats = {"figures": 0, "captions_dropped": 0, "recovered": 0}
 
     page = None
+    in_recovered = False
     for b in blocks:
         kind, text = b["kind"], (b.get("text") or "").strip()
+        if b["kind"] != "UncoveredText" and (b.get("text") or "").strip():
+            in_recovered = False
+
+        if title_ref is not None and b is title_ref:
+            continue                       # already emitted as the H1
 
         if page_markers and b.get("page_no") != page:
             page = b.get("page_no")
@@ -109,9 +127,14 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
 
         if kind == "UncoveredText":
             stats["recovered"] += 1
-            out += [f"<!-- recovered by coverage sweep: no Docling block modelled this "
-                    f"region on page {b['page_no']}; placement inferred -->",
-                    f"> {text}", ""]
+            # One marker per RUN of recovered regions, not per region. Year 5's contents
+            # page recovers as 11 consecutive entries, and 11 identical caveats is noise
+            # that buries the one thing the caveat is for.
+            if not in_recovered:
+                out.append(f"<!-- recovered by coverage sweep: no Docling block modelled "
+                           f"this region on page {b['page_no']}; placement inferred -->")
+            in_recovered = True
+            out += [f"> {text}", ""]
             continue
 
         out += [text, ""]

@@ -192,6 +192,29 @@ _CAPTION_MAX_WORDS = 25
 _HEADING_SHAPE = re.compile(r"^\s*([A-Za-z]+\s+\d+)\s*:", re.I)
 
 
+_INDEX_ENTRY = re.compile(r"\S.*\s\d{1,3}$")
+
+
+def split_index_lines(raw: str) -> list[str] | None:
+    """The lines of `raw` if it is an index (contents list), else None.
+
+    Runs on the RAW crop, before flatten_block collapses the line breaks that make an
+    index recognisable at all. Year 4's table of contents arrives as ONE Docling block
+    (typed CodeItem) and was flattened into a single run-on line; Year 5 has no block for
+    its equivalent and reaches the same place through the coverage sweep. Same rule, two
+    entry points.
+
+    Requires at least three entries, and most of them to end in a page number, so a
+    wrapped sentence that happens to end in a figure ("saving residents $101,650 on costs
+    in 2024") is never mistaken for an index.
+    """
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+    if len(lines) < 3:
+        return None
+    hits = sum(1 for ln in lines if _INDEX_ENTRY.match(ln))
+    return lines if hits >= max(3, int(0.7 * len(lines))) else None
+
+
 def is_page_footer(block: dict) -> bool:
     """A block that is nothing but this page's own number.
 
@@ -372,6 +395,27 @@ def group_uncovered(words: list[dict], page_no: int) -> list[dict]:
             cur = [w]
     groups.append(cur)
 
+    # AN INDEX KEEPS ITS LINES. Merging a group's lines is right for a wrapped caption
+    # and wrong for a table of contents, where each line is a separate entry -- Year 4's
+    # TOC arrived as one run-on line. The document supplies the discriminator: index
+    # entries each end in their own page number, and one such line proves nothing while a
+    # repeated structure does.
+    def _is_index(lines: list[list[dict]]) -> bool:
+        if len(lines) < 2:
+            return False
+        ends = sum(1 for ln in lines
+                   if re.search(r"\b\d{1,3}$", " ".join(w["text"] for w in ln).strip()))
+        return ends >= max(2, int(0.6 * len(lines)))
+
+    expanded = []
+    for g in groups:
+        rows: dict[int, list[dict]] = {}
+        for w in g:
+            rows.setdefault(round(w["top"] / 6), []).append(w)
+        lines = [rows[k] for k in sorted(rows)]
+        expanded.extend(lines if _is_index(lines) else [g])
+    groups = expanded
+
     out = []
     for g in groups:
         g.sort(key=lambda w: (round(w["top"] / 6), w["x0"]))
@@ -432,6 +476,12 @@ def convert(pdf_path, blocks_path):
             continue                      # no text; re-interleaved for the renderer below
         fixed, amb = apply_hyphen_decisions(raw, words, hyph)
         ambiguous.extend(amb)
+        idx = split_index_lines(fixed)
+        if idx:
+            for j, ln in enumerate(idx):
+                resolved.append({**b, "text": ln, "_ord": float(i) + 0.001 * j,
+                                 "_caption_src": None, "caption_for": None})
+            continue
         text = flatten_block(fixed)
         if text and is_page_footer({"text": text, "page_no": b["page_no"]}):
             continue                     # a page footer is not prose

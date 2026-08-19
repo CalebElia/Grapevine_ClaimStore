@@ -420,7 +420,7 @@ def test_every_block_is_independently_addressable_for_chunking():
 # never be mistaken for a caption and silently deleted.
 
 from pipeline.convert_blocks import (is_caption_candidate, is_page_footer,
-                                     looks_like_caption)
+                                     looks_like_caption, split_index_lines)
 
 
 def test_a_short_textitem_beside_a_photo_is_caption_shaped():
@@ -623,3 +623,61 @@ def test_a_number_that_is_not_this_pages_number_is_kept():
 
 def test_real_prose_is_never_a_footer():
     assert not is_page_footer({"text": "Reached 8,903 trees planted.", "page_no": 17})
+
+
+# ── an index keeps its line structure ──────────────────────────────────────────────────
+# Year 4's audit: the table of contents came through as one run-on line. It is recovered
+# by the coverage sweep, and the sweep merges a group's lines into a single string --
+# correct for a two-line caption, wrong for an index, where each line is its own entry.
+# The signal is the document's own: every TOC line ends in its page number.
+
+def _line(text, top):
+    return {"text": text, "x0": 50, "x1": 300, "top": top, "bottom": top + 20}
+
+
+def test_index_lines_become_one_block_each():
+    words = [_line("INTRODUCTION 3", 248), _line("GREENHOUSE GAS EMISSIONS 4", 272),
+             _line("STRATEGY 1: 100% RENEWABLES 5", 296)]
+    groups = group_uncovered(words, page_no=2)
+    assert len(groups) == 3
+    assert groups[0]["text"] == "INTRODUCTION 3"
+    assert groups[2]["text"] == "STRATEGY 1: 100% RENEWABLES 5"
+
+
+def test_a_multiline_caption_still_merges_into_one_block():
+    """Lines not ending in numbers are prose and must keep merging."""
+    words = [_line("Michael Hagan from the Green Energy Neighbors", 400),
+             _line("leading the Net-Zero Home Energy Tour.", 420)]
+    assert len(group_uncovered(words, page_no=11)) == 1
+
+
+def test_a_single_line_ending_in_a_number_is_not_an_index():
+    """One line proves nothing; an index is a repeated structure."""
+    assert len(group_uncovered([_line("Reached 8,903 trees planted 17", 300)],
+                               page_no=3)) == 1
+
+
+# ── an index inside a DOCLING block keeps its lines too ────────────────────────────────
+# The two years reach the same content by different paths: Year 5 has no Docling block for
+# its table of contents (so the coverage sweep handles it), while Year 4's arrives as a
+# single Docling block -- typed CodeItem, of all things -- and was flattened to one
+# run-on line before any index check could see it. The check has to run on the RAW crop,
+# where the line breaks still exist.
+
+def test_a_raw_index_crop_is_split_into_one_line_each():
+    raw = ("INTRODUCTION 3\nGREENHOUSE GAS EMISSIONS 4\n"
+           "STRATEGY 1: 100% RENEWABLES 5\nCLOSING 24")
+    assert split_index_lines(raw) == ["INTRODUCTION 3", "GREENHOUSE GAS EMISSIONS 4",
+                                      "STRATEGY 1: 100% RENEWABLES 5", "CLOSING 24"]
+
+
+def test_an_ordinary_paragraph_crop_is_not_split():
+    raw = ("Four years ago this month, Ann Arbor's climate action plan,\n"
+           "known as A2ZERO, was adopted. This plan sets the foundation\n"
+           "for how the community will achieve carbon neutrality.")
+    assert split_index_lines(raw) is None
+
+
+def test_a_two_line_crop_ending_in_numbers_is_not_enough_to_be_an_index():
+    """Guard against splitting a wrapped sentence that happens to end in figures."""
+    assert split_index_lines("saving residents $101,650\non costs in 2024") is None
