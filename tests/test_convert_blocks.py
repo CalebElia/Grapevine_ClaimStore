@@ -500,3 +500,41 @@ def test_front_matter_on_the_cover_is_never_treated_as_a_caption():
 def test_the_same_text_shape_on_a_body_page_is_still_a_candidate():
     assert is_caption_candidate({"kind": "TextItem", "page_no": 11,
                                  "text": "Michael Hagan leading the tour, 2024."})
+
+
+# ── a heading Docling mistyped must never be deleted as a caption ──────────────────────
+# The first real generalization failure, found by running Year 4 unchanged. Docling typed
+# Year 4's long-form strategy headings as SectionHeaderItem on pages 5, 13, 15 and 19 --
+# but typed the page 11 one as an ordinary TextItem. At 20 words it slipped under the
+# 25-word caption ceiling (measured against Year 5, whose longest caption is 15 words),
+# sat adjacent to a photo, and was DELETED. A word-count threshold cannot separate these;
+# the document's own confirmed headings can.
+
+from pipeline.convert_blocks import heading_shapes
+
+
+def test_heading_shapes_are_learned_from_the_documents_own_headings():
+    blocks = [{"kind": "SectionHeaderItem", "text": "STRATEGY 1: 100% RENEWABLES"},
+              {"kind": "SectionHeaderItem", "text": "STRATEGY 2: BENEFICIAL ELECTRIFICATION"},
+              {"kind": "TextItem", "text": "Ordinary prose about renewables."}]
+    assert heading_shapes(blocks) == {"strategy 1", "strategy 2"}
+
+
+def test_a_mistyped_heading_sharing_a_confirmed_shape_is_not_a_caption_candidate():
+    """The exact Year 4 page 11 case."""
+    shapes = {"strategy 1", "strategy 2", "strategy 3", "strategy 4"}
+    blk = {"kind": "TextItem", "page_no": 11, "text":
+           "STRATEGY 3: Significantly Improve the Energy Efficiency in our Homes, "
+           "Businesses, Schools, Places of Worship, Recreational Sites, and "
+           "Government Facilities"}
+    assert not is_caption_candidate(blk, shapes)
+
+
+def test_a_real_caption_is_unaffected_by_the_heading_shapes():
+    shapes = {"strategy 1", "strategy 2"}
+    blk = {"kind": "TextItem", "page_no": 23, "text": "Emergency kit supplies distribution."}
+    assert is_caption_candidate(blk, shapes)
+
+
+def test_shapes_are_optional_so_existing_callers_keep_working():
+    assert is_caption_candidate({"kind": "TextItem", "page_no": 5, "text": "A caption."})

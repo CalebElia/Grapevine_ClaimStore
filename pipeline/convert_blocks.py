@@ -189,18 +189,51 @@ def assemble_blocks(blocks: list[dict], n_pages: int
 _CAPTION_MAX_WORDS = 25
 
 
-def is_caption_candidate(block: dict) -> bool:
-    """Caption-shaped AND not front matter.
+_HEADING_SHAPE = re.compile(r"^\s*([A-Za-z]+\s+\d+)\s*:", re.I)
+
+
+def heading_shapes(blocks: list[dict]) -> set[str]:
+    """Leading "WORD N" shapes taken from blocks Docling CONFIRMED as headings.
+
+    Document-internal evidence, the same principle the de-hyphenation pass uses, and for
+    the same reason: a threshold tuned on one document is a guess about the next one,
+    while the document's own confirmed examples are evidence about itself.
+    """
+    out = set()
+    for b in blocks:
+        if b.get("kind") in ("SectionHeaderItem", "TitleItem"):
+            m = _HEADING_SHAPE.match(b.get("text") or b.get("docling_text") or "")
+            if m:
+                out.add(re.sub(r"\s+", " ", m.group(1)).strip().lower())
+    return out
+
+
+def is_caption_candidate(block: dict, shapes: set[str] | None = None) -> bool:
+    """Caption-shaped, not front matter, and not a heading Docling happened to mistype.
 
     THE COVER PAGE IS EXEMPT, and this is a structural claim rather than a tuned one: a
     cover carries a title, a subtitle and imagery, with no body prose for a caption to
     describe. It is exempt because geometry provably cannot decide it -- Year 5's cover
     subtitle sits INSIDE a collage photo on both axes (dy=0, dx=0), indistinguishable
     from a real caption -- and losing a report's own reporting period is a worse error
-    than leaving one cover-page caption in. A document whose first page is body text
-    would forfeit a genuine page-1 caption here; that trade is deliberate.
+    than leaving one cover-page caption in.
+
+    A MISTYPED HEADING IS EXEMPT TOO, and this one cost a real deletion before it was
+    caught. Running Year 4 unchanged: Docling typed its long-form strategy headings as
+    SectionHeaderItem on pages 5, 13, 15 and 19, but typed the page 11 one --
+    "STRATEGY 3: Significantly Improve the Energy Efficiency in our Homes, Businesses,
+    Schools..." -- as an ordinary TextItem. Twenty words, under the 25-word ceiling that
+    Year 5's captions (longest: 15 words) had justified, adjacent to a photo, and so
+    deleted as a caption. Lowering the ceiling would just fit two documents instead of
+    one; matching the document's OWN confirmed heading shapes generalises.
     """
-    return block.get("page_no") != 1 and looks_like_caption(block)
+    if block.get("page_no") == 1 or not looks_like_caption(block):
+        return False
+    if shapes:
+        m = _HEADING_SHAPE.match(block.get("text") or "")
+        if m and re.sub(r"\s+", " ", m.group(1)).strip().lower() in shapes:
+            return False
+    return True
 
 
 def looks_like_caption(block: dict) -> bool:
@@ -223,7 +256,7 @@ def looks_like_caption(block: dict) -> bool:
     return 0 < len(words) <= _CAPTION_MAX_WORDS
 
 
-_CAPTION_ADJACENT = 15.0   # pt; a caption touches its picture on BOTH axes     # pt; a caption sits within this of its picture's edge
+_CAPTION_ADJACENT = 15.0   # pt; a caption touches its picture on BOTH axes
 
 
 def associate_caption(cap: dict, pictures: list[dict]):
@@ -425,6 +458,7 @@ def convert(pdf_path, blocks_path):
     # the second review were this. Guarded by looks_like_caption() so a body paragraph
     # beside a photograph can never be swallowed, and every association is recorded so a
     # wrong one is auditable rather than an invisible deletion.
+    shapes = heading_shapes(blocks)
     with pdfplumber.open(str(pdf_path)) as pdf:
         for pno in range(1, n_pages + 1):
             H = pdf.pages[pno - 1].height
@@ -439,7 +473,7 @@ def convert(pdf_path, blocks_path):
             for b in resolved:
                 if b["page_no"] != pno or b.get("caption_for") or b.get("_swept"):
                     continue
-                if not is_caption_candidate(b):
+                if not is_caption_candidate(b, shapes):
                     continue
                 bb = b["bbox"]
                 probe = {"page_no": pno,
