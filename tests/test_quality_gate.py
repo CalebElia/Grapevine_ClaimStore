@@ -121,3 +121,53 @@ def test_medium_findings_warn_but_pass():
 
 def test_a_clean_document_passes():
     assert verdict([]) == "pass"
+
+
+# ── truncation: the failure class the first four checks cannot see ─────────────────────
+# Found by comparing Year 2's output against the human-healed reference. All 11 distinct
+# grant amounts were recovered exactly -- but three bullets end mid-sentence, because
+# RapidOCR dropped the continuation lines of the wrapped entries:
+#     "$2,500,000 from the federal government ... improvements at"   [Ann Arbor Housing
+#                                                                     Commission sites]
+#     "$270,000 from the American Lung Association to support the purchase of"
+#     "$406,000 from the State of Michigan to support the purchase of another"
+# The gate PASSED that document: every currency figure was present and word recovery was
+# 96%, so neither check moved. Three short tails are invisible to volume-based measures
+# and highly visible to a reader -- and a claim quoted from a truncated bullet would be
+# verbatim-correct and factually incomplete.
+
+def test_a_block_ending_on_a_dangling_preposition_is_flagged():
+    blocks = [{"kind": "ListItem", "page_no": 13, "char_start": 0, "char_end": 5,
+               "text": "$270,000 from the American Lung Association to support the "
+                       "purchase of"}]
+    text = "hello"
+    f = assess(text, [(1, 0, 5)], blocks=blocks, reference_words=1,
+               reference_numbers=set())
+    trunc = [x for x in f if x.check == "truncation"]
+    assert trunc and trunc[0].severity == "medium"
+
+
+def test_a_complete_sentence_is_not_flagged():
+    blocks = [{"kind": "ListItem", "page_no": 13, "char_start": 0, "char_end": 5,
+               "text": "$75,000 from the McKnight Foundation to support work in Bryant."}]
+    f = assess("hello", [(1, 0, 5)], blocks=blocks, reference_words=1,
+               reference_numbers=set())
+    assert not [x for x in f if x.check == "truncation"]
+
+
+def test_a_bullet_with_no_terminal_punctuation_but_a_real_last_word_is_not_flagged():
+    """Many bullets in this corpus simply omit the full stop; that alone is not
+    truncation. Only a dangling function word is."""
+    blocks = [{"kind": "ListItem", "page_no": 13, "char_start": 0, "char_end": 5,
+               "text": "$25,000 from the U.S. EPA to support work in Bryant"}]
+    f = assess("hello", [(1, 0, 5)], blocks=blocks, reference_words=1,
+               reference_numbers=set())
+    assert not [x for x in f if x.check == "truncation"]
+
+
+def test_a_heading_is_never_treated_as_truncated():
+    blocks = [{"kind": "SectionHeaderItem", "page_no": 5, "char_start": 0, "char_end": 5,
+               "text": "STRATEGY 1: 100% RENEWABLES"}]
+    f = assess("hello", [(1, 0, 5)], blocks=blocks, reference_words=1,
+               reference_numbers=set())
+    assert not [x for x in f if x.check == "truncation"]

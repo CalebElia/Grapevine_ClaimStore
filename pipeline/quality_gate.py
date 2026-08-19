@@ -47,6 +47,16 @@ _MIN_TEXT_RECOVERY = 0.60
 _MIN_NUMERIC_RECOVERY = 0.80
 _OCR_NOTABLE = 0.20
 
+# Words that cannot end a sentence. A block ending on one, with no terminal punctuation,
+# is a sentence that stopped rather than one that finished -- the signature of a dropped
+# continuation line. Found on Year 2, where RapidOCR truncated three grant bullets at
+# "improvements at", "the purchase of" and "the purchase of another" while every currency
+# figure and 96% of the word volume survived, so no volume-based check could see it.
+_DANGLING = {
+    "a", "an", "and", "at", "but", "by", "for", "from", "in", "including", "into", "of",
+    "on", "or", "our", "the", "their", "to", "with", "another", "not", "as", "that",
+}
+
 _MONEY = re.compile(r"\$[\d,]+(?:\.\d+)?(?:\s?(?:million|billion|k|M|B))?", re.I)
 
 
@@ -111,6 +121,22 @@ def assess(text: str, page_map: list[tuple[int, int, int]], blocks: list[dict],
             out.append(Finding("page_map", "high",
                                f"page {pb} starts at {sb} before page {pa} ends at {ea}"))
             break
+
+    truncated = []
+    for b in blocks:
+        if b.get("kind") in ("SectionHeaderItem", "TitleItem", "PictureItem"):
+            continue
+        t = (b.get("text") or "").strip()
+        if not t or t[-1] in ".!?:;\u2019\"')":
+            continue
+        if t.split()[-1].lower().strip(",") in _DANGLING:
+            truncated.append(b)
+    if truncated:
+        out.append(Finding("truncation", "medium",
+                           f"{len(truncated)} block(s) end on a dangling word -- a "
+                           f"continuation line was probably dropped, e.g. p."
+                           f"{truncated[0].get('page_no')} "
+                           f"{(truncated[0].get('text') or '')[-58:]!r}"))
 
     srcs = [b.get("text_source") for b in blocks if b.get("text_source")]
     if srcs:
