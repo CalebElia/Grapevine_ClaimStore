@@ -1,14 +1,12 @@
 # Year three Annual Report
-<!-- gate: REFUSE -->
+<!-- gate: REVIEW -->
 <!-- gate medium: truncation -- 3 block(s) end on a dangling word -- a continuation line was probably dropped -->
-<!-- gate high: garbled_text -- 1 token(s) alternate case internally, which no English word does -- two text runs were probably interleaved -->
-<!-- gate OVERRIDDEN by operator. Reason: grants sub-list on p.15 still fuses its 'o' bullet markers to the following word; written for review, not for ingest -->
 
-<!-- generated 2026-08-20T23:42:32Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
-<!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 1 region(s) recovered by the coverage sweep -->
+<!-- generated 2026-08-20T23:57:11Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 2 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 3 -->
 <!-- COVERAGE PERIOD: July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
-<!-- 0% OCR: 0 of 194 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
+<!-- 0% OCR: 0 of 198 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
 
 <!-- p.1 -->
 July 1, 2022-June 3, 2023
@@ -92,7 +90,7 @@ Strategy 1 of A2ZERO calls for the community’s electric needs to be powered wi
 
 <!-- p.3 -->
 <!-- p.4 -->
-• Supported clean energy legislation introduced in the Michigan House and Senate, including Community Solar legislation and legislation to remove the 1% distributed generation cap.
+- Supported clean energy legislation introduced in the Michigan House and Senate, including Community Solar legislation and legislation to remove the 1% distributed generation cap.
 
 - Submitted a grant to the U.S. Department of Energy to formally create the proposed Sustainable Energy Utility. Decisions on this grant opportunity
 
@@ -119,7 +117,7 @@ Advancing Strategy 2, also known as beneficial electrification, has been a signi
 
 - Continued contractor education and engagement, with 22 contractors state-wide now achieving their Michigan Saves Electrification Badge, a badging program created by Michigan Saves with assistance from the City.
 
-- Won a planning grant from the U.S. Departmentof Energy to design a district geothermal loop in the Bryant neighborhood.
+- Won a planning grant from the U.S. Department of Energy to design a district geothermal loop in the Bryant neighborhood.
 
 - Created an A2ZERO sustainability review for new buildings, which is now a part of the City’s plan review process.
 
@@ -216,7 +214,7 @@ If we had to pick a word of the year in the OSI office, it would be circularity!
 
 - Worked with a group of University of Michigan policy students to develop an initial framework for reducing embodied carbon in buildings.
 
-- Held a week-long Plant-Based Challenge to encourage the adoption of plant-forward diets.The Challenge had approximately 200 residents participating; saw over 300 attendees at both in-person and virtual events; and was supported by eight local restaurants, six A2ZERO Ambassadors, and seven local non-profits and governmental departments.
+- Held a week-long Plant-Based Challenge to encourage the adoption of plant-forward diets. The Challenge had approximately 200 residents participating; saw over 300 attendees at both in-person and virtual events; and was supported by eight local restaurants, six A2ZERO Ambassadors, and seven local non-profits and governmental departments.
 
 - Held a Local Food Festival at the Ann Arbor Farmers Market, which was attended by seventeen local businesses, non-profits, and community organizations, as well as by over 300 residents.
 
@@ -251,7 +249,7 @@ moving or wishing to downsize their possessions. Find the link on the city’s r
 
 - The Greenbelt launched an innovative acquisition framework known as buy-Protect-Sell geared toward providing affordable farmland purchasing opportunities for land insecure farmers.
 
-- Began work with The Ecology Center to improve resource management in five areas: youth (2nd and 7th grade field trips), multi-family units, commercial businesses, and events outreach -as well as engagement to design a social media-based marketing campaign to encourage reduction, reuse, recycling, and composting.
+- Began work with The Ecology Center to improve resource management in five areas: youth (2nd and 7th grade field trips), multi-family units, commercial businesses, and events outreach - as well as engagement to design a social media-based marketing campaign to encourage reduction, reuse, recycling, and composting.
 
 <!-- p.12 -->
 ## STRATEGY SIX: ENHANCE THE RESILIENCE OF OUR PEOPLE AND OUR PLACE
@@ -266,7 +264,7 @@ Enhancing the resilience of our people and our exceptional community are pivotal
 
   - Reached approximately 5,750 trees planted/ distributed through the 10,000 Trees program.
 
-  - Together with Public Works and NaturalAreas Preservation,submitted a USDAForest Service Urban& Community ForestryInflation Reduction Actgrant proposal to fundan
+  - Together with Public Works and Natural Areas Preservation, submitted a USDA Forest Service Urban & Community Forestry Inflation Reduction Actgrant proposal to fundan
 
 update to Ann Arbor’s Urban Tree Canopy assessment, advance private property tree planting efforts, create a NAP management plan, and conduct a feasibility study for a City- and County-owned tree nursery.
 
@@ -280,11 +278,14 @@ natural areas permanently protected surrounding the City of Ann Arbor. The farml
 
 - Launched a data visualization platform for airquality monitoring at www.a2gov.org/airdata.
 
-- Launched the Pollinator-Aware Yard Careprogram,a restructuring of last year’s No MowMay program,with over 250 residents registered asparticipants.
+- Launched the Pollinator-Aware Yard Careprogram, a restructuring of last year’s No Mow May program,with over 250 residents registered as participants.
 
-- Hosted over a dozen community-basedorganizations to explore creation of a resiliencenetwork.
+- Hosted over a dozen community-basedorganizations to explore creation of a resilience network.
 
 - Applied for a federal EPA grant to formally launcha resilience network and expand resilience hubs throughout the County.
+
+<!-- recovered by coverage sweep: no Docling block modelled this region on page 12; placement inferred -->
+> NaturalAreas Preservation,submitted a USDAForest
 
 <!-- p.13 -->
 ## STRATEGY SEVEN: OTHER STRATEGIES (NOTABLE ACCOMPLISHMENTS OR EFFORTS)
@@ -309,7 +310,7 @@ national cohorts with peer cities for sharing of best practices and collaboratio
 
 - Continued our adoption of Bandemer Park through GIVE365’s Adopt-A-Park program.
 
-- Partnered with Leslie Science& Nature Center and the Huron River Watershed Council to organize the annual Earth Day Festival.
+- Partnered with Leslie Science & Nature Center and the Huron River Watershed Council to organize the annual Earth Day Festival.
 
 - OSI staff member joined the University of Michigan Museum of Natural History’s Board of Advisors.
 
@@ -324,7 +325,7 @@ and in-person events designed to unlock their potential as planning and implemen
 <!-- p.14 -->
 climate action in November by passing the 20-year Community Climate Action Millage.
 
-- Granted over $70,000 through our SustainingAnn Arbor Together grant program for community activities that help advance A2ZERO.
+- Granted over $70,000 through our Sustaining Ann Arbor Together grant program for community activities that help advance A2ZERO.
 
 - Hosted over 150 community events, meetings, presentations, or discussions with a wide variety of Ann Arborites.
 
@@ -346,31 +347,37 @@ climate action in November by passing the 20-year Community Climate Action Milla
 
 - Joined Bicentennial planning teams to ensure sustainability is integrated into all City efforts to celebrate our 200th birthday in 2024.
 
-- OSI staff joined the Southeast Michigan Councilof Governments (SEMCOG) Green Task Force to advance sustainability across the region.
+- OSI staff joined the Southeast Michigan Council of Governments (SEMCOG) Green Task Force to advance sustainability across the region.
 
 - OSI staff joined Ann Arbor Rotary and helped create the local chapter’s Environmental Action Group.
 
-- OSI submitted multiple grants and was successfulin securing:
+- OSI submitted multiple grants and was successful in securing:
 
-oEnergy Efficiency and Conservation Block Grant ($180,000) to make the Bryant Community Center a carbon negative building and living demonstration site. oMI-HOPE ($500,000) for the work to decarbonize the Bryant neighborhood.
+  - Energy Efficiency and Conservation Block Grant ($180,000) to make the Bryant Community Center a carbon negative building and living demonstration site.
 
-oAmeriCorps program ($229,000) to bring 10 AmeriCorps Members to OSI to support local sustainability-related engagement and education. oWashtenaw County Waste Reduction Sponsorship ($4,000) to advance A2R3.
+  - MI-HOPE ($500,000) for the work to decarbonize the Bryant neighborhood.
 
-oU.S Department of Energy Community Geothermal Planning Grant ($580,000) to design a district geothermal system in Bryant.
+  - AmeriCorps program ($229,000) to bring 10 AmeriCorps Members to OSI to support local sustainability-related engagement and education.
 
-oClean Energy to Communities (Technical Assistance) toidentify data needs and draft a request for proposals fora geothermal design around Veterans Park.
+  - Washtenaw County Waste Reduction Sponsorship ($4,000) to advance A2R3.
 
-- State of Michigan ($25,000) to support LED lighting conversion at Wheeler Service Center.
+  - U.S Department of Energy Community Geothermal Planning Grant ($580,000) to design a district geothermal system in Bryant.
 
-oSEMCOG Carbon Reduction Program ($980,000) for LED streetlight conversions across the City, starting in fall2023.
+  - Clean Energy to Communities (Technical Assistance) to identify data needs and draft a request for proposals for a geothermal design around Veterans Park.
 
-- SEMCOG Carbon Reduction Program ($200,000) for the Washington Street Bike Boulevard to start in fall 2025.
+  - State of Michigan ($25,000) to support LED lighting conversion at Wheeler Service Center.
 
-- State of Michigan ($54,000) to install the State’s first utility pole EV charging program.
+  - SEMCOG Carbon Reduction Program ($980,000) for LED streetlight conversions across the City, starting in fall 2023.
 
-oUrban Sustainability Directors Network Emergent Learning Fund ($20,000) to advance equitable community engagement around the circular economy. oState of Michigan ($10,000) to advance work around the circular economy.
+  - SEMCOG Carbon Reduction Program ($200,000) for the Washington Street Bike Boulevard to start in fall 2025.
 
-oUrban Sustainability Directors Network Mini-Grant ($15,200) to AIP support.
+  - State of Michigan ($54,000) to install the State’s first utility pole EV charging program.
+
+  - Urban Sustainability Directors Network Emergent Learning Fund ($20,000) to advance equitable community engagement around the circular economy.
+
+  - State of Michigan ($10,000) to advance work around the circular economy.
+
+  - Urban Sustainability Directors Network Mini-Grant ($15,200) to AIP support.
 
 <!-- p.15 -->
 ## YEAR FOUR PRIORITIES

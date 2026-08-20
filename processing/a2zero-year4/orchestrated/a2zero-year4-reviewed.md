@@ -1,7 +1,7 @@
 # A2ZERO YEAR FOUR ANNUAL REPORT JULY 1, 2023 – JUNE 3, 2024
 <!-- gate: PASS -->
 
-<!-- generated 2026-08-20T23:41:23Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-20T23:57:13Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 0 figure(s) · 16 caption(s) tagged · 0 furniture block(s) · 0 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 4 -->
 <!-- COVERAGE PERIOD: JULY 1, 2023 – JUNE 3, 2024 -> 2023-07-01..2024-06-03 (338 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->

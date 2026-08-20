@@ -398,6 +398,42 @@ def coverage_period(text: str) -> dict | None:
             "end": end.isoformat(), "days": (end - start).days}
 
 
+_BULLETS = "\u00b7\u2022\u25cf\u25aa\u25e6o"
+
+
+def split_on_docling_bullets(pdf_text: str, docling_text: str) -> list[str] | None:
+    """Split one over-merged block into the list items Docling says it holds.
+
+    Year 3 page 14 lists thirteen grants. Docling models them as blocks holding one or two
+    each and puts a real bullet in its own text -- "\u00b7 AmeriCorps program ($229,000)..." --
+    but the PDF draws that bullet as a latin 'o' with a 2.34pt kern after it, under
+    pdfplumber's 3pt word threshold, so the character-exact read returns "oAmeriCorps" and
+    thirteen grants collapse into a handful of run-on paragraphs.
+
+    Lowering the word threshold is the wrong lever: 2.34pt is this block's inter-word gap
+    and other blocks kern differently, so it would split real words elsewhere to fix this.
+    The structure is not in doubt anyway -- Docling already reported it, which is this
+    module's whole division of labour. So the split is CORROBORATED rather than guessed:
+    Docling's bullet count must equal the number of marker-plus-capital boundaries
+    pdfplumber's text actually contains. Disagree by one and nothing is split, because a
+    split in the wrong place silently rewrites a sentence.
+
+    Returns the items, or None if this is not such a block.
+    """
+    # THE MARKER MUST BE A TOKEN OF ITS OWN in Docling's text. 'o' is in the marker set
+    # because this document draws its bullet as one, and matching it anywhere also matched
+    # the last letter of "to" in "to OSI" -- inflating the count to 3 where the block holds
+    # 2, so the corroboration check rejected every multi-grant block it was built for.
+    n_docling = len(re.findall(rf"(?:^|\s)[{_BULLETS}]\s+[A-Z(]", docling_text))
+    if n_docling < 1:
+        return None
+    parts = re.split(rf"(?:^|(?<=[.\s]))[{_BULLETS}](?=[A-Z(])", pdf_text.strip())
+    parts = [p.strip() for p in parts if p.strip()]
+    if len(parts) != n_docling:
+        return None
+    return parts
+
+
 def _lead_shape(text: str) -> str:
     """A block's LEADING shape -- the first three word-ish tokens, digits collapsed.
 
@@ -504,9 +540,45 @@ def snap_scripts(chars: list[dict]) -> tuple[list[dict], int]:
     if not body:
         return chars, 0
 
+    # A SPACE IS NEVER A LINE OF ITS OWN. Year 3 page 14 draws its word spaces in a
+    # DIFFERENT FONT (MinionPro where the text is SofiaPro) on a baseline 5.5pt below the
+    # text, so pdfplumber clusters every space on a line into a phantom line of their own
+    # and the remaining glyphs come back touching at a 0.00 gap:
+    #
+    #   oAmeriCorps program($229,000)   NaturalAreas   Preservation,submitted
+    #   community-basedorganizations    SustainingAnn  Careprogram,a
+    #
+    # It is the superscript problem again with a different glyph: something drawn in a
+    # separate pass at its own baseline, clustered away from the line it belongs to. A
+    # space carries no ink, so moving it cannot alter what the page says -- and a run of
+    # nothing but spaces is not a line of text under any reading.
+    baselines = {round(c["top"], 1) for c in chars
+                 if not c["text"].isspace() and c["size"] >= em * _SCRIPT_SIZE}
     out: list[dict] = []
     rooms: list[tuple[float, float]] = []
     for c in chars:
+        if c["text"].isspace() and round(c["top"], 1) not in baselines:
+            # INKED body chars only. Searching `body` let each space find ITSELF as its
+            # best overlap -- it snapped onto its own baseline and nothing moved.
+            host, ov = None, 0.0
+            for d in body:
+                if d["text"].isspace():
+                    continue
+                o = min(c["bottom"], d["bottom"]) - max(c["top"], d["top"])
+                if o > ov:
+                    host, ov = d, o
+            # ONLY WHERE THERE IS ROOM. A space whose x-range lands on top of an inked
+            # char of the host line did not come from that line, and inserting it splits a
+            # word: "SEMCOG" became "SE MCOG" when a space from a neighbouring line was
+            # snapped into the middle of it. A real word space sits in a gap.
+            occupied = host is not None and any(
+                not d["text"].isspace() and abs(d["top"] - host["top"]) < 0.5
+                and d["x0"] < c["x1"] - 0.1 and d["x1"] > c["x0"] + 0.1
+                for d in body)
+            if host is not None and not occupied:
+                out.append({**c, "top": host["top"], "bottom": host["bottom"],
+                            "doctop": host["doctop"], "y0": host["y0"], "y1": host["y1"]})
+                continue
         if c["text"].isspace() or c["size"] >= em * _SCRIPT_SIZE:
             out.append(c)
             continue
@@ -1216,6 +1288,14 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             term_fixes.extend(fixes)
         fixed, amb = apply_hyphen_decisions(raw, words, hyph)
         ambiguous.extend(amb)
+        bullets = split_on_docling_bullets(fixed, b.get("docling_text") or "")
+        if bullets:
+            for j, item in enumerate(bullets):
+                resolved.append({**b, "kind": "ListItem", "text": flatten_block(item),
+                                 "_ord": float(i) + 0.001 * j, "text_source": src,
+                                 "_caption_src": None, "caption_for": None})
+            continue
+
         idx = split_index_lines(fixed)
         if idx:
             for j, ln in enumerate(idx):

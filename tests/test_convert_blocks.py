@@ -1599,3 +1599,49 @@ def test_the_crop_pad_does_not_admit_the_line_above():
     for c, belongs in ((sliver, False), (body, True)):
         mid = (c["top"] + c["bottom"]) / 2
         assert (true_top <= mid <= true_bottom) is belongs
+
+
+def test_a_block_splits_into_the_items_docling_counted():
+    """Year 3 page 14 draws its bullets as a latin 'o' with a 2.34pt kern, under
+    pdfplumber's word threshold, so thirteen grants came back as run-on paragraphs."""
+    from pipeline.convert_blocks import split_on_docling_bullets
+    pdf = "oAmeriCorps program ($229,000) to bring 10 Members. oWashtenaw County ($4,000)."
+    dl = "· AmeriCorps program ($229,000) to bring 10 Members. · Washtenaw County ($4,000)."
+    out = split_on_docling_bullets(pdf, dl)
+    assert out == ["AmeriCorps program ($229,000) to bring 10 Members.",
+                   "Washtenaw County ($4,000)."]
+
+
+def test_a_disagreeing_bullet_count_splits_nothing():
+    """A split in the wrong place silently rewrites a sentence, so the two reads must
+    agree exactly."""
+    from pipeline.convert_blocks import split_on_docling_bullets
+    assert split_on_docling_bullets("oAlpha thing. oBeta thing.",
+                                    "· Alpha thing.") is None
+
+
+def test_ordinary_prose_is_never_split():
+    from pipeline.convert_blocks import split_on_docling_bullets
+    assert split_on_docling_bullets("We did a thing. Then Another thing happened.",
+                                    "We did a thing. Then Another thing happened.") is None
+
+
+def test_a_snapped_space_never_lands_inside_a_word():
+    """A space from a neighbouring line snapped into the middle of SEMCOG and made it
+    "SE MCOG". A real word space sits in a gap, not on top of a glyph."""
+    line = [_char("S", 100, 108, 200, 12), _char("E", 108, 116, 200, 12),
+            _char("M", 116, 126, 200, 12), _char("C", 126, 134, 200, 12)]
+    intruder = {**_char(" ", 114, 118, 206, 12)}      # overlaps E and M, wrong line
+    fixed, _ = snap_scripts([*line, intruder])
+    assert "".join(c["text"] for c in sorted(fixed, key=lambda c: (c["top"], c["x0"]))
+                   if c["top"] == 200) == "SEMC"
+
+
+def test_the_letter_o_ending_a_word_is_not_a_bullet():
+    """'o' is in the marker set because this document draws its bullet as one. Matching it
+    anywhere also matched the 'o' of "to" in "to OSI"."""
+    from pipeline.convert_blocks import split_on_docling_bullets
+    pdf = "oAmeriCorps program to OSI for support. oWashtenaw County ($4,000)."
+    dl = "· AmeriCorps program to OSI for support. · Washtenaw County ($4,000)."
+    assert split_on_docling_bullets(pdf, dl) == [
+        "AmeriCorps program to OSI for support.", "Washtenaw County ($4,000)."]
