@@ -61,6 +61,12 @@ def main() -> int:
         c = Counter(f"{v} -> {c2}" for v, c2 in fixes)
         print(f"[blocks] {len(fixes)} OCR term correction(s) from the registry: "
               f"{dict(c)}")
+    cr = conv_report.get("content_recovered") or []
+    if cr:
+        print(f"[blocks] {len(cr)} run(s) recovered by the CONTENT sweep -- present on the "
+              f"page but absent from the assembled text:")
+        for pno, txt in cr:
+            print(f"[blocks]   p.{pno}: {txt}")
     recovered = [b for b in blocks if b["kind"] == "UncoveredText"]
     print(f"[blocks] {len(recovered)} region(s) recovered by the coverage sweep "
           f"({sum(1 for b in recovered if b.get('caption_for'))} of them captions)")

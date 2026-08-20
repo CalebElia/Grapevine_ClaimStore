@@ -473,6 +473,26 @@ def heading_shapes(blocks: list[dict]) -> set[str]:
     return out
 
 
+def overrides_caption_link(block: dict, shapes: set[str] | None) -> bool:
+    """Positive counter-evidence that Docling's caption link is wrong.
+
+    Two signals, both independent of who proposed the link:
+      heading shape    the block opens with a "WORD N:" shape the document confirms as a
+                       heading elsewhere (Year 4's STRATEGY 6).
+      lowercase start  the block opens mid-sentence, so it continues the block above it
+                       rather than describing a picture (Year 3 page 9's "the downtown,
+                       reducing vehicle/bicyclist conflicts.", which Docling linked to a
+                       photograph and which therefore vanished from the report).
+
+    A caption is a standalone phrase; neither signal becomes weaker because Docling
+    rather than geometry proposed the link.
+    """
+    if _matches_heading_shape(block, shapes):
+        return True
+    words = (block.get("text") or "").split()
+    return bool(words) and words[0][:1].islower()
+
+
 def _matches_heading_shape(block: dict, shapes: set[str] | None) -> bool:
     """Whether this block opens with a "WORD N:" shape the document confirms elsewhere."""
     if not shapes:
@@ -589,6 +609,55 @@ def associate_caption(cap: dict, pictures: list[dict]):
 # glyph height instead.
 _LINE_TOL_RATIO = 1.6
 _LINE_TOL_MIN = 14.0
+
+
+_RUN_NEUTRAL = {
+    "the", "a", "an", "of", "to", "and", "or", "in", "on", "for", "at", "by", "with",
+    "is", "are", "was", "were", "as", "that", "this", "it", "its", "our", "we",
+}
+
+
+def missing_runs(page_words: list[str], assembled: str,
+                 min_run: int = 3) -> list[list[str]]:
+    """Runs of consecutive page words absent from the assembled text.
+
+    The content counterpart to uncovered_words(), which asks only whether a block's BOX
+    contains a word. Year 3 page 9 proves that insufficient: "the downtown, reducing
+    vehicle/bicyclist conflicts" lies inside a block's box -- so the geometric sweep
+    skipped it -- while that block's crop never returned it, and the sentence shipped as
+    "...restrict turns on red lights in".
+
+    Runs, not single words, because one token differing is a hyphen decision or OCR
+    jitter; three consecutive words missing is a dropped line.
+    """
+    norm = lambda w: re.sub(r"[^a-z0-9]", "", w.lower())
+    hay = {w for w in (norm(x) for x in assembled.split()) if w}
+
+    # A STOPWORD NEITHER PROVES NOR BREAKS A GAP. Plain membership missed "the downtown,
+    # reducing vehicle/bicyclist conflicts" entirely, because "the" occurs elsewhere on
+    # the page and split the run into fragments below the minimum. Requiring whole
+    # n-grams instead over-flagged, marking every position that merely PRECEDED a gap.
+    # Treating function words as neutral -- they extend an open run but never start one
+    # and never close one -- separates both cases.
+    runs, cur = [], []
+    for w in page_words:
+        n = norm(w)
+        if not n:
+            continue
+        if n in _RUN_NEUTRAL:
+            if cur:
+                cur.append(w)
+            continue
+        if n in hay:
+            if len(cur) >= min_run:
+                runs.append(cur)
+            cur = []
+        else:
+            cur.append(w)
+    if len(cur) >= min_run:
+        runs.append(cur)
+    return [r for r in runs
+            if sum(1 for w in r if norm(w) not in _RUN_NEUTRAL) >= min_run]
 
 
 def uncovered_words(words: list[dict], text_boxes: list[tuple]) -> list[dict]:
@@ -718,6 +787,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
 
     ambiguous: list[tuple[str, str]] = []
     term_fixes: list[tuple[str, str]] = []
+    content_recovered: list[tuple[int, str]] = []
     captioned: list[tuple[int, str]] = []
     resolved: list[dict] = []
     for i, (b, raw) in enumerate(zip(blocks, raws)):
@@ -840,7 +910,8 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
         # Only POSITIVE counter-evidence overrides Docling: the block matching a heading
         # shape the document itself confirms elsewhere. Geometric proposals, having no
         # such backing, must clear the full candidate test.
-        ok = (not _matches_heading_shape(b, shapes) if b.get("_caption_src") == "docling"
+        ok = (not overrides_caption_link(b, shapes)
+              if b.get("_caption_src") == "docling"
               else is_caption_candidate(b, shapes))
         if ok:
             captioned.append((b["page_no"], b["text"][:70]))
@@ -862,6 +933,34 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             b["top"] = min(bb[1], bb[3])
         b["x0"] = min(bb[0], bb[2])
         b["page_h"] = ph
+    # SECOND SWEEP, BY CONTENT. The geometric sweep asks whether a block's BOX contains a
+    # word; this asks whether the word survived into the text we actually assembled. Year
+    # 3 page 9 needs both: "the downtown, reducing vehicle/bicyclist conflicts" sits
+    # inside a block's box -- so geometry called it covered -- while that block's crop
+    # never returned it, and the sentence shipped as "...restrict turns on red lights in".
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        for pno in range(1, n_pages + 1):
+            assembled = " ".join(b["text"] for b in resolved if b["page_no"] == pno)
+            if not assembled:
+                continue
+            page = pdf.pages[pno - 1]
+            words = [w["text"] for w in page.extract_words()]
+            for run in missing_runs(words, assembled):
+                txt = " ".join(run)
+                if is_page_footer({"text": txt, "page_no": pno}):
+                    continue
+                at = max((i for i, b in enumerate(resolved) if b["page_no"] <= pno),
+                         default=-1) + 1
+                prev = resolved[at - 1]["_ord"] if at > 0 else -1.0
+                resolved.insert(at, {"kind": "UncoveredText", "page_no": pno,
+                                     "text": txt, "_ord": prev + 0.0005,
+                                     "_swept": True, "caption_for": None,
+                                     "text_source": "pdfplumber", "bbox": None,
+                                     "coord_origin": "", "page_w": None,
+                                     "page_h": None, "self_ref": None,
+                                     "docling_text": ""})
+                content_recovered.append((pno, txt[:70]))
+
     assign_nesting(resolved)
     mark_furniture(resolved)
 
@@ -890,4 +989,5 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
         converted_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     return conv, render_stream, {"ambiguous_hyphens": ambiguous,
                                  "captions_associated": captioned,
-                                 "ocr_term_fixes": term_fixes}
+                                 "ocr_term_fixes": term_fixes,
+                                 "content_recovered": content_recovered}

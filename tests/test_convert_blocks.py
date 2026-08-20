@@ -1084,3 +1084,94 @@ def test_a_caption_opening_with_a_number_is_still_a_caption():
     """Year 2's footers open with their footnote digit."""
     assert is_caption_candidate({"kind": "TextItem", "page_no": 9,
                                  "text": "2024 Electrification Expo attendees."})
+
+
+# ── coverage verified by CONTENT, not geometry ─────────────────────────────────────────
+# The geometric sweep asks "does a block's BOX contain this word". Year 3 page 9 shows why
+# that is not enough: "the downtown, reducing vehicle/bicyclist conflicts" sits inside a
+# block's box, so the sweep skipped it -- but that block's crop never returned those
+# words, and the sentence shipped as "Passed a resolution to restrict turns on red lights
+# in". Covered by a box and present in the text are different claims, and only the second
+# one matters.
+
+from pipeline.convert_blocks import missing_runs
+
+
+def test_a_run_of_page_words_absent_from_the_assembled_text_is_reported():
+    page = "Passed a resolution to restrict turns on red lights in the downtown reducing conflicts".split()
+    assembled = "Passed a resolution to restrict turns on red lights in"
+    runs = missing_runs(page, assembled)
+    assert runs and "downtown" in " ".join(runs[0])
+
+
+def test_text_fully_present_reports_nothing():
+    page = "Installed 1.3MW of rooftop solar".split()
+    assert missing_runs(page, "Installed 1.3MW of rooftop solar on many roofs") == []
+
+
+def test_a_single_stray_word_is_not_a_run():
+    """One token differing is OCR jitter or a hyphen decision, not a dropped line."""
+    page = "the quick brown fox jumps".split()
+    assert missing_runs(page, "the quick brown FOX jumps") == []
+
+
+def test_runs_shorter_than_the_minimum_are_ignored():
+    page = "alpha beta gamma delta".split()
+    assert missing_runs(page, "alpha delta", min_run=3) == []
+
+
+def test_comparison_ignores_case_and_punctuation():
+    page = "The Downtown, reducing vehicle/bicyclist conflicts.".split()
+    assert missing_runs(page, "the downtown reducing vehicle bicyclist conflicts") == []
+
+
+def test_a_gap_containing_common_words_is_still_detected():
+    """Membership testing breaks on function words: "the downtown, reducing
+    vehicle/bicyclist conflicts" was NOT detected, because "the" occurs elsewhere on the
+    page and split the run into fragments below the minimum. Presence has to be judged on
+    consecutive SEQUENCES, not on whether each word appears somewhere.
+    """
+    page = ("Passed a resolution to restrict turns on red lights in the downtown "
+            "reducing vehicle bicyclist conflicts").split()
+    assembled = ("Passed a resolution to restrict turns on red lights in "
+                 "and the community passed a millage")
+    runs = missing_runs(page, assembled)
+    assert runs, "the dropped tail must be found even though 'the' occurs elsewhere"
+    assert "downtown" in " ".join(runs[0])
+
+
+def test_a_reordered_but_present_passage_is_not_reported_missing():
+    """Blocks can be emitted in a different order; that is not a loss."""
+    page = "alpha beta gamma delta epsilon zeta".split()
+    assembled = "delta epsilon zeta alpha beta gamma"
+    assert missing_runs(page, assembled) == []
+
+
+def test_docling_linkage_is_overridden_by_a_lowercase_start_too():
+    """Year 3 page 9. DOCLING linked "the downtown, reducing vehicle/bicyclist
+    conflicts." as picture 13's caption, so the "Docling's linkage is evidence" branch
+    accepted it without ever applying the lowercase check -- and the sentence shipped as
+    "Passed a resolution to restrict turns on red lights in".
+
+    A caption is a standalone phrase. A lowercase opening is grammatical evidence that a
+    block continues the sentence above it, and that evidence does not become weaker
+    because Docling proposed the link rather than geometry.
+    """
+    from pipeline.convert_blocks import overrides_caption_link
+    assert overrides_caption_link(
+        {"kind": "TextItem", "page_no": 9,
+         "text": "the downtown, reducing vehicle/bicyclist conflicts."}, set())
+
+
+def test_a_normal_docling_caption_is_not_overridden():
+    from pipeline.convert_blocks import overrides_caption_link
+    assert not overrides_caption_link(
+        {"kind": "TextItem", "page_no": 9,
+         "text": "Mayor Taylor on his e-bike at the 2024 Green Fair."}, set())
+
+
+def test_a_heading_shape_still_overrides_a_docling_link():
+    from pipeline.convert_blocks import overrides_caption_link
+    assert overrides_caption_link(
+        {"kind": "TextItem", "page_no": 17,
+         "text": "STRATEGY 6: Enhance the Resilience of Our People"}, {"strategy 6"})
