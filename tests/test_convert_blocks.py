@@ -878,3 +878,127 @@ def test_a_narrow_page_does_not_inherit_a_wide_pages_columns():
               {"kind": "ListItem", "x0": 90.0, "page_no": 7, "text": "d"}]
     assign_nesting(blocks)
     assert [b["list_level"] for b in blocks] == [0, 0, 0, 1]
+
+
+def test_a_column_that_enters_deep_can_return_to_the_parent_level():
+    """Real Year 2 page 12 right column. It ENTERS at a child indent (the awards
+    sub-list continuing from the left column) and later returns to the parent level:
+
+        left  96.6  Sean Reynolds was awarded ...        child
+        right 377.3 Julie Roth was awarded ...           child, continued
+        right 385.4 Galen Hardy was appointed ...        child
+        right 352.0 The proposed SEU won project of ...  BACK to parent
+        right 340.5 Working with peer communities ...    parent
+
+    The first version treated the column-entry depth as a FLOOR, so everything after
+    stayed at level 1 and four parent-level bullets were rendered as children of an
+    awards list they have nothing to do with.
+    """
+    blocks = [{"kind": "ListItem", "page_no": 12, "x0": 96.6, "text": "Sean Reynolds"},
+              {"kind": "ListItem", "page_no": 12, "x0": 377.3, "text": "Julie Roth"},
+              {"kind": "ListItem", "page_no": 12, "x0": 385.4, "text": "Galen Hardy"},
+              {"kind": "ListItem", "page_no": 12, "x0": 352.0, "text": "The proposed SEU"},
+              {"kind": "ListItem", "page_no": 12, "x0": 340.5, "text": "Working with peers"},
+              {"kind": "ListItem", "page_no": 12, "x0": 339.4, "text": "Anti-idling"}]
+    # a parent exists in the left column above the awards
+    blocks.insert(0, {"kind": "ListItem", "page_no": 12, "x0": 60.0, "text": "Awards:"})
+    assign_nesting(blocks)
+    assert [b["list_level"] for b in blocks] == [0, 1, 1, 1, 0, 0, 0]
+
+
+def test_the_year_2_grants_all_stay_at_one_level():
+    """Twelve siblings across two columns; regression guard for the ladder change."""
+    xs = [52.9, 88.6, 89.7, 108.1, 107.0, 378.3, 378.5, 388.8, 393.4, 377.3, 394.6, 395.7]
+    blocks = [{"kind": "ListItem", "page_no": 13, "x0": x, "text": f"b{i}"}
+              for i, x in enumerate(xs)]
+    assign_nesting(blocks)
+    assert blocks[0]["list_level"] == 0
+    assert {b["list_level"] for b in blocks[1:]} == {1}
+
+
+def test_a_recovered_group_of_only_bullet_glyphs_is_discarded():
+    """Year 2 rendered six lines reading just "> •" -- stray bullet glyphs the coverage
+    sweep recovered because Docling modelled no block for them. A marker with no text is
+    not content; it is the punctuation left behind by text that lives elsewhere.
+    """
+    assert group_uncovered([_w("•", 100, 300)], page_no=5) == []
+    assert group_uncovered([_w("•", 100, 300), _w("·", 120, 300)], page_no=5) == []
+
+
+def test_a_bullet_glyph_WITH_text_is_kept():
+    g = group_uncovered([_w("•", 100, 300), _w("Installed", 120, 300),
+                         _w("solar", 200, 300)], page_no=5)
+    assert g and "Installed" in g[0]["text"]
+
+
+# ── the inverse of heading promotion: demoting one Docling invented ────────────────────
+# Year 2 carries five "DIVE DEEPER into X:" pull-out boxes. Docling typed FOUR as
+# TextItem and one -- COMMERCIAL BENCHMARKING -- as a SectionHeaderItem, splitting the
+# callout's first line off as a heading and leaving "BUILDINGS: This year, ..." dangling
+# as a separate paragraph. That fake `##` broke the strategy section in half and detached
+# the bullets below it from their real parent heading.
+
+from pipeline.convert_blocks import body_shapes
+
+
+def test_a_shape_seen_mostly_on_body_text_is_a_body_shape():
+    blocks = [{"kind": "TextItem", "text": "DIVE DEEPER into SOLAR: the city ..."},
+              {"kind": "TextItem", "text": "DIVE DEEPER into TREES: since spring ..."},
+              {"kind": "TextItem", "text": "DIVE DEEPER into RENTAL: expanding ..."},
+              {"kind": "SectionHeaderItem", "text": "DIVE DEEPER into BENCHMARKING"}]
+    assert "dive deeper into" in body_shapes(blocks)
+
+
+def test_a_genuine_heading_shape_is_not_a_body_shape():
+    blocks = [{"kind": "SectionHeaderItem", "text": "STRATEGY 1: RENEWABLES"},
+              {"kind": "SectionHeaderItem", "text": "STRATEGY 2: ELECTRIFICATION"},
+              {"kind": "TextItem", "text": "Strategy 1 of A2ZERO focuses on ..."}]
+    assert "strategy #" not in body_shapes(blocks)
+
+
+def test_one_body_occurrence_is_not_enough_to_demote_a_heading():
+    blocks = [{"kind": "TextItem", "text": "CLOSING remarks follow here"},
+              {"kind": "SectionHeaderItem", "text": "CLOSING"}]
+    assert body_shapes(blocks) == set()
+
+
+# ── OCR term normalisation ─────────────────────────────────────────────────────────────
+# Year 2's central term came back wrong 21 times of 28: AZERO x11, A'ZERO x6, AZZERO x4,
+# against A2ZERO x5. The page prints it with a superscript 2 and optical recognition
+# guesses. No downstream alias table can repair a token that was never read as itself.
+#
+# APPLIED ONLY TO OCR-SOURCED TEXT. Where a text layer exists its characters are
+# authoritative, and A2ZERO set as A²ZERO is legitimate typography to keep verbatim.
+# Correcting a misread restores what the page says; rewriting an extracted character
+# would change it.
+
+from pipeline.convert_blocks import normalize_ocr_terms
+
+_TERMS = [{"canonical": "A2ZERO", "variants": ["AZERO", "A'ZERO", "AZZERO"]}]
+
+
+def test_an_observed_variant_is_corrected_and_reported():
+    out, fixes = normalize_ocr_terms("Advancing the AZERO plan citywide.", _TERMS)
+    assert out == "Advancing the A2ZERO plan citywide."
+    assert fixes == [("AZERO", "A2ZERO")]
+
+
+def test_every_variant_form_is_handled():
+    out, _ = normalize_ocr_terms("AZERO A'ZERO AZZERO", _TERMS)
+    assert out == "A2ZERO A2ZERO A2ZERO"
+
+
+def test_the_canonical_form_is_left_alone_and_not_reported():
+    out, fixes = normalize_ocr_terms("The A2ZERO plan.", _TERMS)
+    assert out == "The A2ZERO plan." and fixes == []
+
+
+def test_a_variant_inside_a_longer_word_is_not_touched():
+    """Substitution is on whole tokens; 'LAZEROS' is not a mangled A2ZERO."""
+    out, fixes = normalize_ocr_terms("LAZEROS and BAZERO4", _TERMS)
+    assert out == "LAZEROS and BAZERO4" and fixes == []
+
+
+def test_case_is_preserved_from_the_canonical_not_the_variant():
+    out, _ = normalize_ocr_terms("the azero plan", _TERMS)
+    assert "A2ZERO" in out

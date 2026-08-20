@@ -1,0 +1,18 @@
+{
+  "_what": "Canonical spellings of corpus terms that OCR reliably mangles, with the exact variants observed. The OCR analogue of asr_vocabulary.json: same problem, different medium.",
+  "_why": "A2ZERO is printed with a superscript 2. Optical recognition has no glyph for it in context and guesses -- on Year 2, 21 of 28 occurrences came back wrong as AZERO, A'ZERO or AZZERO, against 5 correct. That is the corpus's central term appearing correctly less than a fifth of the time, and no downstream alias table can fix a token that was never read as itself.",
+  "_scope": "APPLIED ONLY TO OCR-SOURCED BLOCKS. Where a PDF has a real text layer its characters are authoritative, and A2ZERO printed as A²ZERO is legitimate typography to preserve verbatim, not an error to correct. Correcting an OCR misread restores what the page says; rewriting an extracted character would change it.",
+  "_never": "Never a general spellcheck. Only exact variants observed in this corpus, listed explicitly, so a correction can always be traced to the reading that justified it. Every substitution made is reported, never silent.",
+  "terms": [
+    {
+      "canonical": "A2ZERO",
+      "variants": ["AZERO", "A'ZERO", "A’ZERO", "AZZERO", "A ZERO", "AZER0", "A2ZER0"],
+      "evidence": "Year 2 OCR, 2026-08: AZERO x11, A'ZERO x6, AZZERO x4 against A2ZERO x5"
+    },
+    {
+      "canonical": "A2R3",
+      "variants": ["A2R3", "AZR3", "A2RE"],
+      "evidence": "Ann Arbor Reduce, Reuse, Return -- same superscript-adjacent styling"
+    }
+  ]
+}

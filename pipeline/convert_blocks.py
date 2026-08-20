@@ -199,6 +199,27 @@ _OCR_MIN_WORDS = 3       # below this there is not enough signal to call pdfplum
 _OCR_RATIO = 0.5         # pdfplumber below this share of Docling's words = no text layer
 
 
+def normalize_ocr_terms(text: str, terms: list[dict]) -> tuple[str, list[tuple[str, str]]]:
+    """Repair known OCR manglings of corpus terms. Returns (text, corrections made).
+
+    Only exact variants listed in the registry, matched as whole tokens, so "LAZEROS" is
+    never mistaken for a mangled A2ZERO. Every substitution is returned rather than
+    applied silently -- the same rule as the ambiguous hyphens, and for the same reason:
+    a change to a citable span has to be inspectable.
+    """
+    fixes: list[tuple[str, str]] = []
+    for term in terms:
+        canon = term["canonical"]
+        for var in term["variants"]:
+            if var.upper() == canon.upper():
+                continue
+            pat = re.compile(r"(?<![A-Za-z0-9])" + re.escape(var) + r"(?![A-Za-z0-9])",
+                             re.I)
+            text, n = pat.subn(canon, text)
+            fixes.extend([(var, canon)] * n)
+    return text, fixes
+
+
 def choose_block_text(pdf_text: str, docling_text: str) -> tuple[str, str]:
     """(text, source) for one block: pdfplumber's characters, or Docling's OCR.
 
@@ -294,24 +315,40 @@ def assign_nesting(blocks: list[dict]) -> None:
             by_page.setdefault(b.get("page_no"), []).append(b["x0"])
     edges_for = {pg: column_edges(xs) for pg, xs in by_page.items()}
 
-    stack: list[float] = []
+    # A LADDER, NOT A STACK. Each column keeps the indents it has seen, in order, and a
+    # block's level is its rung's distance from the rung the column ENTERED on. A stack
+    # made the entry depth a floor, so Year 2 page 12's right column -- which enters mid
+    # sub-list at indent 38 and later returns to the parent level at indent 1 -- could
+    # never come back up, and four parent bullets rendered as children of an awards list
+    # they have nothing to do with.
+    ladder: list[float] = []
+    anchor = 0
     level, base, cur_col = 0, 0, None
     for b in blocks:
         edges = edges_for.get(b.get("page_no")) or [b.get("x0", 0.0)]
         if b.get("kind") != "ListItem" or b.get("x0") is None:
             b["list_level"] = None
-            stack, level, base, cur_col = [], 0, 0, None
+            ladder, anchor, level, base, cur_col = [], 0, 0, 0, None
             continue
         col = max([e for e in edges if e <= b["x0"] + 1] or [edges[0]])
         indent = b["x0"] - col
         if col != cur_col:
             base = level if cur_col is not None else 0
-            cur_col, stack, level = col, [indent], base
+            cur_col, ladder, anchor = col, [indent], 0
+            level = base
         else:
-            while stack and indent < stack[-1] + _INDENT_STEP:
-                stack.pop()
-            stack.append(indent)
-            level = base + len(stack) - 1
+            near = min(range(len(ladder)), key=lambda i: abs(ladder[i] - indent))
+            if indent > ladder[-1] + _INDENT_STEP:
+                ladder.append(indent)
+                rung = len(ladder) - 1
+            elif indent < ladder[0] - _INDENT_STEP:
+                ladder.insert(0, indent)
+                anchor += 1
+                rung = 0
+            else:
+                rung = near
+                del ladder[rung + 1:]
+            level = max(base + rung - anchor, 0)
         b["list_level"] = level
 
 
@@ -363,6 +400,28 @@ def is_page_footer(block: dict) -> bool:
     """
     t = (block.get("text") or "").strip()
     return t.isdigit() and int(t) == block.get("page_no")
+
+
+def body_shapes(blocks: list[dict], min_body: int = 2) -> set[str]:
+    """Leading shapes that appear mostly on BODY blocks, so a heading carrying one is
+    almost certainly a mistype.
+
+    The mirror of heading_shapes(), and needed for the same reason in the other
+    direction. Year 2 has five "DIVE DEEPER into X:" pull-out boxes; Docling typed four
+    as TextItem and one as a SectionHeaderItem, which split that callout in half and
+    inserted a fake `##` that detached the following bullets from their real strategy
+    heading. The document's own majority says what the shape is.
+    """
+    body: dict[str, int] = {}
+    head: dict[str, int] = {}
+    for b in blocks:
+        sh = " ".join(re.findall(r"[a-z#]{2,}",
+                                 re.sub(r"\d+", "#", (b.get("text") or "").lower()))[:3])
+        if not sh:
+            continue
+        (head if b.get("kind") in ("SectionHeaderItem", "TitleItem") else body)[sh] = \
+            (head if b.get("kind") in ("SectionHeaderItem", "TitleItem") else body).get(sh, 0) + 1
+    return {sh for sh, n in body.items() if n >= min_body and n > head.get(sh, 0)}
 
 
 def heading_shapes(blocks: list[dict]) -> set[str]:
@@ -563,8 +622,8 @@ def group_uncovered(words: list[dict], page_no: int) -> list[dict]:
         m = re.search(r"\s+(\d{1,3})$", text)
         if m and int(m.group(1)) == page_no:
             text = text[:m.start()].strip()
-        if not text or text.isdigit():
-            continue
+        if not text or text.isdigit() or not re.search(r"[A-Za-z0-9]", text):
+            continue        # a bullet glyph with no words is punctuation, not content
         out.append({"kind": "UncoveredText", "page_no": page_no,
                     "bbox": [min(w["x0"] for w in g), min(w["top"] for w in g),
                              max(w["x1"] for w in g), max(w["bottom"] for w in g)],
@@ -574,7 +633,17 @@ def group_uncovered(words: list[dict], page_no: int) -> list[dict]:
     return out
 
 
-def convert(pdf_path, blocks_path):
+def load_ocr_terms(path="registries/ann_arbor/ocr_terms.json") -> list[dict]:
+    """Corpus terms OCR reliably mangles. Missing registry -> no corrections, never a crash."""
+    import json as _json
+    from pathlib import Path as _Path
+    p = _Path(path)
+    if not p.exists():
+        return []
+    return _json.loads(p.read_text()).get("terms", [])
+
+
+def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
     """(Conversion, blocks_with_offsets, ambiguous_hyphens) for one PDF + its blocks.json.
 
     TWO PASSES OVER THE CROPS, DELIBERATELY. Hyphen evidence has to be document-wide --
@@ -589,6 +658,8 @@ def convert(pdf_path, blocks_path):
     from pathlib import Path
     from pipeline.convert_document import Conversion
 
+    if ocr_terms is None:
+        ocr_terms = load_ocr_terms()
     spec = json.loads(Path(blocks_path).read_text())
     n_pages, blocks = spec["n_pages"], spec["blocks"]
 
@@ -606,12 +677,18 @@ def convert(pdf_path, blocks_path):
     words, hyph = build_evidence("\n".join(raws))
 
     ambiguous: list[tuple[str, str]] = []
+    term_fixes: list[tuple[str, str]] = []
     captioned: list[tuple[int, str]] = []
     resolved: list[dict] = []
     for i, (b, raw) in enumerate(zip(blocks, raws)):
         if b["kind"] == "PictureItem":
             continue                      # no text; re-interleaved for the renderer below
         raw, src = choose_block_text(raw, b.get("docling_text") or "")
+        if src == "docling_ocr" and ocr_terms:
+            # OCR-sourced only: a text layer's characters are authoritative, and A2ZERO
+            # set as A²ZERO is typography to preserve, not a misread to repair.
+            raw, fixes = normalize_ocr_terms(raw, ocr_terms)
+            term_fixes.extend(fixes)
         fixed, amb = apply_hyphen_decisions(raw, words, hyph)
         ambiguous.extend(amb)
         idx = split_index_lines(fixed)
@@ -771,4 +848,5 @@ def convert(pdf_path, blocks_path):
         n_pages=n_pages,
         converted_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     return conv, render_stream, {"ambiguous_hyphens": ambiguous,
-                                 "captions_associated": captioned}
+                                 "captions_associated": captioned,
+                                 "ocr_term_fixes": term_fixes}

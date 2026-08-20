@@ -18,7 +18,7 @@ import argparse
 import json
 from pathlib import Path
 
-from pipeline.convert_blocks import convert, heading_shapes
+from pipeline.convert_blocks import body_shapes, convert, heading_shapes
 from pipeline.extract_figures import extract_figures, render_figure_block
 from pipeline.quality_gate import assess, find_numbers, verdict
 from pipeline.quality_gate import report as gate_report
@@ -55,6 +55,12 @@ def main() -> int:
     if n_ocr:
         print(f"[blocks] {n_ocr}/{len(srcs)} text block(s) ({100*n_ocr//max(len(srcs),1)}%) "
               f"read by OCR -- no usable text layer, NOT character-exact")
+    fixes = conv_report.get("ocr_term_fixes") or []
+    if fixes:
+        from collections import Counter
+        c = Counter(f"{v} -> {c2}" for v, c2 in fixes)
+        print(f"[blocks] {len(fixes)} OCR term correction(s) from the registry: "
+              f"{dict(c)}")
     recovered = [b for b in blocks if b["kind"] == "UncoveredText"]
     print(f"[blocks] {len(recovered)} region(s) recovered by the coverage sweep "
           f"({sum(1 for b in recovered if b.get('caption_for'))} of them captions)")
@@ -96,7 +102,8 @@ def main() -> int:
         return 2
 
     md = render_blocks(blocks, figure_xml, a.title, page_markers=a.page_markers,
-                       heading_shapes=heading_shapes(blocks))
+                       heading_shapes=heading_shapes(blocks),
+                       body_shapes=body_shapes(blocks))
     banner = [f"<!-- gate: {v.upper()} -->"]
     for f in findings:
         banner.append(f"<!-- gate {f.severity}: {f.check} -- {f.evidence} -->")

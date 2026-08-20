@@ -26,12 +26,14 @@ from __future__ import annotations
 import time
 
 from pipeline.convert_blocks import _matches_heading_shape
+import re
 from pipeline.section_boundaries import _same_section
 
 
 def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                   page_markers: bool = False,
-                  heading_shapes: set[str] | None = None) -> str:
+                  heading_shapes: set[str] | None = None,
+                  body_shapes: set[str] | None = None) -> str:
     """blocks in reading order + {page_no: figure XML} -> markdown.
 
     figure_xml is keyed by page because that is what pipeline/extract_figures.py records
@@ -142,6 +144,17 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
         tag = ""
         if srcs and b.get("text_source") and b["text_source"] != dominant:
             tag = f"{mark[b['text_source']]} "
+
+        # A HEADING DOCLING INVENTED IS NOT A HEADING. The mirror of the promotion
+        # above: if this block's leading shape is one the document mostly uses for BODY
+        # text, the heading type is a mistype. Year 2's DIVE DEEPER callouts are four
+        # TextItems and one SectionHeaderItem; the odd one out split a callout in half
+        # and detached the bullets below it from their real strategy heading.
+        if kind == "SectionHeaderItem" and body_shapes:
+            sh = " ".join(re.findall(r"[a-z#]{2,}",
+                                     re.sub(r"\d+", "#", text.lower()))[:3])
+            if sh in body_shapes:
+                kind = "TextItem"
 
         if kind == "SectionHeaderItem":
             if last_heading is not None and _same_section(text, last_heading):

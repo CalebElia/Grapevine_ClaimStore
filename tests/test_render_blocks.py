@@ -322,3 +322,19 @@ def test_furniture_is_kept_but_marked_so_it_is_not_read_as_a_claim():
 def test_ordinary_prose_carries_no_furniture_marker():
     out = render_blocks([_blk("TextItem", 3, "Installed 1.7MW of solar.")], {}, "T")
     assert "FURNITURE" not in out
+
+
+def test_a_heading_whose_shape_is_mostly_body_text_renders_as_body():
+    """Year 2's five DIVE DEEPER callouts: four TextItem, one SectionHeaderItem."""
+    blocks = [_blk("TextItem", 4, "DIVE DEEPER into SOLAR: the city is exploring"),
+              _blk("TextItem", 9, "DIVE DEEPER into TREES: since spring 2021"),
+              _blk("SectionHeaderItem", 7, "DIVE DEEPER into COMMERCIAL BENCHMARKING")]
+    out = render_blocks(blocks, {}, "T", body_shapes={"dive deeper into"})
+    assert "## DIVE DEEPER" not in out
+    assert "DIVE DEEPER into COMMERCIAL BENCHMARKING" in out
+
+
+def test_a_real_heading_is_untouched_by_the_body_shape_set():
+    out = render_blocks([_blk("SectionHeaderItem", 5, "STRATEGY 1: RENEWABLES")], {}, "T",
+                        body_shapes={"dive deeper into"})
+    assert "## STRATEGY 1: RENEWABLES" in out
