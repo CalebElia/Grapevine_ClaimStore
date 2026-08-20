@@ -139,11 +139,27 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
         if kind in ("TextItem", "UncoveredText") and _matches_heading_shape(b, heading_shapes):
             kind = "SectionHeaderItem"
 
+        tag = ""
+        if srcs and b.get("text_source") and b["text_source"] != dominant:
+            tag = f"{mark[b['text_source']]} "
+
         if kind == "SectionHeaderItem":
             if last_heading is not None and _same_section(text, last_heading):
                 continue                        # a continuation, not a new section
             last_heading = text
             out += [f"## {text}", ""]
+            continue
+
+        # FURNITURE IS DECIDED BEFORE PROVENANCE. A footer recovered by the coverage
+        # sweep is still a footer; letting the UncoveredText branch claim it first marked
+        # only 3 of Year 2's 7 contact blocks, because 4 arrived through the sweep.
+        if b.get("is_furniture"):
+            # Kept -- it is the staff roster and belongs to `people` -- but marked,
+            # because it asserts nothing about the world, and extracting seven of these
+            # as claims would manufacture statements the report never makes.
+            stats["furniture"] = stats.get("furniture", 0) + 1
+            out += ["<!-- FURNITURE: page footer, not an assertion -->",
+                    f"> {tag}{text}", ""]
             continue
 
         if kind == "UncoveredText":
@@ -158,9 +174,14 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             out += [f"> {text}", ""]
             continue
 
-        tag = ""
-        if srcs and b.get("text_source") and b["text_source"] != dominant:
-            tag = f"{mark[b['text_source']]} "
+        lvl = b.get("list_level")
+        if kind == "ListItem" and lvl is not None:
+            # Two spaces per level is markdown's own nesting; the marker is re-emitted
+            # rather than kept, because Docling normalises every bullet glyph to the same
+            # character regardless of depth (see convert_blocks.assign_nesting).
+            out += [f"{'  ' * lvl}- {tag}{text.lstrip('-o• ').strip()}", ""]
+            continue
+
         out += [f"{tag}{text}", ""]
 
     out.insert(3, f"<!-- {stats['figures']} figure(s) · {stats['captions_dropped']} "

@@ -295,3 +295,30 @@ def test_with_no_page_one_heading_the_first_block_is_still_the_title():
               _blk("TextItem", 3, "Body.")]
     out = render_blocks(blocks, {}, "T")
     assert out.startswith("# A2ZERO YEAR FOUR ANNUAL REPORT")
+
+
+# ── nesting and furniture in the rendered markdown ─────────────────────────────────────
+
+def test_a_nested_list_item_is_indented_under_its_parent():
+    blocks = [_blk("ListItem", 13, "Continually wrote grants, including:", list_level=0),
+              _blk("ListItem", 13, "$25,000 from the U.S. EPA", list_level=1),
+              _blk("ListItem", 13, "$75,000 from the McKnight Foundation", list_level=1)]
+    out = render_blocks(blocks, {}, "T")
+    assert "\n- Continually wrote grants" in out
+    assert "\n  - $25,000 from the U.S. EPA" in out
+
+
+def test_furniture_is_kept_but_marked_so_it_is_not_read_as_a_claim():
+    blocks = [_blk("TextItem", 3, "1 For more information on activities to support "
+                                  "Strategy 1, please contact Missy Stults",
+                   is_furniture=True),
+              _blk("TextItem", 3, "Real body prose making an actual claim.")]
+    out = render_blocks(blocks, {}, "T")
+    assert "Missy Stults" in out, "the staff roster is worth keeping"
+    assert "FURNITURE" in out
+    assert "Real body prose" in out
+
+
+def test_ordinary_prose_carries_no_furniture_marker():
+    out = render_blocks([_blk("TextItem", 3, "Installed 1.7MW of solar.")], {}, "T")
+    assert "FURNITURE" not in out

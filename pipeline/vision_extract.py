@@ -34,9 +34,13 @@ blurry, low-contrast, or ambiguous to read with confidence, mark it illegible ra
 than guessing or interpolating a smooth pattern from nearby values. Do not infer a value \
 from a trend line -- report only what is printed.
 
+FIRST DECIDE WHETHER THIS FIGURE CARRIES SUBJECT-SPECIFIC DATA AT ALL. Some images in a report are ornamental: a stock photograph, a decorative graphic, or a screenshot of a third-party TOOL shown so readers know the tool exists. A screenshot of a software interface with no values particular to this document's subject is ornamental in exactly the way a stock photo of a ribbon-cutting is ornamental -- it illustrates, it does not report. Mark those <relevance>ornamental</relevance> and extract no data points; a generic interface's menu labels are not findings. Mark <relevance>substantive</relevance> only when the figure presents data about the subject of this document.
+
 Wrap your entire response in exactly this XML structure, with no text outside it:
 
 <figure_description>
+  <relevance>substantive|ornamental</relevance>
+  <relevance_reason>one sentence: what the image shows, and whether any value in it is specific to this document's subject</relevance_reason>
   <type>bar_chart|line_chart|pie_chart|scatter_chart|dashboard_callout|photo|other</type>
   <title>the chart's own title, verbatim if visible, else empty</title>
   <summary>1-2 sentence factual summary of what the figure shows -- no interpretation</summary>
@@ -95,6 +99,22 @@ def analyze(image_path: Path, deployment_env: str, prompt: str = XML_PROMPT,
         "completion_tokens": resp.usage.completion_tokens,
         "text": choice.message.content or "",
     }
+
+
+def parse_relevance(xml_text: str) -> dict:
+    """{"relevance": substantive|ornamental|unknown, "reason": str}.
+
+    Absent element -> "unknown", never "substantive". Output from an older prompt has not
+    been triaged, and treating untriaged as passed is how an ornamental figure's menu
+    labels end up stored as data.
+    """
+    rel = re.search(r"<relevance>\s*(\w+)\s*</relevance>", xml_text, re.I)
+    why = re.search(r"<relevance_reason>(.*?)</relevance_reason>", xml_text, re.I | re.S)
+    val = (rel.group(1).lower() if rel else "unknown")
+    if val not in ("substantive", "ornamental"):
+        val = "unknown"
+    return {"relevance": val,
+            "reason": " ".join(why.group(1).split()) if why else ""}
 
 
 def parse_points(xml_text: str) -> list[dict]:

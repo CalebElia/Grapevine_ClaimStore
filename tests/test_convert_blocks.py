@@ -732,3 +732,149 @@ def test_neither_source_having_text_yields_nothing():
 def test_a_short_docling_reading_never_triggers_the_fallback():
     """Below a few words there is not enough signal to call pdfplumber broken."""
     assert choose_block_text("", "2021 2022")[1] == "pdfplumber"
+
+
+# ── list nesting, reconstructed from geometry ──────────────────────────────────────────
+# Docling flattens it: on Year 2 page 13 it reports level=2 and marker '·' for the parent
+# bullet "Continually wrote grants..." AND for all twelve grant sub-bullets beneath it.
+# The human-healed reference indents them as children. The hierarchy matters for ingest --
+# a grant claim with no link to its parent statement loses the sentence that frames it.
+#
+# The geometry still carries it (real page 13 left edges):
+#     52.9  Continually wrote grants to support community-wide initiatives
+#     88.6  $25,000 from the U.S. EPA ...        <- indented child
+#    108.1  $2,500,000 from the federal ...      <- same level, ragged left edge
+#    378.3  $270,000 from the American Lung ...  <- RIGHT COLUMN, still a child
+# A naive "larger x0 = deeper" rule breaks on that last case: 378 exceeds 108, so the
+# right column's grants would become grandchildren of a left-column sibling. Indentation
+# has to be measured from each COLUMN's own left edge.
+
+from pipeline.convert_blocks import assign_nesting, column_edges
+
+
+def test_a_single_column_page_has_one_edge():
+    assert column_edges([52.9, 88.6, 89.7, 108.1]) == [52.9]
+
+
+def test_two_columns_are_detected_by_the_gutter():
+    """Real page 13 x0 values."""
+    xs = [52.9, 88.6, 89.7, 89.7, 108.1, 107.0, 378.3, 378.5, 388.8, 393.4, 377.3]
+    assert column_edges(xs) == [52.9, 377.3]
+
+
+def test_an_ordinary_indent_step_never_reads_as_a_column():
+    """36pt is a paragraph indent; a gutter is hundreds of points."""
+    assert column_edges([70.0, 106.0, 142.0]) == [70.0]
+
+
+def test_the_parent_bullet_is_level_zero_and_its_children_are_level_one():
+    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "Continually wrote grants"},
+              {"kind": "ListItem", "x0": 88.6, "text": "$25,000 from the U.S. EPA"},
+              {"kind": "ListItem", "x0": 108.1, "text": "$2,500,000 from the federal"}]
+    assign_nesting(blocks)
+    assert [b["list_level"] for b in blocks] == [0, 1, 1]
+
+
+def test_a_right_column_child_stays_a_child_not_a_grandchild():
+    """The case a naive x0 comparison gets wrong."""
+    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "Continually wrote grants"},
+              {"kind": "ListItem", "x0": 108.1, "text": "$2,500,000 left column"},
+              {"kind": "ListItem", "x0": 378.3, "text": "$270,000 right column"}]
+    assign_nesting(blocks)
+    assert [b["list_level"] for b in blocks] == [0, 1, 1]
+
+
+def test_a_ragged_left_edge_does_not_create_spurious_levels():
+    """Children of one parent vary 88.6 to 108.1 on the real page -- OCR jitter and
+    marker width, not three levels of nesting."""
+    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "parent"},
+              {"kind": "ListItem", "x0": 88.6, "text": "a"},
+              {"kind": "ListItem", "x0": 89.7, "text": "b"},
+              {"kind": "ListItem", "x0": 108.1, "text": "c"},
+              {"kind": "ListItem", "x0": 107.0, "text": "d"}]
+    assign_nesting(blocks)
+    assert [b["list_level"] for b in blocks] == [0, 1, 1, 1, 1]
+
+
+def test_non_list_blocks_reset_the_nesting_context():
+    """A heading or paragraph ends the list; the next bullet starts fresh at level 0."""
+    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "parent"},
+              {"kind": "ListItem", "x0": 88.6, "text": "child"},
+              {"kind": "SectionHeaderItem", "x0": 52.9, "text": "NEW SECTION"},
+              {"kind": "ListItem", "x0": 88.6, "text": "first bullet of the new list"}]
+    assign_nesting(blocks)
+    assert blocks[3]["list_level"] == 0
+
+
+# ── page furniture: present, but not an assertion ──────────────────────────────────────
+# Year 2 carries a per-strategy footer: "1 For more information on activities to support
+# Strategy 1, please contact Missy Stults (mstults@a2gov.org)". Azure CU classifies these
+# as <!-- PageFooter: ... --> and ocrmac renders them as body prose. The content is worth
+# keeping -- it is the staff roster, destined for `people` -- but it is NOT a claim about
+# the world, and extracting it as one would fabricate seven assertions per document.
+# Detected structurally (bottom margin + repeating across pages), never by keyword.
+
+from pipeline.convert_blocks import mark_furniture
+
+
+def _fb(page, text, top, page_h=792.0):
+    return {"kind": "TextItem", "page_no": page, "text": text,
+            "top": top, "page_h": page_h}
+
+
+def test_a_block_repeating_in_the_bottom_margin_across_pages_is_furniture():
+    blocks = [_fb(3, "1 For more information on activities to support Strategy 1, "
+                     "please contact Missy Stults", 730),
+              _fb(8, "4 For more information on activities to support Strategy 4, "
+                     "please contact Simi Barr", 732),
+              _fb(11, "6 For more information on activities to support Strategy 6, "
+                      "please contact Sean Reynolds", 731)]
+    mark_furniture(blocks)
+    assert all(b["is_furniture"] for b in blocks)
+
+
+def test_body_prose_in_the_bottom_margin_is_not_furniture():
+    """A single bullet that happens to fall low on one page repeats nowhere."""
+    blocks = [_fb(3, "Installed an additional 1.7MW of new residential solar.", 730),
+              _fb(8, "Conducted energy audits of 4 City facilities.", 731)]
+    mark_furniture(blocks)
+    assert not any(b["is_furniture"] for b in blocks)
+
+
+def test_a_repeated_phrase_in_the_MIDDLE_of_a_page_is_not_furniture():
+    """Position matters as much as repetition -- a recurring body sentence is content."""
+    blocks = [_fb(3, "For more information on activities to support Strategy 1", 300),
+              _fb(8, "For more information on activities to support Strategy 4", 305)]
+    mark_furniture(blocks)
+    assert not any(b["is_furniture"] for b in blocks)
+
+
+def test_furniture_needs_more_than_two_occurrences_to_be_a_pattern():
+    blocks = [_fb(3, "1 For more information please contact Missy Stults", 730),
+              _fb(8, "4 For more information please contact Simi Barr", 731)]
+    mark_furniture(blocks, min_occurrences=3)
+    assert not any(b["is_furniture"] for b in blocks)
+
+
+def test_sibling_bullets_in_two_columns_stay_siblings():
+    """Real Year 5 page 6: five bullets at x0=54 in the left column, four at x0=282 in
+    the right. They are SIBLINGS -- one flat list flowing across the page -- and the
+    first version promoted the right column to level 1 because it computed column edges
+    across the WHOLE DOCUMENT rather than per page. Columns are a property of a page.
+    """
+    blocks = ([{"kind": "ListItem", "x0": 54.0, "page_no": 6, "text": f"left {i}"}
+               for i in range(5)]
+              + [{"kind": "ListItem", "x0": 282.4, "page_no": 6, "text": f"right {i}"}
+                 for i in range(4)])
+    assign_nesting(blocks)
+    assert {b["list_level"] for b in blocks} == {0}
+
+
+def test_a_narrow_page_does_not_inherit_a_wide_pages_columns():
+    """Two pages with different layouts must not share an edge set."""
+    blocks = [{"kind": "ListItem", "x0": 54.0, "page_no": 6, "text": "a"},
+              {"kind": "ListItem", "x0": 282.4, "page_no": 6, "text": "b"},
+              {"kind": "ListItem", "x0": 54.0, "page_no": 7, "text": "c"},
+              {"kind": "ListItem", "x0": 90.0, "page_no": 7, "text": "d"}]
+    assign_nesting(blocks)
+    assert [b["list_level"] for b in blocks] == [0, 0, 0, 1]

@@ -36,3 +36,51 @@ def test_malformed_xml_degrades_gracefully():
     """
     pts = parse_points('<point label="ok" value="1" unit="u" confidence="high">')
     assert pts == [{"label": "ok", "value": "1", "unit": "u", "confidence": "high"}]
+
+
+# ── relevance triage: ornamental by CONTENT, not by size ───────────────────────────────
+# Year 2 page 6 carries a screenshot of the ENERGY STAR Portfolio Manager interface. The
+# classifier calls it screenshot_from_computer -- the same label Year 5's A2ZERO dashboard
+# earns, and that one yielded 31 real data points. Nothing about type, size or confidence
+# separates them: Year 2's is 10.3% of the page at 0.481, Year 5's is 32.3% at 0.543.
+#
+# What separates them is CONTENT. Year 2's is a picture of a TOOL a reader could go and
+# use, carrying no Ann Arbor data at all -- ornamental in exactly the way a stock
+# ribbon-cutting photo is ornamental. Only something that looks at the image can tell,
+# and the vision pass is already looking, so the triage belongs in its prompt rather than
+# in another geometric threshold.
+
+from pipeline.vision_extract import parse_relevance
+
+
+def test_a_generic_tool_screenshot_is_reported_as_ornamental():
+    xml = """<figure_description>
+      <relevance>ornamental</relevance>
+      <relevance_reason>A screenshot of the ENERGY STAR Portfolio Manager web interface.
+      No values specific to Ann Arbor appear; this illustrates a tool.</relevance_reason>
+      <data_points></data_points>
+    </figure_description>"""
+    r = parse_relevance(xml)
+    assert r["relevance"] == "ornamental"
+    assert "Portfolio Manager" in r["reason"]
+
+
+def test_a_subject_specific_chart_is_reported_as_substantive():
+    xml = """<figure_description>
+      <relevance>substantive</relevance>
+      <relevance_reason>A bar chart of Ann Arbor community GHG emissions by year.</relevance_reason>
+    </figure_description>"""
+    assert parse_relevance(xml)["relevance"] == "substantive"
+
+
+def test_a_response_with_no_relevance_element_is_unknown_not_assumed_substantive():
+    """An older prompt's output must not be silently treated as having passed triage."""
+    assert parse_relevance("<figure_description><type>bar_chart</type>"
+                           "</figure_description>")["relevance"] == "unknown"
+
+
+def test_the_prompt_defines_ornamental_by_subject_specificity_not_by_beauty():
+    from pipeline.vision_extract import XML_PROMPT
+    low = XML_PROMPT.lower()
+    assert "ornamental" in low and "substantive" in low
+    assert "stock" in low or "tool" in low

@@ -244,6 +244,114 @@ def split_index_lines(raw: str) -> list[str] | None:
     return lines if hits >= max(3, int(0.7 * len(lines))) else None
 
 
+# A column gutter is hundreds of points wide; a paragraph indent is one or two ems, so
+# 18-40pt at this type size. Nothing in the corpus sits between, which is why a single
+# threshold separates them cleanly rather than merely fitting.
+_MIN_GUTTER = 100.0
+# Children of one parent vary by ~20pt on the real page 13 (88.6 to 108.1) from marker
+# width and OCR jitter. A genuine nesting step must clear that.
+_INDENT_STEP = 24.0
+
+
+def column_edges(x0s: list[float], min_gap: float = _MIN_GUTTER) -> list[float]:
+    """Left edge of each text column on a page, from the gaps between block left edges."""
+    if not x0s:
+        return []
+    xs = sorted(set(round(x, 1) for x in x0s))
+    edges, start = [xs[0]], xs[0]
+    for a, b in zip(xs, xs[1:]):
+        if b - a >= min_gap:
+            edges.append(b)
+    return edges
+
+
+def assign_nesting(blocks: list[dict]) -> None:
+    """Set `list_level` on each block, in place.
+
+    Indentation is measured from the block's OWN COLUMN's left edge, because on Year 2
+    page 13 the right column's grant bullets start at x0=378 while their left-column
+    siblings start at 108 -- a page-wide comparison makes the right column's items
+    grandchildren of a sibling. Docling is no help: it reports level=2 and marker '·' for
+    the parent bullet and all twelve children alike, so geometry is the only signal left.
+
+    A LIST CONTINUING INTO A NEW COLUMN CARRIES ITS DEPTH OVER. The first block of the
+    right column has indent 0 relative to that column, because the column's leftmost
+    block IS a child -- no parent bullet was ever set there. Restarting at level 0 would
+    promote twelve grants to siblings of the sentence that introduces them. So a column
+    change rebases rather than resets: the new column continues at the depth the previous
+    one reached, and only a further indent shift changes it.
+
+    A non-list block ends the list entirely: a heading or paragraph closes whatever
+    nesting was open, so the next bullet starts fresh.
+    """
+    # PER PAGE. Columns are a property of a page layout, not of a document: computing
+    # one edge set across the whole file made Year 5 page 6's right-column bullets
+    # (x0=282, plain siblings of the left column's x0=54) come out as level 1, because
+    # edges contributed by other pages landed between them.
+    by_page: dict[int, list[float]] = {}
+    for b in blocks:
+        if b.get("x0") is not None:
+            by_page.setdefault(b.get("page_no"), []).append(b["x0"])
+    edges_for = {pg: column_edges(xs) for pg, xs in by_page.items()}
+
+    stack: list[float] = []
+    level, base, cur_col = 0, 0, None
+    for b in blocks:
+        edges = edges_for.get(b.get("page_no")) or [b.get("x0", 0.0)]
+        if b.get("kind") != "ListItem" or b.get("x0") is None:
+            b["list_level"] = None
+            stack, level, base, cur_col = [], 0, 0, None
+            continue
+        col = max([e for e in edges if e <= b["x0"] + 1] or [edges[0]])
+        indent = b["x0"] - col
+        if col != cur_col:
+            base = level if cur_col is not None else 0
+            cur_col, stack, level = col, [indent], base
+        else:
+            while stack and indent < stack[-1] + _INDENT_STEP:
+                stack.pop()
+            stack.append(indent)
+            level = base + len(stack) - 1
+        b["list_level"] = level
+
+
+_FURNITURE_BAND = 0.88     # fraction of page height below which a footer can sit
+
+
+def _shape(text: str) -> str:
+    """A block's structural shape: digits and names collapsed, so a footer template
+    matches across pages even though its number, strategy and staff member differ."""
+    t = re.sub(r"\d+", "#", (text or "").lower())
+    return " ".join(re.findall(r"[a-z#]{2,}", t)[:8])
+
+
+def mark_furniture(blocks: list[dict], min_occurrences: int = 3) -> None:
+    """Set `is_furniture` on repeating bottom-margin blocks, in place.
+
+    Year 2 repeats a per-strategy footer on seven pages: "N For more information on
+    activities to support Strategy N, please contact <staff> (<email>)". That text is
+    worth keeping -- it is the staff roster, and belongs to `people` -- but it asserts
+    nothing about the world, and extracting seven of them as claims would manufacture
+    seven statements the report never makes.
+
+    Detected on POSITION PLUS REPETITION, never on keywords. Position alone would catch
+    the last bullet of every page; repetition alone would catch any recurring sentence in
+    the body. A template whose numbers and names vary is normalised by _shape() so the
+    seven variants recognise each other as one pattern.
+    """
+    cand: dict[str, list[dict]] = {}
+    for b in blocks:
+        b.setdefault("is_furniture", False)
+        top, ph = b.get("top"), b.get("page_h")
+        if top is None or not ph or top < ph * _FURNITURE_BAND:
+            continue
+        cand.setdefault(_shape(b.get("text", "")), []).append(b)
+    for shape, group in cand.items():
+        if shape and len({b["page_no"] for b in group}) >= min_occurrences:
+            for b in group:
+                b["is_furniture"] = True
+
+
 def is_page_footer(block: dict) -> bool:
     """A block that is nothing but this page's own number.
 
@@ -620,6 +728,24 @@ def convert(pdf_path, blocks_path):
             captioned.append((b["page_no"], b["text"][:70]))
         else:
             b["caption_for"] = None          # not a caption; keep it in the document
+
+    # Geometry in TOP-LEFT space for the two structural passes below. Docling reports
+    # BOTTOMLEFT, and both passes reason about "further down the page" and "further in
+    # from the left", so they need the same orientation the reader has.
+    page_h = {b["page_no"]: b.get("page_h") for b in blocks if b.get("page_h")}
+    for b in resolved:
+        bb = b.get("bbox")
+        if not bb:
+            continue
+        ph = b.get("page_h") or page_h.get(b["page_no"])
+        if b.get("coord_origin", "").find("BOTTOMLEFT") >= 0 and ph:
+            b["top"] = min(ph - bb[1], ph - bb[3])
+        else:
+            b["top"] = min(bb[1], bb[3])
+        b["x0"] = min(bb[0], bb[2])
+        b["page_h"] = ph
+    assign_nesting(resolved)
+    mark_furniture(resolved)
 
     text, page_map, with_offsets = assemble_blocks(resolved, n_pages)
     try:
