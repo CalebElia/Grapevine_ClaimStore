@@ -237,8 +237,18 @@ def trim_to_docling(pdf_text: str, docling_text: str) -> str:
 
     Trims only when the crop is LONGER than Docling's reading. Under-capture is a
     different failure and papering over it here would hide it.
+
+    IT SLICES, IT DOES NOT REJOIN. Both trims used to rebuild the block with
+    " ".join(tokens), which silently flattened every newline inside it -- and the very
+    next line of convert() is apply_hyphen_decisions, whose whole job is to read the
+    `word-\nword` splits this destroyed. Its docstring calls that case "unrecoverable"
+    once the newline is gone, and it was right: 18 line-break hyphens across Years 3-5
+    came out as "zero- emissions", "plant- forward", "income- qualified" -- a hyphen and
+    a space where the page has neither. Choosing WHERE to stop must not rewrite what lies
+    in between, so the boundaries are character offsets into the original string.
     """
-    pw, dw = pdf_text.split(), docling_text.split()
+    toks = [(m.group(0), m.start(), m.end()) for m in re.finditer(r"\S+", pdf_text)]
+    pw, dw = [t[0] for t in toks], docling_text.split()
     # Both sides must have tokens. Year 2 is image-based, so most crops are EMPTY and the
     # OCR fallback supplies the text further down -- reordering the trims removed a length
     # guard that had been protecting pw[0] by accident, and the document crashed.
@@ -262,9 +272,9 @@ def trim_to_docling(pdf_text: str, docling_text: str) -> str:
     if norm(pw[0]) != norm(dw[0]) and norm(pw[0]) not in dl_tokens:
         for i in range(1, min(3, len(pw))):
             if norm(pw[i]) == norm(dw[0]):
-                pw = pw[i:]
+                pdf_text = pdf_text[toks[i][1]:]
+                toks, pw = toks[i:], pw[i:]
                 break
-        pdf_text = " ".join(pw)
 
     # The TAIL trim only applies when the crop is genuinely longer. Under-capture is a
     # different failure and papering over it here would hide it.
@@ -278,7 +288,7 @@ def trim_to_docling(pdf_text: str, docling_text: str) -> str:
     lo = max(len(dw) - 3, 0)
     for i in range(lo, min(len(pw), len(dw) + 6)):
         if norm(pw[i]) == target:
-            return " ".join(pw[:i + 1])
+            return pdf_text[:toks[i][2]]
     return pdf_text
 
 
@@ -337,6 +347,66 @@ _SCRIPT_SIZE = 0.92        # smaller than this share of the line's type = super/
 _INDENT_EMS = 1.25         # an indent level is at least this many ems; less is jitter
 _DEFAULT_EM = 10.0         # body size assumed on a page with no text layer at all
 _OCR_INDENT_STEP = 24.0    # points; the conservative step an OCR-predicted box keeps
+
+
+def _lead_shape(text: str) -> str:
+    """A block's LEADING shape -- the first three word-ish tokens, digits collapsed.
+
+    Three, matching body_shapes() and render_blocks(), not _shape()'s eight: a callout
+    is recognised by how it opens ("dive deeper into"), and the eight-token form makes
+    every one of Year 2's five callouts a different shape, so none of them recur and the
+    majority vote they depend on never happens.
+    """
+    return " ".join(re.findall(r"[a-z#]{2,}", re.sub(r"\d+", "#", (text or "").lower()))[:3])
+
+
+def absorb_body_shaped_headings(blocks: list[dict], ems: dict[int, float]) -> list[dict]:
+    """Fold a mistyped heading into the paragraph whose first line it actually is.
+
+    Year 2 sets five DIVE DEEPER callouts. Four arrive as one TextItem each, reading
+    "DIVE DEEPER into X: prose...". The fifth wraps onto a second line and Docling splits
+    it, typing the first line SectionHeaderItem and leaving the rest -- including the
+    colon that ends the label -- in the block below, so one callout rendered as a stray
+    heading followed by a paragraph starting "BUILDINGS: This year,".
+
+    NEITHER SIGNAL IS SUFFICIENT ALONE, WHICH IS WHY BOTH ARE REQUIRED.
+
+    Geometry says these two are consecutive lines of one paragraph: 4.6pt separates them,
+    where every genuine heading-to-body gap on Year 2 is 23-50pt. But measured against the
+    page's type size that test alone also swallows Year 1's real "Next Steps" heading
+    (5.4pt), Year 5's cover title, and two more -- four verified headings destroyed to fix
+    one.
+
+    So the block must ALSO carry a shape the document itself uses for body text.
+    "dive deeper into" is body shape here because four of the five callouts are plain
+    TextItems saying exactly that; "next steps" and "zer# annual report" are not. Across
+    all five reports these two conditions overlap on exactly one block -- the broken one.
+    """
+    shaped = [{**b, "text": b.get("docling_text") or ""} for b in blocks]
+    shapes = body_shapes(shaped)
+    out: list[dict] = []
+    skip = -1
+    for i, b in enumerate(blocks):
+        if i == skip:
+            continue
+        nxt = blocks[i + 1] if i + 1 < len(blocks) else None
+        if (b["kind"] == "SectionHeaderItem" and nxt is not None
+                and nxt["kind"] not in ("PictureItem", "SectionHeaderItem")
+                and nxt["page_no"] == b["page_no"]
+                and _lead_shape(b.get("docling_text") or "") in shapes
+                and abs(b["bbox"][0] - nxt["bbox"][0]) <= 3.0
+                and 0 <= b["bbox"][3] - nxt["bbox"][1] < (ems.get(b["page_no"]) or _DEFAULT_EM)):
+            bl, nl = b["bbox"], nxt["bbox"]
+            out.append({**nxt,
+                        "bbox": [min(bl[0], nl[0]), max(bl[1], nl[1]),
+                                 max(bl[2], nl[2]), min(bl[3], nl[3])],
+                        "docling_text": " ".join(
+                            x for x in ((b.get("docling_text") or "").strip(),
+                                        (nxt.get("docling_text") or "").strip()) if x)})
+            skip = i + 1
+            continue
+        out.append(b)
+    return out
 
 
 def snap_scripts(chars: list[dict]) -> tuple[list[dict], int]:
@@ -1005,6 +1075,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             ink = [c for c in page.chars if not c["text"].isspace()]
             if ink:
                 ems[pno] = Counter(round(c["size"], 1) for c in ink).most_common(1)[0][0]
+        blocks = absorb_body_shaped_headings(blocks, ems)
         for b in blocks:
             if b["kind"] == "PictureItem":
                 raws.append("")

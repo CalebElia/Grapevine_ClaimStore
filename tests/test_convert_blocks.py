@@ -749,7 +749,8 @@ def test_a_short_docling_reading_never_triggers_the_fallback():
 # right column's grants would become grandchildren of a left-column sibling. Indentation
 # has to be measured from each COLUMN's own left edge.
 
-from pipeline.convert_blocks import assign_nesting, column_edges, snap_scripts
+from pipeline.convert_blocks import (assign_nesting, column_edges, snap_scripts,
+                                     absorb_body_shaped_headings)
 
 
 def test_a_single_column_page_has_one_edge():
@@ -1495,3 +1496,48 @@ def test_a_doubled_space_under_one_glyph_goes_entirely():
     fixed, moved = snap_scripts([*line, sup])
     assert moved == 1
     assert not [c for c in fixed if c["text"].isspace()]
+
+
+def test_the_trim_preserves_the_newlines_de_hyphenation_reads():
+    """Both trims rebuilt the block with " ".join(tokens), flattening every newline --
+    and apply_hyphen_decisions runs on the very next line of convert(), needing exactly
+    those newlines to tell "zero-\\nemissions" from a real "zero- emissions"."""
+    raw = "a study of zero-\nemissions transit options today"
+    kept = trim_to_docling(raw, "a study of zero emissions transit options")
+    assert "zero-\nemissions" in kept          # the split survives the trim
+    assert kept.endswith("options")            # and the tail was still trimmed
+
+
+def test_the_front_trim_also_preserves_newlines():
+    raw = "3 STRATEGY THREE: improve the energy-\nefficiency of buildings"
+    kept = trim_to_docling(raw, "STRATEGY THREE: improve the energy efficiency of buildings")
+    assert kept.startswith("STRATEGY") and "energy-\nefficiency" in kept
+
+
+def _hblk(kind, text, l, t, b, page=6):
+    return {"kind": kind, "docling_text": text, "page_no": page, "bbox": [l, t, l + 200, b]}
+
+
+def test_a_body_shaped_heading_glued_to_its_paragraph_is_absorbed():
+    """Year 2 page 6: Docling split one DIVE DEEPER callout across two blocks and typed
+    the first line as a heading, leaving the label's colon in the block below."""
+    blocks = [_hblk("TextItem", "DIVE DEEPER into GREEN RENTAL HOUSING: prose here", 75.9, 400, 380),
+              _hblk("TextItem", "DIVE DEEPER into TREES: more prose here", 75.9, 370, 350),
+              _hblk("SectionHeaderItem", "DIVE DEEPER into COMMERCIAL BENCHMARKING FOR ANN ARBOR",
+                    75.9, 363.8, 341.9),
+              _hblk("TextItem", "BUILDINGS: This year, the ordinance passed.", 75.9, 337.3, 162.3)]
+    out = absorb_body_shaped_headings(blocks, {6: 10.0})
+    assert len(out) == 3
+    assert out[-1]["kind"] == "TextItem"
+    assert out[-1]["docling_text"].startswith("DIVE DEEPER into COMMERCIAL")
+    assert "BUILDINGS: This year" in out[-1]["docling_text"]
+
+
+def test_a_real_heading_close_to_its_body_is_not_absorbed():
+    """Year 1's "Next Steps" sits 5.4pt above its paragraph -- inside the geometric
+    window -- but its shape is nothing the document uses for body text."""
+    blocks = [_hblk("TextItem", "Some ordinary paragraph of prose text here", 150, 400, 380, 7),
+              _hblk("SectionHeaderItem", "Next Steps", 150, 363.8, 341.9, 7),
+              _hblk("TextItem", "Looking ahead to Year Two we plan to do more.", 150, 337.3, 162.3, 7)]
+    out = absorb_body_shaped_headings(blocks, {7: 12.0})
+    assert len(out) == 3 and out[1]["kind"] == "SectionHeaderItem"

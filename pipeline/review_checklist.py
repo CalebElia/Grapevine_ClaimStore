@@ -117,6 +117,20 @@ def build(md_path: Path, report: dict, gate_findings: list, label: str) -> list[
                      f"\u201c{_tail(t)}\u201d — does the sentence finish there, or was a "
                      f"continuation line dropped?")
 
+    # A HYPHEN FOLLOWED BY A SPACE IS ALMOST ALWAYS WRONG. It is what a line-break split
+    # looks like after something has flattened the newline that identified it, and 18 of
+    # them reached Years 3-5 that way ("zero- emissions", "income- qualified"). The rare
+    # legitimate case is a suspended hyphen -- "City- and community-wide" -- so this is
+    # listed for a human rather than repaired, but it is never listed silently.
+    for ln, text in _find(lines, r"[A-Za-z]+- [a-z]"):
+        if text.lstrip().startswith("<!--"):
+            continue
+        for m in re.finditer(r"([A-Za-z]+)- ([a-z]+)", text):
+            a.append(f"- [ ] `{name}:{ln}` p.{_page_of(lines, ln)} — hyphen then SPACE in "
+                     f"**{m.group(1)}- {m.group(2)}** — a line-break split usually joins to "
+                     f"*{m.group(1)}-{m.group(2)}*; only a suspended hyphen (\"City- and "
+                     f"community-wide\") keeps the space")
+
     amb = report.get("ambiguous_hyphens") or []
     for x, y in amb:
         hits = _find(lines, re.escape(f"{x}-{y}"))

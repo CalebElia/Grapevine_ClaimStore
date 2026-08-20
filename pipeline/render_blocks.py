@@ -130,8 +130,14 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             if xml:
                 out += ["", xml.strip()]
             else:
-                out.append(f"> **[{b.get('top_label')} on page {fig_page} was kept but "
-                           f"not extracted -- no vision output available.]**")
+                # NOT PROSE. A caption and a page footer render as blockquotes because
+                # they ARE text on the page; this is the pipeline talking about itself,
+                # and putting it in the reading stream made Year 2 appear to contain a
+                # sentence about a screenshot. It says only that a figure was kept and
+                # no vision pass has read it -- which for Year 2 is true of every figure,
+                # because that stage has never been run for this document.
+                out.append(f"<!-- UNEXTRACTED FIGURE: {b.get('top_label')} on page "
+                           f"{fig_page} was kept, but no vision output is available -->")
             out.append("")
             continue
 
