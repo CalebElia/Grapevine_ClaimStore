@@ -1175,3 +1175,241 @@ def test_a_heading_shape_still_overrides_a_docling_link():
     assert overrides_caption_link(
         {"kind": "TextItem", "page_no": 17,
          "text": "STRATEGY 6: Enhance the Resilience of Our People"}, {"strategy 6"})
+
+
+# ── headings Docling split across overlapping boxes ────────────────────────────────────
+# Year 1's headings are set as display type over two or three lines, and Docling emits a
+# box per fragment -- boxes that OVERLAP and sometimes NEST. Page 3's real heading is
+# "Strategy 2: Switch our appliances and vehicles from fossil fuels to electric", and it
+# arrives as:
+#     box A  x144-504  y100-121  "Switch our appliances and vehicles"
+#     box B  x143-414  y 73-142  "Strategy 2: from fossil fuels to electric"
+# B CONTAINS A vertically but is narrower, so cropping B alone cuts "vehicles" off at
+# x=414 and the rendered heading read "Strategy 2: Switch our appliances and from fossil
+# fuels to electric" -- scrambled, not merely split.
+#
+# Cropping their UNION recovers the heading exactly, verified against the real page.
+
+from pipeline.convert_blocks import merge_overlapping_headings
+
+
+def _hb(page, x0, x1, top, bot, text, kind="SectionHeaderItem", H=792.0):
+    """A block in Docling's BOTTOMLEFT convention, from top-left intent."""
+    return {"kind": kind, "page_no": page, "bbox": [x0, H - top, x1, H - bot],
+            "coord_origin": "CoordOrigin.BOTTOMLEFT", "page_w": 612.0, "page_h": H,
+            "docling_text": text, "self_ref": f"#/t/{text[:6]}", "caption_for": None}
+
+
+def test_two_overlapping_heading_boxes_merge_into_their_union():
+    blocks = [_hb(3, 144, 504, 100, 121, "Switch our appliances and vehicles"),
+              _hb(3, 143, 414, 73, 142, "Strategy 2: from fossil fuels to electric")]
+    out = merge_overlapping_headings(blocks)
+    assert len(out) == 1
+    l, t, r, b = out[0]["bbox"]
+    assert min(l, r) == 143 and max(l, r) == 504, "union must take the WIDEST extent"
+
+
+def test_vertically_adjacent_heading_boxes_merge():
+    """Page 2: y72-121 then y120-144, same left edge -- one heading, two boxes."""
+    blocks = [_hb(2, 144, 509, 72, 121, "Strategy 1: Power our electrical grid with 100%"),
+              _hb(2, 144, 335, 120, 144, "renewable energy")]
+    assert len(merge_overlapping_headings(blocks)) == 1
+
+
+def test_headings_far_apart_do_not_merge():
+    blocks = [_hb(2, 144, 509, 72, 121, "Strategy 1: Renewables"),
+              _hb(2, 143, 235, 400, 420, "In Year One, we:")]
+    assert len(merge_overlapping_headings(blocks)) == 2
+
+
+def test_headings_on_different_pages_never_merge():
+    blocks = [_hb(2, 144, 509, 72, 121, "Strategy 1"),
+              _hb(3, 144, 509, 73, 122, "Strategy 2")]
+    assert len(merge_overlapping_headings(blocks)) == 2
+
+
+def test_a_heading_and_a_body_block_never_merge():
+    """Only headings; merging a bullet into a heading would swallow content."""
+    blocks = [_hb(2, 144, 509, 72, 121, "Strategy 1: Renewables"),
+              _hb(2, 150, 519, 120, 150, "Installed 1.3MW of solar", kind="ListItem")]
+    assert len(merge_overlapping_headings(blocks)) == 2
+
+
+def test_three_fragments_of_one_heading_all_merge():
+    blocks = [_hb(6, 144, 300, 100, 118, "Strategy 7:"),
+              _hb(6, 144, 500, 117, 136, "Other strategies / accomplishments"),
+              _hb(6, 144, 460, 135, 154, "and next steps")]
+    assert len(merge_overlapping_headings(blocks)) == 1
+
+
+# ── a heading that repeats under every section is a lead-in, not a heading ─────────────
+# Year 1 types "In Year One, we:" as a SectionHeaderItem SEVEN times, on pages 2, 3, 4, 4,
+# 5, 5 and 6 -- once under each of the seven strategies. It is the line that introduces
+# each strategy's bullet list, not a section boundary, and promoting it to `##` cut every
+# strategy in half and detached its achievements from the strategy they belong to.
+#
+# body_shapes() cannot demote this: Docling types it as a heading EVERY time, so the
+# document's majority vote agrees with the mistake. The signal is repetition across
+# DIFFERENT sections -- a real section heading names one section.
+
+from pipeline.convert_blocks import recurring_lead_ins
+
+
+def test_a_heading_repeated_under_several_sections_is_a_lead_in():
+    blocks = [{"kind": "SectionHeaderItem", "text": "Strategy 1: Renewables"},
+              {"kind": "SectionHeaderItem", "text": "In Year One, we:"},
+              {"kind": "SectionHeaderItem", "text": "Strategy 2: Electrification"},
+              {"kind": "SectionHeaderItem", "text": "In Year One, we:"},
+              {"kind": "SectionHeaderItem", "text": "Strategy 3: Efficiency"},
+              {"kind": "SectionHeaderItem", "text": "In Year One, we:"}]
+    assert "in year one, we:" in recurring_lead_ins(blocks)
+
+
+def test_a_unique_heading_is_never_a_lead_in():
+    blocks = [{"kind": "SectionHeaderItem", "text": "Strategy 1: Renewables"},
+              {"kind": "SectionHeaderItem", "text": "CLOSING"}]
+    assert recurring_lead_ins(blocks) == set()
+
+
+def test_a_heading_repeated_CONSECUTIVELY_is_a_continuation_not_a_lead_in():
+    """"GREENHOUSE GAS EMISSIONS SUMMARY" twice in a row on Year 5 is one section
+    resuming on a new page -- already handled by the continuation merge, and it must not
+    be demoted to body text."""
+    blocks = [{"kind": "SectionHeaderItem", "text": "GHG EMISSIONS SUMMARY"},
+              {"kind": "SectionHeaderItem", "text": "GHG EMISSIONS SUMMARY"},
+              {"kind": "SectionHeaderItem", "text": "GHG EMISSIONS SUMMARY"}]
+    assert recurring_lead_ins(blocks) == set()
+
+
+def test_two_occurrences_are_not_yet_a_pattern():
+    blocks = [{"kind": "SectionHeaderItem", "text": "Strategy 1"},
+              {"kind": "SectionHeaderItem", "text": "In Year One, we:"},
+              {"kind": "SectionHeaderItem", "text": "Strategy 2"},
+              {"kind": "SectionHeaderItem", "text": "In Year One, we:"}]
+    assert recurring_lead_ins(blocks, min_sections=3) == set()
+
+
+from pipeline.convert_blocks import already_present
+
+
+def test_a_geometric_stray_already_present_in_the_text_is_not_re_added():
+    """Year 1 page 6: the geometric sweep called "organizations as collaborators"
+    uncovered, because the words' CENTRES fall outside a box that sits ~8pt below its own
+    text -- while pdfplumber's crop(), which keeps any word INTERSECTING the box, had
+    already captured them into "- Secured 92 organizations as collaborators".
+
+    The two sweeps ask different questions and the geometric one is the weaker: being
+    outside a box is not the same as being absent from the document. Re-adding produced a
+    duplicate stub three lines later, and the same fault duplicated two other bullets and
+    an eighth "In Year One, we:".
+    """
+    assert already_present("organizations as collaborators",
+                           "- Secured 92 organizations as collaborators on our work")
+
+
+def test_a_genuinely_absent_stray_is_still_recovered():
+    assert not already_present("3 INTRODUCTION 4 GREENHOUSE GAS",
+                               "Some entirely unrelated body prose about solar.")
+
+
+def test_presence_ignores_case_and_punctuation():
+    assert already_present("Commercial Enterprises.",
+                           "- Expansion of Solarize to commercial enterprises")
+
+
+def test_a_heading_ending_in_a_colon_merges_with_the_next_heading():
+    """Year 3 splits its strategy headings as a LABEL and a TITLE separated by ~50pt of
+    page -- "STRATEGY ONE:" at y56-71 and "POWER OUR ELECTRICAL GRID WITH 100% RENEWABLE
+    ENERGY" at y121-134. Fifty points is far too wide to merge on proximity without
+    risking two genuinely separate headings, but a heading ending in a colon is not a
+    section name; it is the first half of one.
+    """
+    blocks = [_hb(3, 121, 252, 56, 71, "STRATEGY ONE:"),
+              _hb(3, 100, 517, 121, 134, "POWER OUR ELECTRICAL GRID WITH 100% RENEWABLE ENERGY")]
+    out = merge_overlapping_headings(blocks)
+    assert len(out) == 1
+    assert out[0]["docling_text"].startswith("STRATEGY ONE: POWER OUR")
+
+
+def test_a_colon_heading_does_not_merge_across_a_page_break():
+    blocks = [_hb(3, 121, 252, 56, 71, "STRATEGY ONE:"),
+              _hb(4, 100, 517, 121, 134, "SOMETHING ELSE ENTIRELY")]
+    assert len(merge_overlapping_headings(blocks)) == 2
+
+
+def test_a_colon_heading_does_not_merge_when_body_text_intervenes():
+    """Adjacency in the block stream is the guard: if a paragraph sits between them they
+    are two sections, whatever the punctuation."""
+    blocks = [_hb(3, 121, 252, 56, 71, "STRATEGY ONE:"),
+              _hb(3, 100, 517, 90, 110, "Body prose here.", kind="TextItem"),
+              _hb(3, 100, 517, 121, 134, "A REAL SECOND HEADING")]
+    assert len([b for b in merge_overlapping_headings(blocks)
+                if b["kind"] == "SectionHeaderItem"]) == 2
+
+
+def test_a_normal_heading_is_not_merged_with_the_next_one():
+    blocks = [_hb(3, 121, 400, 56, 71, "GREENHOUSE GAS EMISSIONS SUMMARY"),
+              _hb(3, 100, 517, 300, 320, "CLOSING")]
+    assert len(merge_overlapping_headings(blocks)) == 2
+
+
+def test_a_leading_token_docling_does_not_have_is_trimmed_from_the_front():
+    """Year 3 pages 7 and 9. Merging the label and title boxes widened the crop enough to
+    catch the decorative strategy numeral set beside the heading, so the rendered heading
+    read "3 STRATEGY THREE: SIGNIFICANTLY IMPROVE...". Docling's own text starts at
+    "STRATEGY", which is the boundary -- the same rule as the tail trim, at the other end.
+    """
+    pdf = "3 STRATEGY THREE: SIGNIFICANTLY IMPROVE THE ENERGY EFFICIENCY"
+    dl = "STRATEGY THREE: SIGNIFICANTLY IMPROVE THE ENERGY EFFICIENCY"
+    assert trim_to_docling(pdf, dl) == dl
+
+
+def test_the_front_trim_keeps_pdfplumbers_characters():
+    pdf = "3 STRATEGY: powering A2ZERO forward"
+    dl = "STRATEGY: powering A 2 ZERO forward"
+    out = trim_to_docling(pdf, dl)
+    assert out.startswith("STRATEGY:") and "A2ZERO" in out
+
+
+def test_a_matching_front_is_left_alone():
+    t = "STRATEGY THREE: efficiency"
+    assert trim_to_docling(t, t) == t
+
+
+def test_the_front_trim_never_removes_more_than_a_couple_of_tokens():
+    """A wholesale mismatch means something else is wrong; silently deleting the opening
+    of a block would be the very failure this module keeps finding."""
+    pdf = "one two three four five STRATEGY THREE: efficiency"
+    dl = "STRATEGY THREE: efficiency"
+    assert trim_to_docling(pdf, dl).startswith("one two")
+
+
+def test_the_front_trim_never_removes_a_token_docling_has_elsewhere():
+    """The regression this pins, caught on Year 1 immediately after the front trim landed.
+    Merging that document's split heading boxes concatenates their text in BLOCK order,
+    which is not reading order -- Docling's merged text reads "Switch our appliances and
+    vehicles Strategy 2: from fossil fuels to electric". Aligning to its first token
+    ("Switch") stripped "Strategy 2:" off the front of a correct heading.
+
+    A leading token Docling has SOMEWHERE is a token Docling read; it is only the ordering
+    that differs, and ordering is not evidence of over-capture.
+    """
+    pdf = "Strategy 2: Switch our appliances and vehicles from fossil fuels to electric"
+    dl = "Switch our appliances and vehicles Strategy 2: from fossil fuels to electric"
+    assert trim_to_docling(pdf, dl).startswith("Strategy 2:")
+
+
+def test_a_leading_token_docling_lacks_entirely_is_still_trimmed():
+    """Year 3's decorative numeral: "3" appears nowhere in Docling's reading."""
+    pdf = "3 STRATEGY THREE: SIGNIFICANTLY IMPROVE THE ENERGY EFFICIENCY"
+    dl = "STRATEGY THREE: SIGNIFICANTLY IMPROVE THE ENERGY EFFICIENCY"
+    assert trim_to_docling(pdf, dl) == dl
+
+
+def test_an_empty_pdfplumber_crop_does_not_crash_the_trim():
+    """Year 2 is image-based: most crops return nothing, and the OCR fallback supplies
+    the text afterwards. Reordering the trims removed a length guard that had been
+    protecting pw[0] by accident, and the whole document crashed on IndexError.
+    """
+    assert trim_to_docling("", "A2ZERO is Ann Arbor's plan") == ""
+    assert trim_to_docling("   ", "A2ZERO is Ann Arbor's plan") == "   "

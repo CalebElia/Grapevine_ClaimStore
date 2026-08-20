@@ -424,3 +424,21 @@ def test_a_single_caption_still_reads_as_one_line():
               _blk("TextItem", 5, "The Renewable Energy tab.", caption_for="#/pictures/9")]
     out = render_blocks(blocks, {}, "T")
     assert "**Figure (bar_chart, page 5):** The Renewable Energy tab." in out
+
+
+def test_a_recurring_lead_in_renders_as_plain_text_not_a_heading():
+    """Year 1's "In Year One, we:" introduces each strategy's bullet list. As a `##` it
+    cut every strategy in half; as plain text it reads as what it is."""
+    blocks = [_blk("SectionHeaderItem", 2, "Strategy 1: Renewables"),
+              _blk("SectionHeaderItem", 2, "In Year One, we:"),
+              _blk("ListItem", 2, "- Installed 1.3MW of solar", list_level=0)]
+    out = render_blocks(blocks, {}, "T", lead_ins={"in year one, we:"})
+    assert "## Strategy 1: Renewables" in out
+    assert "## In Year One, we:" not in out
+    assert "In Year One, we:" in out, "the lead-in is text, not noise"
+
+
+def test_a_real_heading_is_untouched_by_the_lead_in_set():
+    out = render_blocks([_blk("SectionHeaderItem", 2, "Strategy 1: Renewables")], {}, "T",
+                        lead_ins={"in year one, we:"})
+    assert "## Strategy 1: Renewables" in out

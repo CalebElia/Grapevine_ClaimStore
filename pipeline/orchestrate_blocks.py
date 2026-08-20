@@ -18,7 +18,8 @@ import argparse
 import json
 from pathlib import Path
 
-from pipeline.convert_blocks import body_shapes, convert, heading_shapes
+from pipeline.convert_blocks import (body_shapes, convert, heading_shapes,
+                                     recurring_lead_ins)
 from pipeline.extract_figures import extract_figures, render_figure_block
 from pipeline.quality_gate import assess, find_numbers, verdict
 from pipeline.quality_gate import report as gate_report
@@ -109,7 +110,8 @@ def main() -> int:
 
     md = render_blocks(blocks, figure_xml, a.title, page_markers=a.page_markers,
                        heading_shapes=heading_shapes(blocks),
-                       body_shapes=body_shapes(blocks))
+                       body_shapes=body_shapes(blocks),
+                       lead_ins=recurring_lead_ins(blocks))
     banner = [f"<!-- gate: {v.upper()} -->"]
     for f in findings:
         banner.append(f"<!-- gate {f.severity}: {f.check} -- {f.evidence} -->")

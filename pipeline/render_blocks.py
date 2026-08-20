@@ -39,7 +39,8 @@ from pipeline.section_boundaries import _same_section
 def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                   page_markers: bool = False,
                   heading_shapes: set[str] | None = None,
-                  body_shapes: set[str] | None = None) -> str:
+                  body_shapes: set[str] | None = None,
+                  lead_ins: set[str] | None = None) -> str:
     """blocks in reading order + {page_no: figure XML} -> markdown.
 
     figure_xml is keyed by page because that is what pipeline/extract_figures.py records
@@ -174,6 +175,14 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
         # text, the heading type is a mistype. Year 2's DIVE DEEPER callouts are four
         # TextItems and one SectionHeaderItem; the odd one out split a callout in half
         # and detached the bullets below it from their real strategy heading.
+        # A LEAD-IN IS NOT A SECTION. Year 1 types "In Year One, we:" as a heading under
+        # every one of its seven strategies; as `##` it cut each strategy in half and
+        # detached the achievements from the strategy they belong to. See
+        # convert_blocks.recurring_lead_ins for why the majority vote cannot catch it.
+        if kind == "SectionHeaderItem" and lead_ins and \
+                " ".join(text.lower().split()) in lead_ins:
+            kind = "TextItem"
+
         if kind == "SectionHeaderItem" and body_shapes:
             sh = " ".join(re.findall(r"[a-z#]{2,}",
                                      re.sub(r"\d+", "#", text.lower()))[:3])

@@ -238,9 +238,37 @@ def trim_to_docling(pdf_text: str, docling_text: str) -> str:
     different failure and papering over it here would hide it.
     """
     pw, dw = pdf_text.split(), docling_text.split()
-    if not dw or len(pw) <= len(dw):
+    # Both sides must have tokens. Year 2 is image-based, so most crops are EMPTY and the
+    # OCR fallback supplies the text further down -- reordering the trims removed a length
+    # guard that had been protecting pw[0] by accident, and the document crashed.
+    if not dw or not pw:
         return pdf_text
     norm = lambda w: re.sub(r"[^a-z0-9]", "", w.lower())
+
+    # FRONT TRIM, the tail trim's mirror. Merging Year 3's label and title heading boxes
+    # widened the crop enough to catch the decorative strategy numeral set beside the
+    # heading, so it rendered as "3 STRATEGY THREE: SIGNIFICANTLY IMPROVE...". Docling's
+    # text begins at "STRATEGY", which is the boundary. Bounded to a couple of tokens: a
+    # wholesale mismatch means something else is wrong, and silently deleting the opening
+    # of a block is exactly the failure this module keeps finding.
+    # Only a leading token Docling lacks ENTIRELY. Merging split heading boxes
+    # concatenates their text in block order, which is not reading order -- Year 1's
+    # merged heading reads "Switch our appliances and vehicles Strategy 2: from fossil
+    # fuels to electric" -- so aligning to Docling's FIRST token stripped "Strategy 2:"
+    # off the front of a correct heading. A token Docling has somewhere is a token
+    # Docling read; only the ordering differs, and ordering is not over-capture.
+    dl_tokens = {norm(w) for w in dw}
+    if norm(pw[0]) != norm(dw[0]) and norm(pw[0]) not in dl_tokens:
+        for i in range(1, min(3, len(pw))):
+            if norm(pw[i]) == norm(dw[0]):
+                pw = pw[i:]
+                break
+        pdf_text = " ".join(pw)
+
+    # The TAIL trim only applies when the crop is genuinely longer. Under-capture is a
+    # different failure and papering over it here would hide it.
+    if len(pw) <= len(dw):
+        return pdf_text
     target = norm(dw[-1])
     if not target:
         return pdf_text
@@ -457,6 +485,81 @@ def body_shapes(blocks: list[dict], min_body: int = 2) -> set[str]:
     return {sh for sh, n in body.items() if n >= min_body and n > head.get(sh, 0)}
 
 
+_HEADING_MERGE_GAP = 6.0    # pt; heading fragments sit within this of each other
+
+
+def merge_overlapping_headings(blocks: list[dict]) -> list[dict]:
+    """Merge heading boxes that overlap or touch into one box covering their union.
+
+    Year 1 sets its strategy headings as display type over two or three lines, and
+    Docling emits a box per fragment. The boxes overlap, and on page 3 one NESTS inside
+    another while being narrower: box B (x143-414) spans box A (x144-504) vertically but
+    stops 90pt short of it horizontally, so cropping B alone cut "vehicles" out of the
+    middle of the heading. The result was not a split heading but a scrambled one --
+    "Strategy 2: Switch our appliances and from fossil fuels to electric".
+
+    Cropping the UNION restores reading order and the full width, which is why the merge
+    happens here on the boxes rather than by pasting the fragments' text together: the
+    fragments' own text is exactly what is missing a word.
+
+    Headings only. Merging a bullet into a heading would swallow real content, and the
+    fragments of a heading are always themselves typed as headings.
+    """
+    HEAD = ("SectionHeaderItem", "TitleItem")
+    out: list[dict] = []
+    for b in blocks:
+        prev = out[-1] if out else None
+        if (prev is not None and b.get("kind") in HEAD and prev.get("kind") in HEAD
+                and b.get("page_no") == prev.get("page_no")):
+            ph = prev.get("page_h") or 792.0
+            pt, pb = sorted((ph - prev["bbox"][1], ph - prev["bbox"][3]))
+            bt, bb = sorted((ph - b["bbox"][1], ph - b["bbox"][3]))
+            px0, px1 = sorted((prev["bbox"][0], prev["bbox"][2]))
+            bx0, bx1 = sorted((b["bbox"][0], b["bbox"][2]))
+            v_touch = bt <= pb + _HEADING_MERGE_GAP and bb >= pt - _HEADING_MERGE_GAP
+            h_touch = bx0 <= px1 and bx1 >= px0
+            # A HEADING ENDING IN A COLON IS HALF A HEADING. Year 3 separates its label
+            # from its title by ~50pt of page -- "STRATEGY ONE:" then "POWER OUR
+            # ELECTRICAL GRID WITH 100% RENEWABLE ENERGY" -- which is far too wide to
+            # merge on proximity without risking two real headings. The colon says it
+            # outright. Adjacency in the block stream is the guard: if body text sits
+            # between them they are two sections, whatever the punctuation.
+            label_split = prev.get("docling_text", "").rstrip().endswith(":")
+            if (v_touch and h_touch) or label_split:
+                prev["bbox"] = [min(px0, bx0), ph - min(pt, bt),
+                                max(px1, bx1), ph - max(pb, bb)]
+                prev["docling_text"] = (prev.get("docling_text", "") + " "
+                                        + b.get("docling_text", "")).strip()
+                continue
+        out.append(dict(b))
+    return out
+
+
+def recurring_lead_ins(blocks: list[dict], min_sections: int = 3) -> set[str]:
+    """Heading texts that recur under several DIFFERENT sections -- list lead-ins.
+
+    Year 1 types "In Year One, we:" as a heading seven times, once under each strategy.
+    It introduces that strategy's bullet list; promoting it to `##` cut every strategy in
+    half and detached its achievements from the strategy they belong to.
+
+    body_shapes() cannot catch this, because Docling types the line as a heading EVERY
+    time -- the document's own majority agrees with the mistake. What distinguishes a
+    lead-in is that it recurs under DIFFERENT sections, where a real section heading names
+    exactly one. Consecutive repeats are excluded: those are one section resuming on a new
+    page (Year 5's "GREENHOUSE GAS EMISSIONS SUMMARY"), which the continuation merge
+    already handles and which must not be demoted to body text.
+    """
+    HEAD = ("SectionHeaderItem", "TitleItem")
+    seq = [" ".join((b.get("text") or b.get("docling_text") or "").lower().split())
+           for b in blocks if b.get("kind") in HEAD]
+    seen: dict[str, int] = {}
+    for i, t in enumerate(seq):
+        if not t or (i and seq[i - 1] == t):
+            continue                      # consecutive repeat = continuation, not lead-in
+        seen[t] = seen.get(t, 0) + 1
+    return {t for t, n in seen.items() if n >= min_sections}
+
+
 def heading_shapes(blocks: list[dict]) -> set[str]:
     """Leading "WORD N" shapes taken from blocks Docling CONFIRMED as headings.
 
@@ -660,6 +763,23 @@ def missing_runs(page_words: list[str], assembled: str,
             if sum(1 for w in r if norm(w) not in _RUN_NEUTRAL) >= min_run]
 
 
+def already_present(candidate: str, assembled: str) -> bool:
+    """Whether a recovered region's text is already in the assembled page text.
+
+    The geometric sweep asks whether a word's CENTRE lies in some block's box; pdfplumber's
+    crop() keeps any word INTERSECTING the box. Where a box sits slightly off its own text
+    -- Year 1's are ~8pt low -- the two disagree, and the sweep re-adds text the crop
+    already captured. That produced a duplicate stub of three real bullets and an eighth
+    copy of "In Year One, we:".
+
+    Being outside a box is not the same as being absent from the document, and only the
+    second one justifies recovery.
+    """
+    norm = lambda t: " ".join(re.sub(r"[^a-z0-9 ]", " ", t.lower()).split())
+    c = norm(candidate)
+    return bool(c) and c in norm(assembled)
+
+
 def uncovered_words(words: list[dict], text_boxes: list[tuple]) -> list[dict]:
     """Words whose centre falls in no TEXT block box.
 
@@ -771,6 +891,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
         ocr_terms = load_ocr_terms()
     spec = json.loads(Path(blocks_path).read_text())
     n_pages, blocks = spec["n_pages"], spec["blocks"]
+    blocks = merge_overlapping_headings(blocks)
 
     raws: list[str] = []
     with pdfplumber.open(str(pdf_path)) as pdf:
@@ -834,6 +955,9 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
                 boxes.append((min(l, r), min(H - t, H - bt),
                               max(l, r), max(H - t, H - bt)))
             strays = group_uncovered(uncovered_words(page.extract_words(), boxes), pno)
+            # Geometry proposes; the assembled text decides. See already_present().
+            page_text = " ".join(b["text"] for b in resolved if b["page_no"] == pno)
+            strays = [s for s in strays if not already_present(s["text"], page_text)]
             # A recovered region may itself be a caption (both real Year 5 cases were).
             # Associating it here, where the geometry lives, lets it follow its picture's
             # fate through the ordinary caption_for path instead of needing a second rule
