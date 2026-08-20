@@ -6,8 +6,20 @@ venv/
 .env
 *.log
 
-# Large cached media and ASR intermediates — pulled from ../video_analysis, never committed
-processing/
+# Large cached media and ASR intermediates — pulled from ../video_analysis, never committed.
+# Ignore everything under processing/, then re-admit ONLY the a2zero text artifacts. The
+# split is not fussiness: the two video directories hold 533MB of audio and ASR output,
+# including a 117MB .m4a that exceeds GitHub's hard per-file limit outright, while the
+# a2zero side is 38 files and ~2.2MB of markdown, review state and two figure crops. The
+# markdown carries hand annotations that exist nowhere else and that a regeneration has
+# already destroyed once, which is the whole reason any of processing/ is tracked at all.
+processing/*
+!processing/a2zero-year1/
+!processing/a2zero-year2/
+!processing/a2zero-year3/
+!processing/a2zero-year4/
+!processing/a2zero-year5/
+!processing/_review/
 *.mp4
 *.mp3
 *.wav
