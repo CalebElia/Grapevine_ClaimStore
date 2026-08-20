@@ -171,3 +171,25 @@ def test_a_heading_is_never_treated_as_truncated():
     f = assess("hello", [(1, 0, 5)], blocks=blocks, reference_words=1,
                reference_numbers=set())
     assert not [x for x in f if x.check == "truncation"]
+
+
+# ── a finding must carry the things it found ───────────────────────────────────────────
+# Reported during review: the checklist said "2 block(s) end on a dangling word" and then
+# showed ONE example, whose snippet -- text[-58:] -- began mid-word ("...customers" cut to
+# "rs to have more control..."), so it could not be found on the page it named. A summary
+# string is fine for a console line and useless for a work item.
+
+def test_a_truncation_finding_carries_every_offending_block():
+    blocks = [{"kind": "ListItem", "page_no": 2, "char_start": 0, "char_end": 5,
+               "text": "allowing customers to have more control over where their "
+                       "energy comes from"},
+              {"kind": "TextItem", "page_no": 4, "char_start": 0, "char_end": 5,
+               "text": "Introduced updates to our permitting system to better track our"}]
+    f = [x for x in assess("hello", [(1, 0, 5)], blocks=blocks, reference_words=1,
+                           reference_numbers=set()) if x.check == "truncation"]
+    assert f and len(f[0].items) == 2
+    assert {i["page_no"] for i in f[0].items} == {2, 4}
+
+
+def test_findings_without_per_item_detail_default_to_an_empty_list():
+    assert Finding("ocr_fraction", "medium", "94% OCR").items == []

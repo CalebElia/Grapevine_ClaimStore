@@ -34,6 +34,37 @@ def _find(lines: list[str], pattern: str) -> list[tuple[int, str]]:
     return [(i + 1, l) for i, l in enumerate(lines) if rx.search(l)]
 
 
+def _tail(text: str, chars: int = 60) -> str:
+    """The last few WORDS of a block, never a mid-word slice.
+
+    text[-58:] cut "customers" to "rs", producing a snippet a reviewer could not find on
+    the page it named -- the quoted text has to be searchable in the document, or the
+    item cannot be actioned.
+    """
+    words, out = text.split(), []
+    for w in reversed(words):
+        if out and len(" ".join([w, *out])) > chars:
+            break
+        out.insert(0, w)
+    return ("… " if len(out) < len(words) else "") + " ".join(out)
+
+
+def _line_of(lines: list[str], needle: str) -> int | None:
+    """The 1-based line carrying `needle`, matched on collapsed whitespace."""
+    n = " ".join(needle.split())
+    if not n:
+        return None
+    for i, l in enumerate(lines):
+        # Never point at a comment. The document's own gate banner quotes findings
+        # verbatim, so an unguarded search resolved a truncated block to line 3 -- the
+        # banner describing it -- instead of the block itself.
+        if l.lstrip().startswith("<!--"):
+            continue
+        if n in " ".join(l.split()):
+            return i + 1
+    return None
+
+
 def _page_of(lines: list[str], lineno: int) -> str:
     """The last <!-- p.N --> marker at or above this line."""
     for i in range(lineno - 1, -1, -1):
@@ -65,13 +96,26 @@ def build(md_path: Path, report: dict, gate_findings: list, label: str) -> list[
     if fixes:
         from collections import Counter
         for pair, n in Counter(f"{v} → {c}" for v, c in fixes).items():
-            a.append(f"- [ ] `{name}` — OCR term correction applied **{n}×**: {pair} — "
-                     f"confirm the source really says the canonical form")
+            canon = pair.split(" → ")[-1]
+            hits = _find(lines, re.escape(canon))
+            where = (f" first at `{name}:{hits[0][0]}`, {len(hits)} occurrence(s) of the "
+                     f"canonical form in the file" if hits else "")
+            a.append(f"- [ ] `{name}` — OCR term correction applied **{n}×**: {pair}"
+                     f"{where} — spot-check two or three against the PDF")
 
+    # ONE ITEM PER BLOCK, not one per finding. The gate summarises ("2 block(s) end on a
+    # dangling word") because that suits a console line; a reviewer has to visit each one,
+    # so each gets its own row, its own line number, and a snippet cut at a word boundary.
     for f in gate_findings:
-        if f.check == "truncation":
-            a.append(f"- [ ] `{name}` — {f.evidence} — confirm each is a sentence that "
-                     f"ENDS there, not one that stops")
+        if f.check != "truncation":
+            continue
+        for blk in f.items:
+            t = " ".join((blk.get("text") or "").split())
+            ln = _line_of(lines, t[-40:] if len(t) > 40 else t)
+            loc = f"`{name}:{ln}`" if ln else f"`{name}`"
+            a.append(f"- [ ] {loc} p.{blk.get('page_no')} — block ENDS at "
+                     f"\u201c{_tail(t)}\u201d — does the sentence finish there, or was a "
+                     f"continuation line dropped?")
 
     amb = report.get("ambiguous_hyphens") or []
     for x, y in amb:

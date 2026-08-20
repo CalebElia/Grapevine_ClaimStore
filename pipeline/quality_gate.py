@@ -36,7 +36,7 @@ The first needs a label; the second needs a stop.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 # A conversion recovering less of the document than this, against the best independent
 # read, is not a degraded parse but a failed one. Calibrated against the three real
@@ -65,6 +65,11 @@ class Finding:
     check: str
     severity: str          # high | medium
     evidence: str
+    # The specific blocks this finding is ABOUT. `evidence` is a summary for a console
+    # line; a reviewer needs to visit each one. Emitting only the summary produced a work
+    # item reading "2 block(s) end on a dangling word" with a single example, whose
+    # snippet had been sliced mid-word and so could not be located at all.
+    items: list = field(default_factory=list)
 
 
 def find_numbers(text: str) -> set[str]:
@@ -134,9 +139,8 @@ def assess(text: str, page_map: list[tuple[int, int, int]], blocks: list[dict],
     if truncated:
         out.append(Finding("truncation", "medium",
                            f"{len(truncated)} block(s) end on a dangling word -- a "
-                           f"continuation line was probably dropped, e.g. p."
-                           f"{truncated[0].get('page_no')} "
-                           f"{(truncated[0].get('text') or '')[-58:]!r}"))
+                           f"continuation line was probably dropped",
+                           items=truncated))
 
     srcs = [b.get("text_source") for b in blocks if b.get("text_source")]
     if srcs:
