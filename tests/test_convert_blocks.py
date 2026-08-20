@@ -1002,3 +1002,85 @@ def test_a_variant_inside_a_longer_word_is_not_touched():
 def test_case_is_preserved_from_the_canonical_not_the_variant():
     out, _ = normalize_ocr_terms("the azero plan", _TERMS)
     assert "A2ZERO" in out
+
+
+# ── trimming an over-captured crop to Docling's own boundary ───────────────────────────
+# Year 1's bboxes are shifted ~8pt down from the text they describe: the block for
+# "Installed approximately 1.3MW ... on upfront costs" is reported at y 172.7-202.7 while
+# its lines sit at 164-176 and 181-193, so the box clips its own first line and reaches
+# into the NEXT bullet at 197-209. pdfplumber's crop() includes any word that partially
+# intersects, so the crop returns three lines where the block has two -- and every bullet
+# on the page ended up carrying the opening of the one after it. 1,958 words against the
+# healed 1,372, all of it duplication rather than recovery.
+#
+# Docling's TEXT is right even where its geometry is not: it ends the block exactly at
+# "on upfront costs". So the boundary comes from Docling and the characters from
+# pdfplumber -- the same split this whole module rests on, applied inside a block.
+
+from pipeline.convert_blocks import trim_to_docling
+
+
+def test_an_overcaptured_crop_is_trimmed_at_doclings_last_token():
+    pdf = ("Installed approximately 1.3MW of rooftop solar on over 200 residential "
+           "roofs, saving residents over $650,000 on upfront costs Launched the "
+           "Solarize Toolkit, a step-by-step guide to")
+    dl = ("Installed approximately 1.3MW of rooftop solar on over 200 residential "
+          "roofs, saving residents over $650,000 on upfront costs")
+    assert trim_to_docling(pdf, dl).endswith("on upfront costs")
+    assert "Solarize Toolkit" not in trim_to_docling(pdf, dl)
+
+
+def test_pdfplumbers_exact_characters_are_kept_not_doclings():
+    """The point of the crop is character fidelity; trimming must not substitute text."""
+    pdf = "The A2ZERO plan reached 5.4MW of solar installed. Next bullet begins"
+    dl = "The A 2 ZERO plan reached 5.4MW of solar installed."
+    out = trim_to_docling(pdf, dl)
+    assert "A2ZERO" in out and "A 2 ZERO" not in out
+
+
+def test_a_crop_that_matches_is_returned_unchanged():
+    t = "Helped negotiate agreements on community solar."
+    assert trim_to_docling(t, t) == t
+
+
+def test_a_crop_SHORTER_than_docling_is_left_alone():
+    """Under-capture is a different failure and must not be papered over by trimming."""
+    pdf = "Installed approximately 1.3MW"
+    dl = "Installed approximately 1.3MW of rooftop solar on over 200 residential roofs"
+    assert trim_to_docling(pdf, dl) == pdf
+
+
+def test_an_empty_docling_reading_leaves_the_crop_untouched():
+    assert trim_to_docling("some text here", "") == "some text here"
+
+
+def test_a_repeated_final_token_trims_at_the_right_occurrence():
+    """'costs' appearing twice must not trim at the first one."""
+    pdf = "reduce costs and lower costs Launched the toolkit"
+    dl = "reduce costs and lower costs"
+    assert trim_to_docling(pdf, dl) == "reduce costs and lower costs"
+
+
+def test_a_block_beginning_lowercase_is_a_continuation_not_a_caption():
+    """Real Year 3 page 13. Docling split one sentence into two blocks, and the second --
+    "and in-person events designed to unlock their potential as planning and
+    implementation partners." -- sat beside a photo, ran to 14 words, and was dropped as
+    that photo's caption. It took "Plus, the A2ZERO Collaborators network grew to over
+    120 organizations!" with it: a citable figure, deleted.
+
+    A caption is a standalone descriptive phrase and begins as one. A block opening with
+    a lowercase word is the tail of the sentence above it.
+    """
+    assert not is_caption_candidate({"kind": "TextItem", "page_no": 13, "text":
+        "and in-person events designed to unlock their potential as partners."})
+
+
+def test_a_normally_capitalised_caption_is_unaffected():
+    assert is_caption_candidate({"kind": "TextItem", "page_no": 13,
+                                 "text": "Mayor Taylor on his e-bike at the Green Fair."})
+
+
+def test_a_caption_opening_with_a_number_is_still_a_caption():
+    """Year 2's footers open with their footnote digit."""
+    assert is_caption_candidate({"kind": "TextItem", "page_no": 9,
+                                 "text": "2024 Electrification Expo attendees."})

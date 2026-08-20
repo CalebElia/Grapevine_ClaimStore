@@ -220,6 +220,39 @@ def normalize_ocr_terms(text: str, terms: list[dict]) -> tuple[str, list[tuple[s
     return text, fixes
 
 
+def trim_to_docling(pdf_text: str, docling_text: str) -> str:
+    """Cut an over-captured crop back to the block Docling actually described.
+
+    Docling's bbox can be imprecise while its TEXT is right -- on Year 1 the boxes sit
+    ~8pt below their own lines, so pdfplumber's crop (which keeps any word partially
+    intersecting the box) returned three lines where the block had two, and every bullet
+    carried the opening of the next. The document came out 43% longer than the human
+    reference purely through duplication.
+
+    The boundary therefore comes from Docling and the characters from pdfplumber, which
+    is this module's founding split applied one level down. pdfplumber's exact characters
+    are preserved -- the trim only chooses WHERE to stop, never what the text says, so
+    "A2ZERO" is not replaced by Docling's fragmented "A 2 ZERO".
+
+    Trims only when the crop is LONGER than Docling's reading. Under-capture is a
+    different failure and papering over it here would hide it.
+    """
+    pw, dw = pdf_text.split(), docling_text.split()
+    if not dw or len(pw) <= len(dw):
+        return pdf_text
+    norm = lambda w: re.sub(r"[^a-z0-9]", "", w.lower())
+    target = norm(dw[-1])
+    if not target:
+        return pdf_text
+    # Search near where Docling's reading ends, not from the start: a token repeated
+    # earlier in the block would otherwise cut it short.
+    lo = max(len(dw) - 3, 0)
+    for i in range(lo, min(len(pw), len(dw) + 6)):
+        if norm(pw[i]) == target:
+            return " ".join(pw[:i + 1])
+    return pdf_text
+
+
 def choose_block_text(pdf_text: str, docling_text: str) -> tuple[str, str]:
     """(text, source) for one block: pdfplumber's characters, or Docling's OCR.
 
@@ -492,7 +525,14 @@ def looks_like_caption(block: dict) -> bool:
     if block.get("kind") not in ("TextItem", "UncoveredText"):
         return False
     words = (block.get("text") or "").split()
-    return 0 < len(words) <= _CAPTION_MAX_WORDS
+    if not (0 < len(words) <= _CAPTION_MAX_WORDS):
+        return False
+    # A CAPTION BEGINS AS A STANDALONE PHRASE. Docling sometimes splits one sentence into
+    # two blocks, and on Year 3 page 13 the tail -- "and in-person events designed to
+    # unlock their potential..." -- sat beside a photo, ran to 14 words, and was dropped
+    # as that photo's caption, taking "grew to over 120 organizations!" with it. A block
+    # opening with a lowercase word is the continuation of the sentence above it.
+    return not words[0][:1].islower()
 
 
 _CAPTION_ADJACENT = 15.0   # pt; a caption touches its picture on BOTH axes
@@ -683,6 +723,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
     for i, (b, raw) in enumerate(zip(blocks, raws)):
         if b["kind"] == "PictureItem":
             continue                      # no text; re-interleaved for the renderer below
+        raw = trim_to_docling(raw, b.get("docling_text") or "")
         raw, src = choose_block_text(raw, b.get("docling_text") or "")
         if src == "docling_ocr" and ocr_terms:
             # OCR-sourced only: a text layer's characters are authoritative, and A2ZERO
