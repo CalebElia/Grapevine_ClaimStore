@@ -21,6 +21,7 @@ from pathlib import Path
 from pipeline.convert_blocks import (body_shapes, convert, heading_shapes,
                                      recurring_lead_ins)
 from pipeline.extract_figures import extract_figures, render_figure_block
+from pipeline.vision_extract import parse_relevance
 from pipeline.quality_gate import assess, find_numbers, verdict
 from pipeline.quality_gate import report as gate_report
 from pipeline.render_blocks import render_blocks
@@ -87,8 +88,27 @@ def main() -> int:
         (Path(a.figures_dir) / "figures.json").write_text(json.dumps(figs, indent=2))
     elif a.figures_json:
         figs = json.loads(Path(a.figures_json).read_text())
-    figure_xml = {f["page_no"]: render_figure_block(f) for f in figs}
-    print(f"[blocks] {len(figure_xml)} figure(s) available")
+    # THE TRIAGE VERDICT HAS TO BE ACTED ON. vision_extract asks the model to mark an
+    # image ornamental when it carries no data about this document's subject, and
+    # parse_relevance defaults an untriaged answer to "unknown" rather than passing it --
+    # but nothing here read either, so every figure was spliced in as data regardless.
+    # Year 2's only figure is the EnergyStar Portfolio Manager screenshot, returned
+    # ornamental with the reason that no displayed value is specific to this document;
+    # rendering its interface labels would have put a third-party tool's menu into the
+    # claim stream. It is recorded rather than silently dropped, because "an image was
+    # examined and judged decoration" is a review fact.
+    keep, decorative = [], []
+    for f in figs:
+        (decorative if parse_relevance(f.get("xml", ""))["relevance"] == "ornamental"
+         else keep).append(f)
+    figure_xml = {f["page_no"]: render_figure_block(f) for f in keep}
+    for f in decorative:
+        figure_xml.setdefault(f["page_no"], (
+            f"<!-- ORNAMENTAL FIGURE: {f.get('top_label')} on page {f['page_no']} was "
+            f"examined by the vision pass and carries no data about this document's "
+            f"subject; no data points extracted -->"))
+    print(f"[blocks] {len(keep)} figure(s) available, "
+          f"{len(decorative)} judged ornamental")
 
     # THE GATE, against the OTHER arm's read of the same PDF. Comparing a conversion
     # only against itself cannot detect that it lost the document: a converter that read

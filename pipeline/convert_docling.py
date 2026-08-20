@@ -59,8 +59,37 @@ from pathlib import Path
 # screenshot_from_computer at only 0.543 confidence, not as any chart label. A chart-type
 # allowlist alone would have silently dropped the one image on this document most worth
 # the vision-extraction cost it exists to gate.
-CLASSIFY_LABELS = {"bar_chart", "pie_chart", "line_chart", "scatter_chart", "map",
-                   "flow_chart", "table", "screenshot_from_computer"}
+# The classifier's COMPLETE vocabulary, read from the model's own config.json
+# (docling-project/DocumentFigureClassifier-v2.5, id2label). It is here so the allowlist
+# below can be checked against it: two of the original eight entries -- "scatter_chart"
+# and "map" -- were names this model never emits ("scatter_plot", "geographical_map"),
+# so they could not have matched a picture on any document ever processed. A label
+# allowlist fails silently by construction, always in the direction of extracting
+# nothing, and Year 1's A2ZERO strategy infographic -- a dense, bespoke, text-bearing
+# illustration -- classified 'geographical_map' and was skipped because of it.
+CLASSIFIER_CLASSES = {
+    "bar_chart", "bar_code", "box_plot", "calendar", "chemistry_structure",
+    "crossword_puzzle", "engineering_drawing", "flow_chart", "full_page_image",
+    "geographical_map", "icon", "line_chart", "logo", "music", "other",
+    "page_thumbnail", "photograph", "pie_chart", "qr_code", "scatter_plot",
+    "screenshot_from_computer", "screenshot_from_manual", "signature", "stamp",
+    "table", "topographical_map",
+}
+
+# MAP LABELS ARE DELIBERATELY ABSENT, and this is a ruling with evidence behind it.
+# Year 1 page 1's only map-labelled picture is not a map: it is a hand-drawn A2ZERO
+# illustration, and the classifier reached for the nearest class it had. Sent to vision
+# it came back "substantive" with a data point of 40% for vehicle-miles reduction --
+# hand-lettered, correctly read, and contradicting the report's own Strategy 4 heading of
+# "at least 50%". Extracting artwork therefore does not merely waste a call; it
+# manufactures a number that disagrees with the prose on the same document, sourced from
+# a drawing. Add a map class back only alongside a real one -- a choropleth, a site plan
+# -- with a document to test it against.
+CLASSIFY_LABELS = {"bar_chart", "pie_chart", "line_chart", "scatter_plot", "box_plot",
+                   "flow_chart", "table",
+                   "screenshot_from_computer", "screenshot_from_manual"}
+assert CLASSIFY_LABELS <= CLASSIFIER_CLASSES, (
+    f"not real classifier labels: {sorted(CLASSIFY_LABELS - CLASSIFIER_CLASSES)}")
 
 
 def choose_ocr_engine(is_macos: bool | None = None,

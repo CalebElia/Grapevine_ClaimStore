@@ -77,3 +77,30 @@ def test_a_record_with_no_extraction_time_says_so_rather_than_inventing_one():
     fig = {"page_no": 4, "top_label": "bar_chart", "top_conf": 0.997,
           "deployment": "gpt-5.6-sol", "xml": "<x/>"}
     assert "at ? -->" in render_figure_block(fig)
+
+
+def test_every_allowlisted_label_is_a_real_classifier_class():
+    """Two of the original eight -- "scatter_chart" and "map" -- were names this model
+    never emits, so they matched nothing on any document. An allowlist of strings fails
+    silently and always toward extracting nothing, so it is pinned to the model's own
+    vocabulary."""
+    from pipeline.convert_docling import CLASSIFIER_CLASSES, CLASSIFY_LABELS
+    assert CLASSIFY_LABELS <= CLASSIFIER_CLASSES
+    assert "scatter_chart" not in CLASSIFY_LABELS and "map" not in CLASSIFY_LABELS
+    assert "scatter_plot" in CLASSIFY_LABELS      # the name the model actually emits
+
+
+def test_decoration_labels_stay_out_of_the_allowlist():
+    from pipeline.convert_docling import CLASSIFY_LABELS
+    for junk in ("photograph", "logo", "icon", "signature", "page_thumbnail", "other"):
+        assert junk not in CLASSIFY_LABELS
+
+
+def test_map_labels_are_not_extraction_candidates():
+    """Year 1's only map-labelled picture is a hand-drawn A2ZERO illustration, and vision
+    read a hand-lettered "40%" off it that contradicts the report's own "at least 50%".
+    Artwork does not merely waste a call -- it manufactures a conflicting number."""
+    from pipeline.convert_docling import CLASSIFIER_CLASSES, CLASSIFY_LABELS
+    for lab in ("geographical_map", "topographical_map"):
+        assert lab in CLASSIFIER_CLASSES        # real classes, deliberately not allowed
+        assert lab not in CLASSIFY_LABELS
