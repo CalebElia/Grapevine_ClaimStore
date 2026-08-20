@@ -749,7 +749,7 @@ def test_a_short_docling_reading_never_triggers_the_fallback():
 # right column's grants would become grandchildren of a left-column sibling. Indentation
 # has to be measured from each COLUMN's own left edge.
 
-from pipeline.convert_blocks import assign_nesting, column_edges
+from pipeline.convert_blocks import assign_nesting, column_edges, snap_scripts
 
 
 def test_a_single_column_page_has_one_edge():
@@ -768,16 +768,16 @@ def test_an_ordinary_indent_step_never_reads_as_a_column():
 
 
 def test_the_parent_bullet_is_level_zero_and_its_children_are_level_one():
-    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "Continually wrote grants"},
-              {"kind": "ListItem", "x0": 88.6, "text": "$25,000 from the U.S. EPA"},
-              {"kind": "ListItem", "x0": 108.1, "text": "$2,500,000 from the federal"}]
+    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "Continually wrote grants", "text_source": "docling_ocr"},
+              {"kind": "ListItem", "x0": 88.6, "text": "$25,000 from the U.S. EPA", "text_source": "docling_ocr"},
+              {"kind": "ListItem", "x0": 108.1, "text": "$2,500,000 from the federal", "text_source": "docling_ocr"}]
     assign_nesting(blocks)
     assert [b["list_level"] for b in blocks] == [0, 1, 1]
 
 
 def test_a_right_column_child_stays_a_child_not_a_grandchild():
     """The case a naive x0 comparison gets wrong."""
-    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "Continually wrote grants"},
+    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "Continually wrote grants", "text_source": "docling_ocr"},
               {"kind": "ListItem", "x0": 108.1, "text": "$2,500,000 left column"},
               {"kind": "ListItem", "x0": 378.3, "text": "$270,000 right column"}]
     assign_nesting(blocks)
@@ -787,18 +787,16 @@ def test_a_right_column_child_stays_a_child_not_a_grandchild():
 def test_a_ragged_left_edge_does_not_create_spurious_levels():
     """Children of one parent vary 88.6 to 108.1 on the real page -- OCR jitter and
     marker width, not three levels of nesting."""
-    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "parent"},
-              {"kind": "ListItem", "x0": 88.6, "text": "a"},
-              {"kind": "ListItem", "x0": 89.7, "text": "b"},
-              {"kind": "ListItem", "x0": 108.1, "text": "c"},
-              {"kind": "ListItem", "x0": 107.0, "text": "d"}]
+    blocks = [{"kind": "ListItem", "x0": x, "text": t, "text_source": "docling_ocr"}
+              for x, t in ((52.9, "parent"), (88.6, "a"), (89.7, "b"),
+                           (108.1, "c"), (107.0, "d"))]
     assign_nesting(blocks)
     assert [b["list_level"] for b in blocks] == [0, 1, 1, 1, 1]
 
 
 def test_non_list_blocks_reset_the_nesting_context():
     """A heading or paragraph ends the list; the next bullet starts fresh at level 0."""
-    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "parent"},
+    blocks = [{"kind": "ListItem", "x0": 52.9, "text": "parent", "text_source": "docling_ocr"},
               {"kind": "ListItem", "x0": 88.6, "text": "child"},
               {"kind": "SectionHeaderItem", "x0": 52.9, "text": "NEW SECTION"},
               {"kind": "ListItem", "x0": 88.6, "text": "first bullet of the new list"}]
@@ -909,7 +907,7 @@ def test_a_column_that_enters_deep_can_return_to_the_parent_level():
 def test_the_year_2_grants_all_stay_at_one_level():
     """Twelve siblings across two columns; regression guard for the ladder change."""
     xs = [52.9, 88.6, 89.7, 108.1, 107.0, 378.3, 378.5, 388.8, 393.4, 377.3, 394.6, 395.7]
-    blocks = [{"kind": "ListItem", "page_no": 13, "x0": x, "text": f"b{i}"}
+    blocks = [{"kind": "ListItem", "page_no": 13, "x0": x, "text": f"b{i}", "text_source": "docling_ocr"}
               for i, x in enumerate(xs)]
     assign_nesting(blocks)
     assert blocks[0]["list_level"] == 0
@@ -1413,3 +1411,87 @@ def test_an_empty_pdfplumber_crop_does_not_crash_the_trim():
     """
     assert trim_to_docling("", "A2ZERO is Ann Arbor's plan") == ""
     assert trim_to_docling("   ", "A2ZERO is Ann Arbor's plan") == "   "
+
+
+def _char(text, x0, x1, top, size, doctop=None):
+    return {"text": text, "x0": x0, "x1": x1, "top": top, "bottom": top + size,
+            "doctop": doctop if doctop is not None else top, "y0": 0.0, "y1": 0.0,
+            "size": size}
+
+
+def test_a_superscript_is_snapped_onto_its_own_line():
+    """Year 1 draws the 2 of A2ZERO in a separate text pass, raised ~4pt -- outside
+    pdfplumber's y_tolerance, so it became a phantom line of its own and landed many
+    words from where it belongs."""
+    line = [_char("A", 288, 297, 489, 12), _char(" ", 297, 300, 489, 12),
+            _char("Z", 300, 307, 489, 12), _char("O", 307, 314, 489, 12)]
+    sup = _char("2", 295.5, 301.0, 485.4, 10)          # raised 3.6pt, sits on the space
+    fixed, moved = snap_scripts([*line, sup])
+    assert moved == 1
+    two = [c for c in fixed if c["text"] == "2"][0]
+    assert two["top"] == 489 and two["bottom"] == 501   # now on its line's band
+    assert not [c for c in fixed if c["text"].isspace()]  # the room it was given is gone
+
+
+def test_a_body_glyph_is_never_snapped():
+    line = [_char("A", 288, 297, 489, 12), _char(" ", 297, 300, 489, 12),
+            _char("Z", 300, 307, 489, 12)]
+    fixed, moved = snap_scripts(line)
+    assert moved == 0 and fixed == line          # inert where there is no script glyph
+
+
+def test_a_trailing_footnote_marker_keeps_the_space_after_it():
+    """A marker sitting AFTER a word must not weld it to the next one. Only a glyph
+    covering MORE THAN HALF a space is sitting on it; a marker that merely touches the
+    space is punctuation, and "plan1was" would be a worse defect than "A2 ZERO"."""
+    line = [_char("p", 100, 107, 489, 12), _char(" ", 107, 110, 489, 12),
+            _char("w", 110, 118, 489, 12)]
+    sup = _char("1", 106.0, 108.0, 485.4, 8)   # covers a third of the space, not half
+    fixed, moved = snap_scripts([*line, sup])
+    assert moved == 1
+    assert [c for c in fixed if c["text"].isspace()]
+
+
+def test_an_indent_of_18pt_nests_at_12pt_type():
+    """Year 1 page 6: eleven children of 'through the following avenues:' indented 18.4pt
+    while their siblings jitter by 1.2. A fixed 24pt step missed every one."""
+    blocks = ([{"kind": "ListItem", "x0": 150.7, "page_no": 6} for _ in range(3)]
+              + [{"kind": "ListItem", "x0": 170.3, "page_no": 6} for _ in range(4)])
+    assign_nesting(blocks, {6: 12.0})
+    assert [b["list_level"] for b in blocks] == [0, 0, 0, 1, 1, 1, 1]
+
+
+def test_jitter_below_one_em_does_not_nest():
+    """Year 3 page 15's siblings scatter over 5.8pt and Year 2 page 13's over 10.3 --
+    both under 1.25 em, both genuinely one level."""
+    for em, wobble in ((12.0, 5.8), (10.0, 10.3)):
+        blocks = ([{"kind": "ListItem", "x0": 300.0, "page_no": 1} for _ in range(2)]
+                  + [{"kind": "ListItem", "x0": 300.0 + wobble, "page_no": 1}])
+        assign_nesting(blocks, {1: em})
+        assert {b["list_level"] for b in blocks} == {0}, (em, wobble)
+
+
+def test_a_space_one_line_away_from_a_script_is_not_room():
+    """The room a glyph was given is a space it brackets on its OWN line. Matching on the
+    x-range alone also caught spaces directly above and below, which joined Year 3's
+    "turns three" into "turnsthree" and Year 5's "slated for" into "slatedfor"."""
+    below = [_char("s", 292, 299, 501, 12), _char(" ", 299, 302, 501, 12),
+             _char("t", 302, 309, 501, 12)]
+    line = [_char("A", 288, 297, 489, 12), _char(" ", 297, 300, 489, 12),
+            _char("Z", 300, 307, 489, 12)]
+    sup = _char("2", 295.5, 301.0, 485.4, 10)
+    fixed, moved = snap_scripts([*line, sup, *below])
+    assert moved == 1
+    kept = [c for c in fixed if c["text"].isspace()]
+    assert len(kept) == 1 and kept[0]["top"] == 501     # only the far line's space survives
+
+
+def test_a_doubled_space_under_one_glyph_goes_entirely():
+    """Two of Year 1's nine occurrences are set with TWO space chars between A and ZERO.
+    Dropping only the fully covered one still left "A2 ZERO"."""
+    line = [_char("A", 268.4, 277.1, 489, 12), _char(" ", 277.1, 280.3, 489, 12),
+            _char(" ", 280.3, 283.4, 489, 12), _char("Z", 283.4, 290.7, 489, 12)]
+    sup = _char("2", 276.8, 282.3, 485.4, 10)   # covers 100% of one, 64.7% of the next
+    fixed, moved = snap_scripts([*line, sup])
+    assert moved == 1
+    assert not [c for c in fixed if c["text"].isspace()]

@@ -34,6 +34,7 @@ it. That split is also why block geometry is plain JSON here rather than Docling
 from __future__ import annotations
 
 import re
+from collections import Counter
 
 _SPLIT = re.compile(r"(\w+)-\s*\n\s*(\w+)")
 _WORD = re.compile(r"[A-Za-z]{2,}")
@@ -332,7 +333,87 @@ def split_index_lines(raw: str) -> list[str] | None:
 _MIN_GUTTER = 100.0
 # Children of one parent vary by ~20pt on the real page 13 (88.6 to 108.1) from marker
 # width and OCR jitter. A genuine nesting step must clear that.
-_INDENT_STEP = 24.0
+_SCRIPT_SIZE = 0.92        # smaller than this share of the line's type = super/subscript
+_INDENT_EMS = 1.25         # an indent level is at least this many ems; less is jitter
+_DEFAULT_EM = 10.0         # body size assumed on a page with no text layer at all
+_OCR_INDENT_STEP = 24.0    # points; the conservative step an OCR-predicted box keeps
+
+
+def snap_scripts(chars: list[dict]) -> tuple[list[dict], int]:
+    """Put super/subscript glyphs back on the line they belong to.
+
+    NOT A TYPOGRAPHY PREFERENCE -- THESE ARE WRONG CHARACTERS. A2ZERO is printed with a
+    superscript 2, and the PDF draws that glyph in a SEPARATE text pass after the body
+    run: on Year 1 the three page-6 superscripts are the last three chars in the whole
+    content stream. pdfplumber groups chars into lines by clustering `top` within
+    y_tolerance=3, and Year 1 raises its superscripts 3.4-4.1pt -- just outside that band,
+    where Years 3-5 raise theirs 0.2-1.4pt and are unaffected. Three distinct corruptions
+    followed, all on Year 1 page 6:
+
+        A2ZERO Week ... the adoption of the A2ZERO Plan       what the page says
+        A ZERO Week ... of 2 the adoption of the A ZERO Plan  the 2 became its own "line"
+        Th2e launch of our YouTube channel                    ... and hit the line above
+
+    Neither pdfplumber knob helps. y_tolerance=5 interleaves adjacent lines into mush
+    ('TAh2 eZ ElaRuOnc Wh oefe ok,'), and use_text_flow=True keeps the lines but dumps
+    every superscript at the end of the block. So the glyph's coordinates are corrected
+    and pdfplumber then does its ordinary job. A script glyph is assigned to the body line
+    it overlaps MOST vertically -- not the nearest baseline -- because a raised glyph
+    still sits inside its own line's band and reaches into no other.
+
+    THE SPACE IS PART OF THE ARTEFACT. Year 1 alone sets the baseline run as "A ZERO",
+    with a real space char the superscript is drawn over; Years 3-5 set "AZERO" with no
+    space at all. A space a glyph sits on top of is the room it was given, not a word
+    boundary -- keeping it yields "A2 ZERO", one token read as two.
+
+    MAJORITY OVERLAP, NOT ENCLOSURE. Requiring the glyph to bracket the space entirely
+    left two of Year 1's nine occurrences split, for two different reasons: one space is
+    covered 66.7% because the glyph is set a point to its right, and two occurrences are
+    given DOUBLED spaces of which only the fully covered one qualified. Overlapping more
+    than half a space is the honest test of sitting on it. Simulated across all five
+    reports it deletes 13 spaces, every one joining "A" to "ZERO", and nothing at all in
+    Years 2-5 -- so no footnote marker or ordinal suffix is at risk of being welded to the
+    word after it, which is the failure this rule has to avoid.
+
+    Returns the corrected chars and how many glyphs moved.
+    """
+    ink = [c for c in chars if not c["text"].isspace()]
+    if not ink:
+        return chars, 0
+    em = Counter(round(c["size"], 1) for c in ink).most_common(1)[0][0]
+    body = [c for c in chars if c["size"] >= em * _SCRIPT_SIZE]
+    if not body:
+        return chars, 0
+
+    out: list[dict] = []
+    rooms: list[tuple[float, float]] = []
+    for c in chars:
+        if c["text"].isspace() or c["size"] >= em * _SCRIPT_SIZE:
+            out.append(c)
+            continue
+        best, ov = None, 0.0
+        for d in body:
+            o = min(c["bottom"], d["bottom"]) - max(c["top"], d["top"])
+            if o > ov:
+                best, ov = d, o
+        if best is None:
+            out.append(c)
+            continue
+        out.append({**c, "top": best["top"], "bottom": best["bottom"],
+                    "doctop": best["doctop"], "y0": best["y0"], "y1": best["y1"]})
+        # ON THAT LINE. The room a glyph was given is a space it brackets on its OWN line;
+        # an x-range alone also matches spaces directly above and below it, which deleted
+        # the gap in Year 3's "turns three" and Year 5's "slated for" -- words joined by a
+        # superscript sitting one line away and nowhere near them.
+        rooms.append((c["x0"], c["x1"], best["top"]))
+
+    kept = [c for c in out
+            if not (c["text"].isspace()
+                    and any(abs(c["top"] - t) < 0.5
+                            and min(b, c["x1"]) - max(a, c["x0"])
+                                > (c["x1"] - c["x0"]) / 2
+                            for a, b, t in rooms))]
+    return kept, len(rooms)
 
 
 def column_edges(x0s: list[float], min_gap: float = _MIN_GUTTER) -> list[float]:
@@ -347,7 +428,7 @@ def column_edges(x0s: list[float], min_gap: float = _MIN_GUTTER) -> list[float]:
     return edges
 
 
-def assign_nesting(blocks: list[dict]) -> None:
+def assign_nesting(blocks: list[dict], ems: dict[int, float] | None = None) -> None:
     """Set `list_level` on each block, in place.
 
     Indentation is measured from the block's OWN COLUMN's left edge, because on Year 2
@@ -365,6 +446,26 @@ def assign_nesting(blocks: list[dict]) -> None:
 
     A non-list block ends the list entirely: a heading or paragraph closes whatever
     nesting was open, so the next bullet starts fresh.
+
+    THE INDENT STEP IS MEASURED IN EMS, NOT POINTS. A fixed 24pt missed Year 1 page 6,
+    whose sub-list is indented 18.4pt while its siblings jitter by 1.2 -- eleven children
+    of "through the following avenues:" rendered as siblings of it. But the threshold
+    cannot simply be lowered, because jitter scales with the page: Year 3 page 15's
+    siblings scatter over 5.8pt and Year 2 page 13's over 10.3pt, since Year 2 is OCR'd
+    and its boxes are model-predicted rather than text-layer exact. Points cannot separate
+    an 18.4pt indent from a 10.3pt wobble; ems can, because both quantities scale with the
+    type. An indent is a tab stop of at least a quarter more than one em, and glyph
+    jitter -- which comes from differing bullet advance widths -- is less.
+
+    BUT ONLY WHERE THE BOX IS EXACT. In ems, Year 2's jitter is LARGER than Year 1's real
+    indent: 19.5pt at 10pt type is 1.95em, against Year 1's 18.4pt at 12pt type at 1.53em.
+    The two are geometrically indistinguishable because the difference is not geometry --
+    it is where the box came from. Year 1's edges are text-layer exact, so 18.4pt is a
+    typographic decision; Year 2 is image-based, its boxes are predicted by OCR, and the
+    same 19.5pt is model noise across twelve grants that are all one level. An OCR box
+    cannot support a fine indent judgement, so an OCR-sourced block keeps the conservative
+    fixed step this pipeline has already verified against the hand-healed Year 2, and only
+    a character-exact box is measured in ems.
     """
     # PER PAGE. Columns are a property of a page layout, not of a document: computing
     # one edge set across the whole file made Year 5 page 6's right-column bullets
@@ -399,10 +500,12 @@ def assign_nesting(blocks: list[dict]) -> None:
             level = base
         else:
             near = min(range(len(ladder)), key=lambda i: abs(ladder[i] - indent))
-            if indent > ladder[-1] + _INDENT_STEP:
+            step = (_OCR_INDENT_STEP if b.get("text_source") == "docling_ocr"
+                    else _INDENT_EMS * ((ems or {}).get(b.get("page_no")) or _DEFAULT_EM))
+            if indent > ladder[-1] + step:
                 ladder.append(indent)
                 rung = len(ladder) - 1
-            elif indent < ladder[0] - _INDENT_STEP:
+            elif indent < ladder[0] - step:
                 ladder.insert(0, indent)
                 anchor += 1
                 rung = 0
@@ -884,6 +987,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
     """
     import hashlib, json, time
     import pdfplumber
+    from pdfplumber import utils as pdf_text
     from pathlib import Path
     from pipeline.convert_document import Conversion
 
@@ -894,7 +998,13 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
     blocks = merge_overlapping_headings(blocks)
 
     raws: list[str] = []
+    ems: dict[int, float] = {}
+    n_snapped = 0
     with pdfplumber.open(str(pdf_path)) as pdf:
+        for pno, page in enumerate(pdf.pages, 1):
+            ink = [c for c in page.chars if not c["text"].isspace()]
+            if ink:
+                ems[pno] = Counter(round(c["size"], 1) for c in ink).most_common(1)[0][0]
         for b in blocks:
             if b["kind"] == "PictureItem":
                 raws.append("")
@@ -902,7 +1012,13 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             page = pdf.pages[b["page_no"] - 1]
             box = bbox_to_crop(tuple(b["bbox"]), b["coord_origin"],
                                b["page_h"], b["page_w"])
-            raws.append(page.crop(box).extract_text() or "")
+            crop = page.crop(box)
+            # Only take the corrected path when a glyph actually moved, so a document
+            # with no super/subscripts extracts through exactly the code it always did.
+            fixed, moved = snap_scripts(crop.chars)
+            n_snapped += moved
+            raws.append(((pdf_text.extract_text(fixed) if moved else crop.extract_text())
+                         or ""))
 
     words, hyph = build_evidence("\n".join(raws))
 
@@ -1085,7 +1201,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
                                      "docling_text": ""})
                 content_recovered.append((pno, txt[:70]))
 
-    assign_nesting(resolved)
+    assign_nesting(resolved, ems)
     mark_furniture(resolved)
 
     text, page_map, with_offsets = assemble_blocks(resolved, n_pages)
