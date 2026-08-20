@@ -59,11 +59,17 @@ def test_list_items_render_as_list_items_in_reading_order():
 
 # ── captions follow their picture's fate ───────────────────────────────────────────────
 
-def test_the_caption_of_a_dropped_photograph_is_dropped_with_it():
-    blocks = [_blk("PictureItem", 3, "", self_ref="#/pictures/1", worth_extraction=False),
+def test_the_caption_of_a_dropped_photograph_is_no_longer_deleted():
+    """SUPERSEDED BEHAVIOUR, kept as the record of why it changed. This once asserted the
+    caption was removed. Deleting cost three real content losses -- a sentence
+    continuation, a staff roster and a bullet tail -- each found only by a human reading
+    the output, so the branch now tags instead. A caption is content; ingest filters on
+    the tag."""
+    blocks = [_blk("PictureItem", 3, "", self_ref="#/pictures/1", worth_extraction=False,
+                   top_label="photograph"),
               _blk("TextItem", 3, "Mayor Taylor on his e-bike.", caption_for="#/pictures/1")]
     out = render_blocks(blocks, {}, "T")
-    assert "e-bike" not in out, "an orphaned caption for a removed photo is noise"
+    assert "e-bike" in out and "CAPTION" in out
 
 
 def test_the_caption_of_a_kept_figure_is_folded_into_its_description():
@@ -338,3 +344,83 @@ def test_a_real_heading_is_untouched_by_the_body_shape_set():
     out = render_blocks([_blk("SectionHeaderItem", 5, "STRATEGY 1: RENEWABLES")], {}, "T",
                         body_shapes={"dive deeper into"})
     assert "## STRATEGY 1: RENEWABLES" in out
+
+
+# ── captions are TAGGED, never deleted ─────────────────────────────────────────────────
+# Three of the last four content losses in this pipeline came from caption association
+# deleting a block it had misjudged: Year 3's "the downtown, reducing vehicle/bicyclist
+# conflicts.", Year 3's "households make health, safety, and quality of life
+# improvements.", and Year 5's OSI staff roster. Each guard added afterwards was correct
+# and each was discovered only because a human read the output.
+#
+# Tagging removes the failure class rather than narrowing it. A caption that turns out to
+# be body prose is now mislabelled instead of missing -- visible, recoverable, and
+# harmless to ingest, which can filter on the tag exactly as it filters furniture.
+
+def test_a_dropped_photographs_caption_is_kept_and_tagged():
+    blocks = [_blk("PictureItem", 3, "", self_ref="#/pictures/1", worth_extraction=False,
+                   top_label="photograph"),
+              _blk("TextItem", 3, "Mayor Taylor on his e-bike.", caption_for="#/pictures/1")]
+    out = render_blocks(blocks, {}, "T")
+    assert "Mayor Taylor on his e-bike." in out, "a caption is content, not noise"
+    assert "CAPTION" in out
+
+
+def test_a_mistagged_body_sentence_survives_in_full():
+    """The exact Year 3 failure: a sentence continuation misjudged as a caption. Under
+    tagging it is still in the document, merely labelled wrongly."""
+    blocks = [_blk("PictureItem", 9, "", self_ref="#/pictures/13", worth_extraction=False,
+                   top_label="photograph"),
+              _blk("TextItem", 9, "the downtown, reducing vehicle/bicyclist conflicts.",
+                   caption_for="#/pictures/13")]
+    out = render_blocks(blocks, {}, "T")
+    assert "reducing vehicle/bicyclist conflicts" in out
+
+
+def test_a_kept_figures_caption_still_folds_into_its_description():
+    """Unchanged: when the picture survives, its caption belongs with the figure."""
+    blocks = [_blk("PictureItem", 5, "", self_ref="#/pictures/9", worth_extraction=True,
+                   top_label="screenshot_from_computer", top_conf=0.5),
+              _blk("TextItem", 5, "The Renewable Energy tab of the A2ZERO Dashboard.",
+                   caption_for="#/pictures/9")]
+    out = render_blocks(blocks, {5: "<figure_description>x</figure_description>"}, "T")
+    assert out.index("Renewable Energy tab") < out.index("<figure_description>")
+    assert out.count("Renewable Energy tab") == 1, "folded in, not also emitted in place"
+
+
+def test_the_caption_tag_names_the_picture_it_describes():
+    blocks = [_blk("PictureItem", 3, "", self_ref="#/pictures/1", worth_extraction=False,
+                   top_label="photograph"),
+              _blk("TextItem", 3, "Community swap at Pittsfield Elementary.",
+                   caption_for="#/pictures/1")]
+    out = render_blocks(blocks, {}, "T")
+    assert "photograph" in out and "page 3" in out
+
+
+def test_ordinary_prose_carries_no_caption_tag():
+    out = render_blocks([_blk("TextItem", 3, "Installed 1.7MW of solar.")], {}, "T")
+    assert "CAPTION" not in out
+
+
+def test_every_caption_of_a_kept_figure_is_emitted_not_just_the_first():
+    """Year 3's pie chart has FOUR associated legend blocks. Keeping only the first left
+    "Waste, 2%" in the document and silently dropped "Transportation, 29.72%",
+    "Propane, 0.5%" and "Natural Gas, 27%" -- the last deletion path in the renderer,
+    hiding behind a setdefault.
+    """
+    blocks = [_blk("PictureItem", 2, "", self_ref="#/pictures/3", worth_extraction=True,
+                   top_label="pie_chart", top_conf=1.0),
+              _blk("TextItem", 2, "Waste, 2%", caption_for="#/pictures/3"),
+              _blk("TextItem", 2, "Transportation, 29.72%", caption_for="#/pictures/3"),
+              _blk("TextItem", 2, "Natural Gas, 27%", caption_for="#/pictures/3")]
+    out = render_blocks(blocks, {2: "<figure_description>x</figure_description>"}, "T")
+    for label in ("Waste, 2%", "Transportation, 29.72%", "Natural Gas, 27%"):
+        assert label in out, f"{label} was dropped"
+
+
+def test_a_single_caption_still_reads_as_one_line():
+    blocks = [_blk("PictureItem", 5, "", self_ref="#/pictures/9", worth_extraction=True,
+                   top_label="bar_chart", top_conf=0.9),
+              _blk("TextItem", 5, "The Renewable Energy tab.", caption_for="#/pictures/9")]
+    out = render_blocks(blocks, {}, "T")
+    assert "**Figure (bar_chart, page 5):** The Renewable Energy tab." in out

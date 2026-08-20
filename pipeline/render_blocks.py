@@ -10,11 +10,17 @@ one stream -- Docling's typed blocks, filled with pdfplumber's characters -- so 
 nothing to reconcile and the duplicate cannot occur. CU remains valuable as an
 INDEPENDENT cross-check of the section list; it is simply no longer load-bearing.
 
-CAPTIONS FOLLOW THEIR PICTURE. A caption whose photograph was dropped is noise stranded
-mid-page ("City officials break ground on Fire Station 4" with no photo above it); a
-caption whose figure was kept is that figure's title and belongs inside its description.
-Both were called out in the human review, and both are decided here by `caption_for`,
-which convert_docling.py resolves structurally rather than by guessing from position.
+CAPTIONS ARE TAGGED, NEVER DELETED. A caption whose figure was kept is that figure's
+title and is emitted with it; a caption whose photograph was not retained is emitted
+where it stands, marked, so ingest can filter on the tag exactly as it filters furniture.
+
+The earlier design deleted the second kind, and it was the single most dangerous
+mechanism in this pipeline: three separate content losses came from it -- a sentence
+continuation on Year 3 page 9, another on page 7, and Year 5's OSI staff roster -- each
+discovered only because a human read the output and noticed prose had gone. Every guard
+added afterwards was correct and none of them was sufficient, because the failure mode
+was the deletion itself. Tagging removes the class: a misjudged caption is now
+mislabelled rather than missing, which is visible, recoverable, and harmless downstream.
 
 RECOVERED TEXT IS MARKED, NOT BLENDED IN. Blocks typed UncoveredText exist because
 Docling modelled no block for them (see convert_blocks.group_uncovered) -- their position
@@ -41,13 +47,17 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
     finer key, which Year 5 does not exercise and which is not invented here.
     """
     pics = {b.get("self_ref"): b for b in blocks if b["kind"] == "PictureItem"}
-    # A kept figure's caption is emitted with the figure, so it must not also be emitted
-    # in place; a dropped picture's caption is emitted nowhere at all.
-    captions: dict[str, str] = {}
+    # A kept figure's caption is emitted WITH the figure, so it is not also emitted in
+    # place; every other caption is emitted where it stands, tagged.
+    # EVERY caption, not just the first. Year 3's pie chart carries four associated
+    # legend blocks; a setdefault here kept "Waste, 2%" and silently dropped
+    # "Transportation, 29.72%", "Propane, 0.5%" and "Natural Gas, 27%" -- the last
+    # deletion path left in the renderer after captions stopped being dropped elsewhere.
+    captions: dict[str, list[str]] = {}
     for b in blocks:
         ref = b.get("caption_for")
         if ref and ref in pics:
-            captions.setdefault(ref, b["text"])
+            captions.setdefault(ref, []).append(b["text"])
 
     # THE DOCUMENT'S OWN TITLE IS THE TITLE. Both years' reviews flagged the same thing:
     # an H1 carrying a command-line string, with the document's real title repeated below
@@ -107,7 +117,7 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             if not b.get("worth_extraction"):
                 continue                       # a photograph carries no citable content
             stats["figures"] += 1
-            cap = captions.get(b.get("self_ref"))
+            cap = " ".join(captions.get(b.get("self_ref")) or []) or None
             fig_page = b["page_no"]        # NOT `page`: that tracks marker emission
             out.append("")
             # No provenance comment emitted here -- render_figure_block() already writes a
@@ -127,11 +137,25 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
         if not text:
             continue
 
+        tag = ""
+        if srcs and b.get("text_source") and b["text_source"] != dominant:
+            tag = f"{mark[b['text_source']]} "
+
         ref = b.get("caption_for")
         if ref and ref in pics:
-            if not pics[ref].get("worth_extraction"):
-                stats["captions_dropped"] += 1  # its photo is gone; the caption is noise
-            continue                            # kept figures render their own caption
+            if pics[ref].get("worth_extraction"):
+                continue          # a kept figure renders its own caption with the figure
+            # TAGGED, NOT DELETED. Three of the last four content losses in this pipeline
+            # came from this branch removing a block it had misjudged -- a sentence
+            # continuation, a staff roster, a bullet tail -- and each was found only
+            # because a human read the output. A caption is content; ingest can filter on
+            # the tag exactly as it filters furniture. A misjudgement now mislabels
+            # instead of deleting, which is visible and recoverable.
+            stats["captions_tagged"] = stats.get("captions_tagged", 0) + 1
+            out += [f"<!-- CAPTION: describes a {pics[ref].get('top_label')} on page "
+                    f"{b['page_no']} that was not retained; not an assertion -->",
+                    f"> {tag}{text}", ""]
+            continue
 
         # A HEADING DOCLING MISTYPED IS STILL A HEADING. Year 4: the long-form strategy
         # headings are SectionHeaderItem on pages 5, 13, 15 and 19 but plain TextItem on
@@ -197,7 +221,8 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
 
         out += [f"{tag}{text}", ""]
 
-    out.insert(3, f"<!-- {stats['figures']} figure(s) · {stats['captions_dropped']} "
-                  f"caption(s) dropped with their photos · {stats['recovered']} "
-                  f"region(s) recovered by the coverage sweep -->")
+    out.insert(3, f"<!-- {stats['figures']} figure(s) · "
+                  f"{stats.get('captions_tagged', 0)} caption(s) tagged · "
+                  f"{stats.get('furniture', 0)} furniture block(s) · "
+                  f"{stats['recovered']} region(s) recovered by the coverage sweep -->")
     return "\n".join(out)
