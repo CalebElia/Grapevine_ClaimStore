@@ -40,7 +40,8 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                   page_markers: bool = False,
                   heading_shapes: set[str] | None = None,
                   body_shapes: set[str] | None = None,
-                  lead_ins: set[str] | None = None) -> str:
+                  lead_ins: set[str] | None = None,
+                  period: dict | None = None) -> str:
     """blocks in reading order + {page_no: figure XML} -> markdown.
 
     figure_xml is keyed by page because that is what pipeline/extract_figures.py records
@@ -97,6 +98,18 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
            f"<!-- {ocr_pct}% OCR: {n_ocr} of {len(srcs)} text blocks were read by OCR "
            f"(no usable text layer), not extracted character-exact. Dominant source: "
            f"{dominant}. -->", ""]
+    # THE PERIOD, MACHINE-READABLE, NOT ONLY AS A HEADING. Year 2 states its coverage in
+    # a section heading ("2021 - 2022 Annual Report") and Years 3-5 in a subtitle; once
+    # sectioning runs, those are strings like any other and the value is only as safe as
+    # whatever a later stage decides to do with headings. documents.covers_period_start
+    # exists because the wiki lost a report's period exactly that way.
+    if period:
+        out.insert(4, f"<!-- COVERAGE PERIOD: {period['text']} -> "
+                      f"{period['start']}..{period['end']} ({period['days']} days)"
+                      + ("" if 358 <= period["days"] <= 372 else
+                         " -- NOT A YEAR; an annual report's stated period should be one,"
+                         " so treat this as unconfirmed until a human rules on it")
+                      + " -->")
     last_heading = None
     stats = {"figures": 0, "captions_dropped": 0, "recovered": 0}
 

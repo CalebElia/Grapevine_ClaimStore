@@ -18,8 +18,8 @@ import argparse
 import json
 from pathlib import Path
 
-from pipeline.convert_blocks import (body_shapes, convert, heading_shapes,
-                                     recurring_lead_ins)
+from pipeline.convert_blocks import (body_shapes, convert, coverage_period,
+                                     heading_shapes, recurring_lead_ins)
 from pipeline.extract_figures import extract_figures, render_figure_block
 from pipeline.vision_extract import parse_relevance
 from pipeline.quality_gate import assess, find_numbers, verdict
@@ -128,10 +128,15 @@ def main() -> int:
               "a reason; it will be recorded in the file.")
         return 2
 
+    period = coverage_period(conv.text)
+    if period:
+        print(f"[blocks] coverage period: {period['text']} "
+              f"({period['days']} days)"
+              + ("" if 358 <= period['days'] <= 372 else "  <-- NOT A YEAR"))
     md = render_blocks(blocks, figure_xml, a.title, page_markers=a.page_markers,
                        heading_shapes=heading_shapes(blocks),
                        body_shapes=body_shapes(blocks),
-                       lead_ins=recurring_lead_ins(blocks))
+                       lead_ins=recurring_lead_ins(blocks), period=period)
     banner = [f"<!-- gate: {v.upper()} -->"]
     for f in findings:
         banner.append(f"<!-- gate {f.severity}: {f.check} -- {f.evidence} -->")

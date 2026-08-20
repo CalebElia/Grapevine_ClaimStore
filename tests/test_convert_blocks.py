@@ -190,7 +190,7 @@ def test_reading_order_is_preserved_exactly_as_given():
 # flattening rewrites "col-\nlaborations" to "col- laborations" and destroys the newline
 # the split is recognised by.
 
-from pipeline.convert_blocks import apply_hyphen_decisions
+from pipeline.convert_blocks import apply_hyphen_decisions, coverage_period
 
 
 def test_a_join_decision_removes_both_the_hyphen_and_the_break():
@@ -1541,3 +1541,44 @@ def test_a_real_heading_close_to_its_body_is_not_absorbed():
               _hblk("TextItem", "Looking ahead to Year Two we plan to do more.", 150, 337.3, 162.3, 7)]
     out = absorb_body_shaped_headings(blocks, {7: 12.0})
     assert len(out) == 3 and out[1]["kind"] == "SectionHeaderItem"
+
+
+def test_a_run_of_bare_bullet_glyphs_is_not_recovered_text():
+    """Year 2 pages 12-13 emitted "> o o o o o" and "> o o" -- the markers of a sub-list
+    whose words Docling had already claimed."""
+    from pipeline.convert_blocks import group_uncovered
+    marks = [{"text": "o", "top": 100.0, "bottom": 110.0, "x0": 50.0 + 12 * i, "x1": 56.0 + 12 * i}
+             for i in range(5)]
+    assert group_uncovered(marks, 12) == []
+
+
+def test_a_marker_beside_real_words_still_travels():
+    """Only a run that is ENTIRELY markers is dropped; with words present the words are
+    the evidence and the marker rides along."""
+    from pipeline.convert_blocks import group_uncovered
+    ws = [{"text": t, "top": 100.0, "bottom": 110.0, "x0": 50.0 + 12 * i, "x1": 56.0 + 12 * i}
+          for i, t in enumerate(["o", "Missy", "Stults"])]
+    assert group_uncovered(ws, 12)
+
+
+def test_the_stated_coverage_period_is_parsed_with_its_length():
+    assert coverage_period("June 1, 2024 – May 31, 2025")["days"] == 364
+    assert coverage_period("JULY 1, 2023 - JUNE 3, 2024")["days"] == 338   # source typo
+    assert coverage_period("2021 - 2022 Annual Report") is None           # year-only
+
+
+def test_the_period_keeps_the_verbatim_string_it_came_from():
+    """The interpretation is a curator's ruling; what the document SAYS is not."""
+    p = coverage_period("A2ZERO YEAR FOUR ANNUAL REPORT JULY 1, 2023 - JUNE 3, 2024")
+    assert p["text"] == "JULY 1, 2023 - JUNE 3, 2024" and p["end"] == "2024-06-03"
+
+
+def test_both_sweeps_drop_a_bare_marker_run():
+    """Year 2's "o o o o o" survived a fix to the geometric sweep because it arrives
+    through the CONTENT sweep: pdfplumber reads the glyphs, Docling's assembled text
+    never contains them, so they register as missing content."""
+    from pipeline.convert_blocks import is_marker_run
+    assert is_marker_run(["o", "o", "o", "o", "o"])
+    assert is_marker_run(["•", "-", "o"])
+    assert not is_marker_run(["o", "Missy", "Stults"])
+    assert not is_marker_run([])                 # nothing is not a marker run

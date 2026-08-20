@@ -349,6 +349,55 @@ _DEFAULT_EM = 10.0         # body size assumed on a page with no text layer at a
 _OCR_INDENT_STEP = 24.0    # points; the conservative step an OCR-predicted box keeps
 
 
+_MONTHS = {m: i for i, m in enumerate(
+    ["january", "february", "march", "april", "may", "june", "july", "august",
+     "september", "october", "november", "december"], 1)}
+
+_PERIOD = re.compile(
+    r"([A-Z][a-z]+|[A-Z]{3,})\.?\s+(\d{1,2}),?\s*(\d{4})"      # July 1, 2023
+    r"\s*[-\u2013\u2014]\s*"
+    r"([A-Z][a-z]+|[A-Z]{3,})\.?\s+(\d{1,2}),?\s*(\d{4})", re.I)
+
+
+def coverage_period(text: str) -> dict | None:
+    """The period this report says it covers, with its length in days.
+
+    WHY THIS IS EXTRACTED RATHER THAN LEFT IN THE PROSE. It is stated once, in a heading
+    or a subtitle, and after sectioning that heading is just a string like any other --
+    the wiki lost a report's period exactly this way and documents.covers_period_start /
+    _end exist because of it. Pulling it out here means the value survives independently
+    of how any later stage decides to treat headings.
+
+    NO FISCAL-YEAR ASSUMPTION. Ann Arbor's fiscal year runs July 1 - June 30 and Years 3
+    and 4 do use it, but Year 5 covers June 1 - May 31 deliberately, so checking against
+    the Charter would flag a correct document. What every one of them shares is simpler:
+    an ANNUAL report covers a year. `days` is returned so a caller can say so -- Years 3
+    and 4 state periods of 337 and 338 days, because both print "June 3" where the page
+    means June 30, and that is a typo in the source, not an extraction fault (verified
+    against the content stream: the '3' is followed directly by a comma, with no dropped
+    glyph anywhere to its right).
+
+    The verbatim string travels with the parse, because it is what the document says and
+    the interpretation is a separate, human-curatable decision.
+    """
+    m = _PERIOD.search(text)
+    if not m:
+        return None
+    a_mon, a_day, a_yr, b_mon, b_day, b_yr = m.groups()
+    am, bm = _MONTHS.get(a_mon.lower()), _MONTHS.get(b_mon.lower())
+    if not am or not bm:
+        return None
+    from datetime import date
+    try:
+        start, end = (date(int(a_yr), am, int(a_day)), date(int(b_yr), bm, int(b_day)))
+    except ValueError:
+        return None
+    if end <= start:
+        return None
+    return {"text": " ".join(m.group(0).split()), "start": start.isoformat(),
+            "end": end.isoformat(), "days": (end - start).days}
+
+
 def _lead_shape(text: str) -> str:
     """A block's LEADING shape -- the first three word-ish tokens, digits collapsed.
 
@@ -585,6 +634,26 @@ def assign_nesting(blocks: list[dict], ems: dict[int, float] | None = None) -> N
             level = max(base + rung - anchor, 0)
         b["list_level"] = level
 
+
+def is_marker_run(words) -> bool:
+    """True if every token is a bare list-marker glyph, so the run asserts nothing.
+
+    BOTH SWEEPS NEED THIS, which is why it is a function and not a line in one of them.
+    Year 2 pages 12-13 emitted "> o o o o o" and "> o o o o o o o o o o o o" -- the
+    markers of a sub-list whose WORDS Docling had already claimed. The geometric sweep
+    can see them as words outside every box; the content sweep sees them as tokens
+    pdfplumber read that never reached the assembled text, which is literally true and
+    still not content. Fixing only the geometric path left both runs in place.
+
+    Only a run that is ENTIRELY markers is dropped. A marker beside real words travels
+    with them, because then the words are the evidence.
+    """
+    toks = [t.strip() for t in words if t and t.strip()]
+    return bool(toks) and all(t in _MARKER_GLYPHS for t in toks)
+
+
+_MARKER_GLYPHS = {"o", "O", "\u2022", "\u00b7", "\u25aa", "\u25e6", "\u2023", "\u2043",
+                  "-", "\u2013", "\u2014", "*", "\u25cf", "\u25a0", "\u2219"}
 
 _FURNITURE_BAND = 0.88     # fraction of page height below which a footer can sit
 
@@ -993,6 +1062,17 @@ def group_uncovered(words: list[dict], page_no: int) -> list[dict]:
             cur = [w]
     groups.append(cur)
 
+    # A RUN OF BARE BULLET GLYPHS IS NOT RECOVERED TEXT. Year 2 pages 12 and 13 emitted
+    # "> o o o o o" and "> o o": the markers of a sub-list whose words Docling had already
+    # claimed, left behind by the crop and swept up as though they were content. They
+    # assert nothing, and unlike a stray word there is no reading under which they are
+    # text. PER GROUP, not per page -- a page's leftovers are grouped into lines only
+    # here, so testing the whole page fired solely when the markers were all that was
+    # left over, which on Year 2 they were not.
+    groups = [g for g in groups if not is_marker_run(w["text"] for w in g)]
+    if not groups:
+        return []
+
     # AN INDEX KEEPS ITS LINES. Merging a group's lines is right for a wrapped caption
     # and wrong for a table of contents, where each line is a separate entry -- Year 4's
     # TOC arrived as one run-on line. The document supplies the discriminator: index
@@ -1260,6 +1340,8 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
                 txt = " ".join(run)
                 if is_page_footer({"text": txt, "page_no": pno}):
                     continue
+                if is_marker_run(run):
+                    continue        # bullet glyphs whose words are already assembled
                 at = max((i for i, b in enumerate(resolved) if b["page_no"] <= pno),
                          default=-1) + 1
                 prev = resolved[at - 1]["_ord"] if at > 0 else -1.0

@@ -117,6 +117,16 @@ def build(md_path: Path, report: dict, gate_findings: list, label: str) -> list[
                      f"\u201c{_tail(t)}\u201d — does the sentence finish there, or was a "
                      f"continuation line dropped?")
 
+    # THE COVERAGE PERIOD IS THE ONE VALUE EVERY CLAIM IN THE DOCUMENT HANGS OFF.
+    for ln, text in _find(lines, r"<!-- COVERAGE PERIOD:"):
+        odd = "NOT A YEAR" in text
+        a.append(f"- [ ] `{name}:{ln}` — coverage period read as "
+                 f"**{text.split('COVERAGE PERIOD:')[1].split('-->')[0].strip()}**"
+                 + (" — this is NOT a year long; Years 3 and 4 print \"June 3\" where "
+                    "the page means June 30, and it is a typo in the SOURCE, so the fix "
+                    "is a curator's ruling, not a re-extraction"
+                    if odd else " — confirm against the report's cover"))
+
     # A HYPHEN FOLLOWED BY A SPACE IS ALMOST ALWAYS WRONG. It is what a line-break split
     # looks like after something has flattened the newline that identified it, and 18 of
     # them reached Years 3-5 that way ("zero- emissions", "income- qualified"). The rare
@@ -202,7 +212,11 @@ def write_checklist(path: Path, text: str, append: bool = False) -> bool:
     if path.exists():
         old = path.read_text()
         ticks = len(re.findall(r"^- \[[xX]\]", old, flags=re.M))
-        notes = len(re.findall(r"\u2192", old))
+        # A NOTE IS AN ARROW THAT STARTS A LINE. The generator itself writes "AZERO →
+        # A2ZERO" inside item text, so matching the character anywhere made the guard
+        # refuse to regenerate a pristine checklist -- a guard that cries wolf is a guard
+        # someone turns off. The human convention is a continuation line: "    → ...".
+        notes = len(re.findall(r"^\s*\u2192", old, flags=re.M))
         if ticks or notes:
             alt = path.with_name(path.stem + ".regenerated" + path.suffix)
             alt.write_text(text)
