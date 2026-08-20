@@ -117,6 +117,18 @@ def build(md_path: Path, report: dict, gate_findings: list, label: str) -> list[
                      f"\u201c{_tail(t)}\u201d — does the sentence finish there, or was a "
                      f"continuation line dropped?")
 
+    # GARBLED TOKENS FIRST: they mean a whole sentence is wrong, not one value.
+    for f in gate_findings:
+        if f.check != "garbled_text":
+            continue
+        for it in f.items:
+            ln = _line_of(lines, it["token"])
+            loc = f"`{name}:{ln}`" if ln else f"`{name}`"
+            a.append(f"- [ ] {loc} p.{it.get('page_no')} — token **{it['token']}** "
+                     f"alternates case internally; no English word does. Two text runs "
+                     f"were probably interleaved, so the whole line is suspect: "
+                     f"\u201c{it['text'][:90]}\u201d")
+
     # THE COVERAGE PERIOD IS THE ONE VALUE EVERY CLAIM IN THE DOCUMENT HANGS OFF.
     for ln, text in _find(lines, r"<!-- COVERAGE PERIOD:"):
         odd = "NOT A YEAR" in text

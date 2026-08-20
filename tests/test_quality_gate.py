@@ -193,3 +193,24 @@ def test_a_truncation_finding_carries_every_offending_block():
 
 def test_findings_without_per_item_detail_default_to_an_empty_list():
     assert Finding("ocr_fraction", "medium", "94% OCR").items == []
+
+
+def test_interleaved_text_is_caught_by_case_alternation():
+    """Every other check here counts things, and a woven line has all the right
+    characters -- Year 3 shipped "EnhaEnNciHngA NthCeE" through a clean gate."""
+    blocks = [{"text": "EnhaEnNciHngA NthCeE rTeHsiEli eRnEcSeIL", "page_no": 12,
+               "text_source": "pdfplumber"}]
+    f = [x for x in assess("EnhaEnNciHngA", [(12, 0, 13)], blocks,
+                           reference_words=1, reference_numbers=[])
+         if x.check == "garbled_text"]
+    assert f and f[0].severity == "high" and len(f[0].items) == 4
+
+
+def test_ordinary_camel_case_proper_nouns_are_not_garbled():
+    """AmeriCorps, SolSmart, EcoWorks, TheRide all appear in this corpus and all have
+    exactly ONE lower-to-upper transition; a woven line has one per syllable."""
+    blocks = [{"text": "AmeriCorps and SolSmart and EcoWorks and TheRide", "page_no": 1,
+               "text_source": "pdfplumber"}]
+    assert not [x for x in assess("AmeriCorps", [(1, 0, 10)], blocks,
+                                  reference_words=1, reference_numbers=[])
+                if x.check == "garbled_text"]

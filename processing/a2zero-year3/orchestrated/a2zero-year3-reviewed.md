@@ -1,8 +1,10 @@
 # Year three Annual Report
-<!-- gate: REVIEW -->
+<!-- gate: REFUSE -->
 <!-- gate medium: truncation -- 3 block(s) end on a dangling word -- a continuation line was probably dropped -->
+<!-- gate high: garbled_text -- 1 token(s) alternate case internally, which no English word does -- two text runs were probably interleaved -->
+<!-- gate OVERRIDDEN by operator. Reason: grants sub-list on p.15 still fuses its 'o' bullet markers to the following word; written for review, not for ingest -->
 
-<!-- generated 2026-08-20T23:37:03Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-20T23:42:32Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 1 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 3 -->
 <!-- COVERAGE PERIOD: July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->

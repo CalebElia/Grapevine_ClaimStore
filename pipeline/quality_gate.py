@@ -142,6 +142,31 @@ def assess(text: str, page_map: list[tuple[int, int, int]], blocks: list[dict],
                            f"continuation line was probably dropped",
                            items=truncated))
 
+    # EVERY OTHER CHECK HERE COUNTS THINGS. Words recovered, numbers conserved, spans
+    # round-tripping, blocks ending short -- all quantity, and all of them pass a block
+    # whose characters are perfectly preserved and merely in the wrong ORDER. Year 3
+    # shipped two sentences woven together, "EnhaEnNciHngA NthCeE rTeHsiEli eRnEcSeIL",
+    # through a clean gate and a 135-item checklist, and a human found it by reading.
+    #
+    # This is the first check that asks whether the output is PLAUSIBLE rather than
+    # complete. Interleaving is self-announcing once anything looks: English words do not
+    # alternate case internally, so a token with two or more lower-to-upper transitions
+    # inside it is not a word. Measured across all five reports it fires on 13 tokens in
+    # the broken Year 3 and none at all in Years 1, 2, 4 and 5 -- no threshold to tune and
+    # nothing legitimate caught, because "AmeriCorps" and "SolSmart" have exactly one
+    # transition and a woven line has one per syllable.
+    garbled = []
+    for b in blocks:
+        for tok in (b.get("text") or "").split():
+            if len(re.findall(r"[a-z][A-Z]", tok)) >= 2:
+                garbled.append({"page_no": b.get("page_no"), "token": tok,
+                                "text": " ".join((b.get("text") or "").split())[:160]})
+    if garbled:
+        out.append(Finding("garbled_text", "high",
+                           f"{len(garbled)} token(s) alternate case internally, which no "
+                           f"English word does -- two text runs were probably interleaved",
+                           items=garbled))
+
     srcs = [b.get("text_source") for b in blocks if b.get("text_source")]
     if srcs:
         frac = sum(1 for s in srcs if s == "docling_ocr") / len(srcs)
