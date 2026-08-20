@@ -188,6 +188,32 @@ def build(md_path: Path, report: dict, gate_findings: list, label: str) -> list[
     return out
 
 
+def write_checklist(path: Path, text: str, append: bool = False) -> bool:
+    """Write the checklist, REFUSING to overwrite one that has been reviewed in.
+
+    A checklist is a derived artifact right up until a human ticks a box in it, and then
+    it is the only record of which of 135 items they have already looked at. Regenerating
+    it with a shell redirect destroyed exactly that, twice, with no git history behind it
+    (processing/ is untracked) and no snapshot to restore from. The generator cannot tell
+    a fresh file from an annotated one unless it looks, so it looks: a ticked box or a
+    "→" note means the file is a human's working copy and is never silently replaced.
+    The new text goes alongside it instead, and the caller is told.
+    """
+    if path.exists():
+        old = path.read_text()
+        ticks = len(re.findall(r"^- \[[xX]\]", old, flags=re.M))
+        notes = len(re.findall(r"\u2192", old))
+        if ticks or notes:
+            alt = path.with_name(path.stem + ".regenerated" + path.suffix)
+            alt.write_text(text)
+            print(f"[review_checklist] REFUSED to overwrite {path}: it carries "
+                  f"{ticks} ticked item(s) and {notes} note(s). Wrote {alt} instead.")
+            return False
+    with path.open("a" if append else "w") as fh:
+        fh.write(text if append else text)
+    return True
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="emit a human review checklist")
     ap.add_argument("--pdf", required=True)
@@ -195,6 +221,8 @@ def main() -> int:
     ap.add_argument("--md", required=True)
     ap.add_argument("--label", required=True)
     ap.add_argument("--figures-json")
+    ap.add_argument("--out", help="write here instead of stdout; refuses to clobber "
+                                  "a file a human has already reviewed in")
     a = ap.parse_args()
 
     from pipeline.convert_blocks import convert
@@ -206,8 +234,11 @@ def main() -> int:
     findings = assess(conv.text, conv.page_map, blocks,
                       reference_words=len(ref.split()),
                       reference_numbers=find_numbers(ref))
-    print("\n".join(build(Path(a.md), report, findings, a.label)))
-    return 0
+    text = "\n".join(build(Path(a.md), report, findings, a.label))
+    if not a.out:
+        print(text)
+        return 0
+    return 0 if write_checklist(Path(a.out), text) else 1
 
 
 if __name__ == "__main__":
