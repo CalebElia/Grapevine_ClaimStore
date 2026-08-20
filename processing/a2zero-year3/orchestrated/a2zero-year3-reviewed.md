@@ -2,14 +2,14 @@
 <!-- gate: REVIEW -->
 <!-- gate medium: truncation -- 3 block(s) end on a dangling word -- a continuation line was probably dropped -->
 
-<!-- generated 2026-08-20T22:37:54Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
-<!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 4 region(s) recovered by the coverage sweep -->
+<!-- generated 2026-08-20T23:37:03Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 1 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 3 -->
 <!-- COVERAGE PERIOD: July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
-<!-- 0% OCR: 0 of 197 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
+<!-- 0% OCR: 0 of 194 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
 
 <!-- p.1 -->
-thJurlye 1,e 20 A22-nJunneu 3a, 20l2 3R
+July 1, 2022-June 3, 2023
 
 ## INTRODUCTION
 
@@ -17,12 +17,7 @@ As A2ZERO turns three, we find it time to once again reflect on actions and acti
 
 ## The Ann Arbor Office of Sustainability and Innovations Team
 
-TMhiess Ay,n Zna Acrhb, oJur lOieffi, Sceea no,f TShuesata, iSniambi,i lHitya nannadh I,n Jnooev, aSthioenrosn Tdeaa,m Bryce, Jennifer, Carissa, and Ryan
-
-<!-- recovered by coverage sweep: no Docling block modelled this region on page 1; placement inferred -->
-> July 1, 2022-June 3, 2023
-
-> Missy, Zach, Julie, Sean, Thea, Simi, Hannah, Joe, Sheronda,
+Missy, Zach, Julie, Sean, Thea, Simi, Hannah, Joe, Sheronda, Bryce, Jennifer, Carissa, and Ryan
 
 <!-- p.2 -->
 ## GREENHOUSE GAS EMISSIONS SUMMARY
@@ -141,7 +136,7 @@ Advancing Strategy 2, also known as beneficial electrification, has been a signi
 
 - Held a convening with over 30 contractors across multiple disciplines to discuss misconceptions around electrification, promote City electrification programs and resources, collect feedback on soon-
 
-programs and resources, collect feedback on soon-to-be created A2ZERO rebate programs, and discern best practices for increasing electrification through contractor collaboration.
+to-be created A2ZERO rebate programs, and discern best practices for increasing electrification through contractor collaboration.
 
 <!-- p.7 -->
 ## STRATEGY THREE: SIGNIFICANTLY IMPROVE THE ENERGY EFFICIENCY IN OUR HOMES, BUSINESS, SCHOOLS, PLACES OF WORSHIP, RECREATIONAL SITES, AND GOVERNMENT FACILITIES
@@ -259,7 +254,7 @@ moving or wishing to downsize their possessions. Find the link on the city’s r
 <!-- p.12 -->
 ## STRATEGY SIX: ENHANCE THE RESILIENCE OF OUR PEOPLE AND OUR PLACE
 
-EnhaEnNciHngA NthCeE rTeHsiEli eRnEcSeIL oIEf NoCurE pOeFo OplUeR a PnEdO oPuLrE e AxcNeDp OtioUnRa lP cLoAmCEmunity are pivotal elements of A2ZERO, as well as work to enhance overall quality of life for existing and future Ann Arborites. Year three of A2ZERO saw the following resilience-related activities:
+Enhancing the resilience of our people and our exceptional community are pivotal elements of A2ZERO, as well as work to enhance overall quality of life for existing and future Ann Arborites. Year three of A2ZERO saw the following resilience-related activities:
 
 - Completion of the second resilience hub in Ann Arbor, located at the Bryant Neighborhood Community Center.
 
@@ -429,9 +424,6 @@ As illustrated above, year three of A2ZERO was filled with a wide variety of act
 
 ## Year three Annual Report
 
-thJurlye 1,e 20 A22-nJunneu 3a, 20l2 3R
+July 1, 2022-June 3, 2023
 
 A2ZERO is our community’s plan to become carbon neutral in a just and equitable way by the year 2030. Achieving this audacious, aggressive, and scientifically necessary plan requires all of us. Learn more about how to join us in the movement at www.a2gov.org/sustainability. With questions about our achievements, our work so far, or our future endeavors, please contact us at Sustainability@a2gov.org.
-
-<!-- recovered by coverage sweep: no Docling block modelled this region on page 16; placement inferred -->
-> July 1, 2022-June 3, 2023

@@ -1582,3 +1582,20 @@ def test_both_sweeps_drop_a_bare_marker_run():
     assert is_marker_run(["•", "-", "o"])
     assert not is_marker_run(["o", "Missy", "Stults"])
     assert not is_marker_run([])                 # nothing is not a marker run
+
+
+def test_the_crop_pad_does_not_admit_the_line_above():
+    """Year 3 page 12: the header sits at top=132.67 and the paragraph below at 135.70.
+    bbox_to_crop's 2pt pad put both in one crop, and 3.03pt apart they fell inside
+    pdfplumber's 3pt line tolerance -- two real sentences woven character by character
+    into "EnhaEnNciHngA NthCeE rTeHsiEli eRnEcSeIL...". The pad is for a block's own
+    glyphs; the decision of what belongs is the true box's."""
+    true_top, true_bottom = 134.67, 200.33
+    # Real geometry off the page. crop() CLIPS an object to the window, so the heading --
+    # which really runs 119.7 to 133.34 -- comes back as a 0.67pt sliver reporting the
+    # WINDOW's top, 3.03pt from the body's first line and inside pdfplumber's tolerance.
+    sliver = {"top": 132.67, "bottom": 133.34}             # heading, clipped by the pad
+    body = {"top": 135.67, "bottom": 149.67}               # this block's first line
+    for c, belongs in ((sliver, False), (body, True)):
+        mid = (c["top"] + c["bottom"]) / 2
+        assert (true_top <= mid <= true_bottom) is belongs

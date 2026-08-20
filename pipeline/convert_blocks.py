@@ -1163,13 +1163,39 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             page = pdf.pages[b["page_no"] - 1]
             box = bbox_to_crop(tuple(b["bbox"]), b["coord_origin"],
                                b["page_h"], b["page_w"])
+            # THE PAD IS FOR GLYPHS, NOT FOR NEIGHBOURS. bbox_to_crop pads by 2pt so a
+            # block's own descenders and side-bearings are not clipped, but pdfplumber's
+            # crop() then keeps any word INTERSECTING the padded box -- and on Year 3 that
+            # 2pt is exactly enough to swallow the line above. Page 12's header sits at
+            # top=132.67 and the paragraph below it at 135.70, so both land in one crop
+            # and, being 3.03pt apart, inside pdfplumber's 3pt line tolerance. The two runs
+            # are then sorted together by x0 and woven character by character:
+            #
+            #   EnhaEnNciHngA NthCeE rTeHsiEli eRnEcSeIL oIEf NoCurE ...
+            #   thJurlye 1,e 20 A22-nJunneu 3a, 20l2 3R
+            #
+            # Both are two real sentences interleaved, and neither is recoverable
+            # afterwards -- de-hyphenation, heading repair and the gate all run on the
+            # wreckage. So the crop stays generous and the DECISION is made per character:
+            # a char belongs to the block whose TRUE box holds its vertical centre. That
+            # is the same centre test the coverage sweep already uses; the two halves of
+            # the pipeline simply disagreed about it, and the crop's half was wrong.
+            true_box = bbox_to_crop(tuple(b["bbox"]), b["coord_origin"],
+                                    b["page_h"], b["page_w"], pad=0.0)
             crop = page.crop(box)
             # Only take the corrected path when a glyph actually moved, so a document
             # with no super/subscripts extracts through exactly the code it always did.
-            fixed, moved = snap_scripts(crop.chars)
+            # SNAP FIRST, THEN DECIDE. A superscript is drawn ABOVE its line, so its
+            # centre can sit outside the block's box while the line it belongs to sits
+            # inside -- filtering first deleted the 2 from three of Year 1's A2ZEROs.
+            # snap_scripts puts each script glyph on its own line's band, after which the
+            # centre test asks the question it means to ask: which line is this, and does
+            # that line belong to this block.
+            snapped, moved = snap_scripts(crop.chars)
+            fixed = [c for c in snapped
+                     if true_box[1] <= (c["top"] + c["bottom"]) / 2 <= true_box[3]]
             n_snapped += moved
-            raws.append(((pdf_text.extract_text(fixed) if moved else crop.extract_text())
-                         or ""))
+            raws.append((pdf_text.extract_text(fixed) if fixed else "") or "")
 
     words, hyph = build_evidence("\n".join(raws))
 

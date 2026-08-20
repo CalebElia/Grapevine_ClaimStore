@@ -7,11 +7,11 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 ## Year 1  (a2zero-year1-reviewed.md)
 
 ### A. Values — check against the PDF
-- [ ] `a2zero-year1-reviewed.md:28` p.2 — block ENDS at “… to have more control over where their energy comes from” — does the sentence finish there, or was a continuation line dropped?
+- [x] `a2zero-year1-reviewed.md:28` p.2 — block ENDS at “… to have more control over where their energy comes from” — does the sentence finish there, or was a continuation line dropped?
 
 ### B. Placement — text is present; is it in the right place?
-- [ ] `a2zero-year1-reviewed.md` — section spine: 9 headings (Overview, Strategy 1: Power our ele, Strategy 2: Switch our ap, Strategy 3: Significantly, Strategy 4: Reduce the mi, Strategy 5: Change the wa…) — do they match the PDF's contents page, in order and with none invented?
-- [ ] `a2zero-year1-reviewed.md:138` — 11 nested list item(s); confirm they really belong under the bullet above them
+- [x] `a2zero-year1-reviewed.md` — section spine: 9 headings (Overview, Strategy 1: Power our ele, Strategy 2: Switch our ap, Strategy 3: Significantly, Strategy 4: Reduce the mi, Strategy 5: Change the wa…) — do they match the PDF's contents page, in order and with none invented?
+- [x] `a2zero-year1-reviewed.md:138` — 11 nested list item(s); confirm they really belong under the bullet above them
 
 ### C. Labels — skim; a wrong one is mislabelled, not lost
 - (nothing in this category)
@@ -20,47 +20,53 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 ## Year 2  (a2zero-year2-reviewed.md)
 
 ### A. Values — check against the PDF
-- [ ] `a2zero-year2-reviewed.md` — OCR term correction applied **3×**: AZZERO → A2ZERO first at `a2zero-year2-reviewed.md:1`, 14 occurrence(s) of the canonical form in the file — spot-check two or three against the PDF
-- [ ] `a2zero-year2-reviewed.md` — OCR term correction applied **9×**: AZERO → A2ZERO first at `a2zero-year2-reviewed.md:1`, 14 occurrence(s) of the canonical form in the file — spot-check two or three against the PDF
-- [ ] `a2zero-year2-reviewed.md` — OCR term correction applied **4×**: A'ZERO → A2ZERO first at `a2zero-year2-reviewed.md:1`, 14 occurrence(s) of the canonical form in the file — spot-check two or three against the PDF
-- [ ] `a2zero-year2-reviewed.md` — OCR term correction applied **2×**: A ZERO → A2ZERO first at `a2zero-year2-reviewed.md:1`, 14 occurrence(s) of the canonical form in the file — spot-check two or three against the PDF
+- [x] `a2zero-year2-reviewed.md` — OCR term correction applied **3×**: AZZERO → A2ZERO first at `a2zero-year2-reviewed.md:1`, 14 occurrence(s) of the canonical form in the file — spot-check two or three against the PDF
+- [x] `a2zero-year2-reviewed.md` — OCR term correction applied **9×**: AZERO → A2ZERO first at `a2zero-year2-reviewed.md:1`, 14 occurrence(s) of the canonical form in the file — spot-check two or three against the PDF
+- [x] `a2zero-year2-reviewed.md` — OCR term correction applied **4×**: A'ZERO → A2ZERO first at `a2zero-year2-reviewed.md:1`, 14 occurrence(s) of the canonical form in the file — spot-check two or three against the PDF
+- [x] `a2zero-year2-reviewed.md` — OCR term correction applied **2×**: A ZERO → A2ZERO first at `a2zero-year2-reviewed.md:1`, 14 occurrence(s) of the canonical form in the file — spot-check two or three against the PDF
 
 ### B. Placement — text is present; is it in the right place?
-- [ ] `a2zero-year2-reviewed.md` — section spine: 9 headings (2021 - 2022 Annual Report, Strategy 1: Power our ele, Strategy 2: Switch our ap, Strategy 3: Significantly, Strategy 4: Reduce the mi, Strategy 5: Change the wa…) — do they match the PDF's contents page, in order and with none invented?
-- [ ] `a2zero-year2-reviewed.md:19` p.3 — two headings with nothing between them: '2021 - 2022 Annual Report' then 'Strategy 1: Power our electric grid w' — one heading split in two?
-- [ ] `a2zero-year2-reviewed.md:242` — 17 nested list item(s); confirm they really belong under the bullet above them
+- [x] `a2zero-year2-reviewed.md` — section spine: 9 headings (2021 - 2022 Annual Report, Strategy 1: Power our ele, Strategy 2: Switch our ap, Strategy 3: Significantly, Strategy 4: Reduce the mi, Strategy 5: Change the wa…) — do they match the PDF's contents page, in order and with none invented?
+- [x] `a2zero-year2-reviewed.md:19` p.3 — two headings with nothing between them: '2021 - 2022 Annual Report' then 'Strategy 1: Power our electric grid w' — one heading split in two?
+- [x] `a2zero-year2-reviewed.md:242` — 17 nested list item(s); confirm they really belong under the bullet above them
 
 ### C. Labels — skim; a wrong one is mislabelled, not lost
-- [ ] `a2zero-year2-reviewed.md:39` p.3 — tagged FURNITURE: > 1 For more information on activities to support Strategy 1, please conta
-- [ ] `a2zero-year2-reviewed.md:84` p.5 — tagged FURNITURE: > [text layer] 2 For more information on activities to support Strategy 2,
-- [ ] `a2zero-year2-reviewed.md:110` p.6 — tagged FURNITURE: > 3 For more information on activities to support Strategy 3, please conta
-- [ ] `a2zero-year2-reviewed.md:145` p.8 — tagged FURNITURE: > 4 For more information on activities to support Strategy 4, please conta
-- [ ] `a2zero-year2-reviewed.md:171` p.9 — tagged FURNITURE: > 5 For more information on activities to support Strategy 5, please conta
-- [ ] `a2zero-year2-reviewed.md:224` p.11 — tagged FURNITURE: > [text layer] 6 For more information on activities to support Strategy 6,
-- [ ] `a2zero-year2-reviewed.md:264` p.12 — tagged FURNITURE: > [text layer] 7 For more information on activities to support Strategy 7,
-- [ ] `a2zero-year2-reviewed.md:85` p.5 — provenance differs from the rest of this document: > [text layer] 2 For more information on activities to support Strateg
-- [ ] `a2zero-year2-reviewed.md:225` p.11 — provenance differs from the rest of this document: > [text layer] 6 For more information on activities to support Strateg
-- [ ] `a2zero-year2-reviewed.md:265` p.12 — provenance differs from the rest of this document: > [text layer] 7 For more information on activities to support Strateg
+- [x] `a2zero-year2-reviewed.md:39` p.3 — tagged FURNITURE: > 1 For more information on activities to support Strategy 1, please conta
+- [x] `a2zero-year2-reviewed.md:84` p.5 — tagged FURNITURE: > [text layer] 2 For more information on activities to support Strategy 2,
+- [x] `a2zero-year2-reviewed.md:110` p.6 — tagged FURNITURE: > 3 For more information on activities to support Strategy 3, please conta
+- [x] `a2zero-year2-reviewed.md:145` p.8 — tagged FURNITURE: > 4 For more information on activities to support Strategy 4, please conta
+- [x] `a2zero-year2-reviewed.md:171` p.9 — tagged FURNITURE: > 5 For more information on activities to support Strategy 5, please conta
+- [x] `a2zero-year2-reviewed.md:224` p.11 — tagged FURNITURE: > [text layer] 6 For more information on activities to support Strategy 6,
+- [x] `a2zero-year2-reviewed.md:264` p.12 — tagged FURNITURE: > [text layer] 7 For more information on activities to support Strategy 7,
+- [x] `a2zero-year2-reviewed.md:85` p.5 — provenance differs from the rest of this document: > [text layer] 2 For more information on activities to support Strateg
+- [x] `a2zero-year2-reviewed.md:225` p.11 — provenance differs from the rest of this document: > [text layer] 6 For more information on activities to support Strateg
+- [x] `a2zero-year2-reviewed.md:265` p.12 — provenance differs from the rest of this document: > [text layer] 7 For more information on activities to support Strateg
 
 
 ## Year 3  (a2zero-year3-reviewed.md)
 
 ### A. Values — check against the PDF
-- [ ] `a2zero-year3-reviewed.md:49` p.2 — figure value **Electricity = 41** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:50` p.2 — figure value **Natural Gas = 27** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:51` p.2 — figure value **Transportation = 29.72** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:52` p.2 — figure value **Waste = 2** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:53` p.2 — figure value **Propane = 0.5** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:54` p.2 — figure value **Fuel Oil = 0.06** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:36` p.2 — block ENDS at “… of its electricity from renewable sources, representing an” — does the sentence finish there, or was a continuation line dropped?
-- [ ] `a2zero-year3-reviewed.md:205` p.9 — block ENDS at “Passed a resolution to restrict turns on red lights in” — does the sentence finish there, or was a continuation line dropped?
-- [ ] `a2zero-year3-reviewed.md:280` p.12 — block ENDS at “The Greenbelt reached 7,600 acres of farmland and” — does the sentence finish there, or was a continuation line dropped?
-- [ ] `a2zero-year3-reviewed.md:8` — coverage period read as **July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
-- [ ] `a2zero-year3-reviewed.md:274` p.12 — hyphen then SPACE in **City- and** — a line-break split usually joins to *City-and*; only a suspended hyphen ("City- and community-wide") keeps the space
-- [ ] `a2zero-year3-reviewed.md:79` — hyphen kept on **U-20836** because the document gave no evidence either way; should it be *U20836*?
-- [ ] `a2zero-year3-reviewed.md:144` — hyphen kept on **soon-to** because the document gave no evidence either way; should it be *soonto*?
-- [ ] `a2zero-year3-reviewed.md:230` — hyphen kept on **zero-waste** because the document gave no evidence either way; should it be *zerowaste*?
-- [ ] `a2zero-year3-reviewed.md:399` — hyphen kept on **co-designed** because the document gave no evidence either way; should it be *codesigned*?
+- [x] `a2zero-year3-reviewed.md:49` p.2 — figure value **Electricity = 41** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:50` p.2 — figure value **Natural Gas = 27** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:51` p.2 — figure value **Transportation = 29.72** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:52` p.2 — figure value **Waste = 2** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:53` p.2 — figure value **Propane = 0.5** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:54` p.2 — figure value **Fuel Oil = 0.06** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:36` p.2 — block ENDS at “… of its electricity from renewable sources, representing an” — does the sentence finish there, or was a continuation line dropped?
+    → Sentence is completed in the next column under the figure, so the sentence should finish as "… of its electricity from renewable sources, representing an offset of 6% of community-wide emissions." That string is sitting in line 66, with a recovery flag on it.
+- [x] `a2zero-year3-reviewed.md:205` p.9 — block ENDS at “Passed a resolution to restrict turns on red lights in” — does the sentence finish there, or was a continuation line dropped?
+    → Dropped the rest of the sentence because it carries to the next column, sitting under the image. The line is "... the downtown, reducing vehicle/bicyclist conflicts." The data is in the md, just sitting alone at line 213.
+- [x] `a2zero-year3-reviewed.md:280` p.12 — block ENDS at “The Greenbelt reached 7,600 acres of farmland and” — does the sentence finish there, or was a continuation line dropped?
+    → Dropped the rest of the sentence. Similar pattern. The sentence carries across the columns and sits under an image. In this case, the rest of the sentence is simply separated, sitting at line 282.
+- [x] `a2zero-year3-reviewed.md:8` — coverage period read as **July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
+    → Leave as is. We don't know why it reads June 3. June 30 makes more sense, but we'd need to confirm inaccuracy with the author. We should report dates as we recieve them, unless there's disagreement about the report dates within the report itself. 
+- [x] `a2zero-year3-reviewed.md:274` p.12 — hyphen then SPACE in **City- and** — a line-break split usually joins to *City-and*; only a suspended hyphen ("City- and community-wide") keeps the space
+    → Keep the "City- and community-wide" spelling that is correct. There's a larger issue here, likely caused by the weirdly changing fonts in the image, but lines 272-274 should be all one line, and read, "Together with Public Works and Natural Areas Preservation, submitted a USDA Forest Service Urban & Community Forestry Inflation Reduction Act grant proposal to fund an update to Ann Arbor’s Urban Tree Canopy assessment, advance private property tree planting efforts, create a NAP management plan, and conduct a feasibility study for a City- and County-owned tree nursery." ALSO, lines 270 and 272 are incorrectly indented, mirroring the image layout. But semantically, these are the same as all the other bullets. This isn't a sublist with a preceding ":" function.
+- [x] `a2zero-year3-reviewed.md:79` — hyphen kept on **U-20836** because the document gave no evidence either way; should it be *U20836*?
+- [x] `a2zero-year3-reviewed.md:144` — hyphen kept on **soon-to** because the document gave no evidence either way; should it be *soonto*?
+    → "soon-to-be" is correct in here, but lines 142 and 144 are broken and should read as one line: "Held a convening with over 30 contractors across multiple disciplines to discuss misconceptions around electrification, promote City electrification programs and resources, collect feedback on soon-to-be created A2ZERO rebate programs, and discern best practices for increasing electrification through contractor collaboration."
+- [x] `a2zero-year3-reviewed.md:230` — hyphen kept on **zero-waste** because the document gave no evidence either way; should it be *zerowaste*?
+- [x] `a2zero-year3-reviewed.md:399` — hyphen kept on **co-designed** because the document gave no evidence either way; should it be *codesigned*?
 
 ### B. Placement — text is present; is it in the right place?
 - [ ] `a2zero-year3-reviewed.md:22` p.1 — recovered region, placement INFERRED: > July 1, 2022-June 3, 2023
