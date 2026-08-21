@@ -1,0 +1,160 @@
+"""The coordinate space every stored span is an offset into.
+
+Getting this wrong is not a bug anyone notices: a span still round-trips perfectly against
+the text it was written from, and points at the wrong words in the text you now have.
+"""
+import re
+
+from pipeline.canonical import BLOCK_SEP, build, parse, sections
+
+MD = """# YEAR THREE ANNUAL REPORT
+
+<!-- gate: PASS -->
+<!-- generated 2026-08-21T00:00:00Z -- structure from Docling -->
+<!-- run: a title from the command line -->
+<!-- COVERAGE PERIOD: July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -->
+
+<!-- p.1 -->
+July 1, 2022-June 3, 2023
+
+The Ann Arbor Office of Sustainability and Innovations Team
+
+## INTRODUCTION
+
+<!-- p.2 -->
+As A2ZERO turns three, we reflect on actions taken.
+
+**Figure (pie_chart, page 2):** Waste, 2% Electricity, 41%
+
+<figure_description>
+  <relevance>substantive</relevance>
+  <point label="Electricity" value="41" unit="percent"/>
+</figure_description>
+
+- Planted 10,000 trees.
+  - A nested achievement.
+
+<!-- FURNITURE: page footer, not an assertion -->
+> 1 For more information contact someone@a2gov.org
+
+<!-- CAPTION: describes a photograph on page 2 that was not retained -->
+> Solar array installed at Gallup Park.
+
+<!-- recovered by coverage sweep: no Docling block modelled this region on page 2 -->
+> a fragment whose placement was inferred
+
+<!-- ORNAMENTAL FIGURE: screenshot_from_computer on page 6 was examined -->
+
+<!-- p.3 -->
+> [OCR] a block read by OCR where the document is a text layer
+"""
+
+
+def test_every_unit_round_trips():
+    c = build(MD)
+    for u in c.units:
+        if u.is_prose:
+            assert c.slice(u.char_start, u.char_end) == u.text, u.text
+
+
+def test_offsets_are_assigned_by_construction_not_by_searching():
+    """Two identical bullets on one page would both FIND the first occurrence, and the
+    second claim would cite the first bullet while round-tripping perfectly."""
+    md = "# t\n\n- Planted 10,000 trees.\n\n- Planted 10,000 trees.\n"
+    c = build(md)
+    bullets = [u for u in c.units if u.kind == "list_item"]
+    assert len(bullets) == 2
+    assert bullets[0].char_start != bullets[1].char_start
+    assert c.slice(*(bullets[1].char_start, bullets[1].char_end)) == "Planted 10,000 trees."
+
+
+def test_the_hash_ignores_everything_that_changes_between_runs():
+    base = build(MD).content_hash
+    for swap in ((r"generated \d{4}-\d\d-\d\dT[\d:]+Z", "generated 2099-01-01T00:00:00Z"),
+                 (r"<!-- gate: \w+ -->", "<!-- gate: REVIEW -->"),
+                 (r"<!-- run: [^>]*-->", "<!-- run: anything at all -->")):
+        assert build(re.sub(swap[0], swap[1], MD)).content_hash == base, swap[0]
+
+
+def test_the_hash_changes_when_a_word_does():
+    assert build(MD.replace("Planted", "Planting")).content_hash != build(MD).content_hash
+
+
+def test_tags_become_fields_rather_than_characters():
+    """FURNITURE, CAPTION and the sweep's warning are how the renderer tells ingest what it
+    decided -- tagging is what was bought instead of deleting, so it must survive as
+    structure rather than as prose."""
+    c = build(MD)
+    kinds = {u.kind for u in c.units}
+    assert {"title", "heading", "para", "list_item", "caption", "furniture"} <= kinds
+    furn = next(u for u in c.units if u.kind == "furniture")
+    assert furn.flags["is_furniture"] and "FURNITURE" not in c.text
+    cap = next(u for u in c.units if u.kind == "caption" and "Gallup" in u.text)
+    assert cap.flags["is_caption"] and "CAPTION" not in c.text
+    swept = next(u for u in c.units if "placement was inferred" in u.text)
+    assert swept.flags["placement_inferred"]
+
+
+def test_provenance_is_a_flag_not_a_prefix():
+    c = build(MD)
+    u = next(u for u in c.units if "read by OCR" in u.text)
+    assert u.flags["text_source"] == "docling_ocr"
+    assert "[OCR]" not in c.text
+
+
+def test_figure_xml_is_not_document_text():
+    """Vision output belongs in document_figures.raw_xml, not in the span space."""
+    c = build(MD)
+    assert "<relevance>" not in c.text and "figure_description" not in c.text
+    assert any(u.kind == "figure" and u.flags["figure_state"] == "ornamental"
+               for u in c.units)
+
+
+def test_pages_and_list_levels_survive():
+    c = build(MD)
+    assert next(u for u in c.units if "turns three" in u.text).page_no == 2
+    assert next(u for u in c.units if "nested achievement" in u.text).level == 1
+
+
+def test_front_matter_is_its_own_section():
+    """Everything before the first heading holds the title, the period and the sign-off --
+    attaching it to INTRODUCTION would misattribute all three."""
+    secs = sections(build(MD))
+    assert secs[0]["heading"] is None
+    assert secs[1]["heading"] == "INTRODUCTION"
+    assert secs[0]["char_end"] <= secs[1]["char_start"]
+
+
+def test_section_ranges_are_contiguous_and_hashed():
+    c = build(MD)
+    for s in sections(c):
+        assert 0 <= s["char_start"] < s["char_end"] <= len(c.text)
+        assert len(s["content_hash"]) == 64
+
+
+def test_a_document_with_no_headings_is_one_section():
+    c = build("# t\n\n- only a bullet.\n")
+    assert len(sections(c)) == 1
+
+
+def test_the_real_corpus_round_trips():
+    """The five converted reports, every unit, every section. This is the claim the store
+    rests on and it is cheap to check, so it is checked against real documents rather than
+    only against a fixture."""
+    import pathlib
+    mds = sorted(pathlib.Path("processing").glob("a2zero-year*/orchestrated/*-reviewed.md"))
+    if not mds:
+        import pytest
+        pytest.skip("converted corpus not present")
+    assert len(mds) == 5
+    for p in mds:
+        c = build(p.read_text())
+        assert c.units and c.text
+        for u in c.units:
+            if u.is_prose:
+                assert c.slice(u.char_start, u.char_end) == u.text, f"{p.name}: {u.text[:40]}"
+        for s in sections(c):
+            assert 0 <= s["char_start"] < s["char_end"] <= len(c.text)
+        # every heading the renderer emitted survives into the span space
+        heads = [l[3:].strip() for l in p.read_text().splitlines() if l.startswith("## ")]
+        assert all(h in c.text for h in heads), p.name
