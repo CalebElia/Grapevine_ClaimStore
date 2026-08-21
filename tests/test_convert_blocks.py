@@ -1830,3 +1830,51 @@ def test_case_is_only_taken_when_every_letter_matches():
 def test_a_lowercased_ocr_read_never_rewrites_a_heading():
     from pipeline.convert_blocks import adopt_rendered_case
     assert adopt_rendered_case("STRATEGY ONE", "strategy one") == "STRATEGY ONE"
+
+
+def test_a_single_column_page_is_emitted_top_to_bottom():
+    """Year 3 page 16 emits CLOSING before the title and date that sit above it."""
+    from pipeline.convert_blocks import order_single_column_pages
+    # Real Year 3 geometry, with the coord_origin every Docling block carries: BOTTOMLEFT,
+    # so a HIGHER bbox[1] is HIGHER on the page.
+    d = {"page_no": 16, "coord_origin": "BOTTOMLEFT", "page_h": 792.0}
+    page = [{**d, "kind": "SectionHeaderItem", "text": "CLOSING",
+             "bbox": [34.5, 499.9, 164.5, 485.5], "_ord": 0.0},
+            {**d, "kind": "SectionHeaderItem", "text": "YEAR THREE ANNUAL REPORT",
+             "bbox": [147.2, 589.4, 464.8, 560.6], "_ord": 1.0},
+            {**d, "kind": "TextItem", "text": "JULY 1, 2022-JUNE 3, 2023",
+             "bbox": [227.8, 551.4, 383.1, 531.8], "_ord": 2.0}]
+    assert order_single_column_pages(page) == 1
+    assert [b["text"][:5] for b in page] == ["YEAR ", "JULY ", "CLOSI"]
+    assert [b["_ord"] for b in page] == [0.0, 1.0, 2.0]   # _ord redealt, span preserved
+
+
+def test_a_two_column_page_keeps_doclings_order():
+    """On a multi-column page Docling's sequence is the only thing that knows the left
+    column continues past the right one."""
+    from pipeline.convert_blocks import order_single_column_pages
+    # Real columns run BESIDE each other -- their vertical spans overlap. A fixture whose
+    # "columns" sit one above the other is a single column with two alignments, which is
+    # exactly the Year 3 page 16 case this must NOT be confused with.
+    d = {"page_no": 13, "coord_origin": "BOTTOMLEFT", "page_h": 792.0}
+    page = [{**d, "kind": "ListItem", "text": "left top",
+             "bbox": [52.9, 660.0, 300.0, 100.0], "_ord": 0.0},
+            {**d, "kind": "ListItem", "text": "left bottom",
+             "bbox": [52.9, 200.0, 300.0, 100.0], "_ord": 1.0},
+            {**d, "kind": "ListItem", "text": "right top",
+             "bbox": [377.3, 640.0, 580.0, 120.0], "_ord": 2.0}]
+    assert order_single_column_pages(page) == 0
+    assert [b["text"] for b in page] == ["left top", "left bottom", "right top"]
+
+
+def test_the_two_coordinate_systems_are_reconciled_before_sorting():
+    """Docling's boxes are BOTTOMLEFT and the sweep's are TOPLEFT. Ranking both on
+    bbox[1] printed Year 5's table of contents backwards."""
+    from pipeline.convert_blocks import order_single_column_pages
+    page = [{"kind": "TextItem", "text": "top of page", "page_no": 2, "_ord": 0.0,
+             "bbox": [50.0, 700.0, 300.0, 680.0], "coord_origin": "BOTTOMLEFT",
+             "page_h": 792.0},                                    #真 top: 92
+            {"kind": "UncoveredText", "text": "middle", "page_no": 2, "_ord": 1.0,
+             "bbox": [50.0, 300.0, 300.0, 320.0], "coord_origin": "", "page_h": 792.0}]
+    assert order_single_column_pages(page) == 0                   # already top-to-bottom
+    assert [b["text"] for b in page] == ["top of page", "middle"]

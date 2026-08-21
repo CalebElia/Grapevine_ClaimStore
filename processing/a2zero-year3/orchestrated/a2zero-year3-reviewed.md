@@ -1,7 +1,7 @@
 # YEAR THREE ANNUAL REPORT
 <!-- gate: PASS -->
 
-<!-- generated 2026-08-21T02:29:14Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-21T03:20:55Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 0 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 3 -->
 <!-- COVERAGE PERIOD: JULY 1, 2022-JUNE 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
@@ -400,10 +400,10 @@ As illustrated above, year three of A2ZERO was filled with a wide variety of act
 - Fully launching the A2ZERO Home Energy Advisor Program.
 
 <!-- p.16 -->
-## CLOSING
-
 ## YEAR THREE ANNUAL REPORT
 
 JULY 1, 2022-JUNE 3, 2023
+
+## CLOSING
 
 A2ZERO is our community’s plan to become carbon neutral in a just and equitable way by the year 2030. Achieving this audacious, aggressive, and scientifically necessary plan requires all of us. Learn more about how to join us in the movement at www.a2gov.org/sustainability. With questions about our achievements, our work so far, or our future endeavors, please contact us at Sustainability@a2gov.org.

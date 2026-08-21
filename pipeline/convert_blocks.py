@@ -475,6 +475,94 @@ def split_on_docling_bullets(pdf_text: str, docling_text: str) -> list[str] | No
 _OPEN_END = re.compile(r'[.!?:;]["\u201d)]?\s*$')
 
 
+def is_multi_column(blocks: list[dict]) -> bool:
+    """Whether one page's blocks really are laid out in columns.
+
+    column_edges() answers a narrower question -- are there left edges separated by a
+    gutter -- and on Year 3 page 16 it says yes for a page that has none: a centred title
+    at x=147 and a centred date at x=228 above a left-aligned CLOSING at x=34. Those are
+    three alignments in one column, not two columns.
+
+    Real columns run BESIDE each other, so their vertical spans overlap: Year 2 page 13
+    overlaps 99% and Year 4 page 8 overlaps 95%. Year 3 page 16 overlaps 0% -- the
+    "second column" sits entirely above the first, which is what a page centre-aligning
+    its masthead looks like.
+    """
+    boxed = [b for b in blocks if b.get("bbox") and b["kind"] != "PictureItem"]
+    edges = column_edges([b["bbox"][0] for b in boxed]) if boxed else []
+    if len(edges) < 2:
+        return False
+    left = [b for b in boxed if b["bbox"][0] < edges[-1] - 1]
+    right = [b for b in boxed if b["bbox"][0] >= edges[-1] - 1]
+    if not left or not right:
+        return False
+    lo_l, hi_l = min(b["bbox"][3] for b in left), max(b["bbox"][1] for b in left)
+    lo_r, hi_r = min(b["bbox"][3] for b in right), max(b["bbox"][1] for b in right)
+    span = min(hi_l - lo_l, hi_r - lo_r)
+    if span <= 0:
+        return False
+    return (max(0.0, min(hi_l, hi_r) - max(lo_l, lo_r)) / span) > 0.3
+
+
+def order_single_column_pages(resolved: list[dict]) -> int:
+    """On a page that is not in columns, emit blocks top to bottom.
+
+    Year 3 page 16 emits CLOSING before the title and date that sit ABOVE it, so the
+    document closes with its own masthead printed after the closing section. Caleb:
+    "looking at the PDF from top to bottom, YEAR THREE ANNUAL REPORT and July 1,
+    2022-June 3, 2023 should proceed CLOSING."
+
+    ONLY WHERE READING ORDER CANNOT BE CARRYING INFORMATION. On a multi-column page
+    Docling's sequence is the single thing that knows the left column continues past the
+    right one, and sorting by height would interleave them -- which is the failure this
+    module was written to prevent. On a single-column page there is nothing to know:
+    top-to-bottom IS the reading order, and any disagreement is Docling's error.
+
+    Blocks without a box keep their place; they cannot be positioned and have no claim to
+    be moved.
+
+    IT COMPARES IN ONE COORDINATE SPACE. Docling's boxes are BOTTOMLEFT and the coverage
+    sweep's are TOPLEFT, so sorting both on bbox[1] ranks one group upside down. Sorting
+    Year 5's contents page that way printed its table of contents backwards -- 24 CLOSING
+    first and 3 INTRODUCTION last -- which is a worse defect than the one being fixed and
+    the reason every block's top is resolved through its own coord_origin here.
+
+    IT REWRITES `_ord`, NOT JUST THE LIST. convert() re-interleaves the pictures at the
+    end with `sorted(..., key=_ord)`, so re-arranging the list alone is undone a few
+    hundred lines later and the pass silently does nothing at all. The `_ord` values of
+    the moved slots are redealt in their existing ascending order, which keeps every
+    block inside the span it already occupied and leaves the pictures interleaving
+    exactly where they did.
+    """
+    moved, i = 0, 0
+    while i < len(resolved):
+        pg = resolved[i].get("page_no")
+        j = i
+        while j < len(resolved) and resolved[j].get("page_no") == pg:
+            j += 1
+        page = resolved[i:j]
+        if len(page) > 1 and not is_multi_column(page):
+            def top_of(b: dict) -> float | None:
+                bb, ph = b.get("bbox"), b.get("page_h")
+                if not bb:
+                    return None
+                if "BOTTOMLEFT" in (b.get("coord_origin") or "") and ph:
+                    return min(ph - bb[1], ph - bb[3])
+                return min(bb[1], bb[3])
+
+            boxed = [k for k, b in enumerate(page) if top_of(b) is not None]
+            order = sorted(boxed, key=lambda k: top_of(page[k]))
+            if order != boxed:
+                slots = sorted(page[k]["_ord"] for k in boxed)
+                shuffled = list(page)
+                for slot, src, ordv in zip(boxed, order, slots):
+                    shuffled[slot] = {**page[src], "_ord": ordv}
+                resolved[i:j] = shuffled
+                moved += 1
+        i = j
+    return moved
+
+
 def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
                           hyph: set[str] | None = None) -> int:
     """Merge a block that ends mid-sentence with the block that finishes it.
@@ -1740,6 +1828,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
                                      "docling_text": ""})
                 content_recovered.append((pno, txt[:70]))
 
+    order_single_column_pages(resolved)
     n_joined = rejoin_open_sentences(resolved, words, hyph)
     mark_signoff(resolved)
     assign_nesting(resolved, ems, pictures=blocks)
