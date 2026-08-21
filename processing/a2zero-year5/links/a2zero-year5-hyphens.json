@@ -1,0 +1,26 @@
+[
+  {
+    "a": "science",
+    "b": "based",
+    "choice": "hyphen",
+    "resolved": "science-based",
+    "why": "Established compound modifier",
+    "decided_at": "2026-08-21T18:01:16Z"
+  },
+  {
+    "a": "zero",
+    "b": "emission",
+    "choice": "hyphen",
+    "resolved": "zero-emission",
+    "why": "Real compound modifier",
+    "decided_at": "2026-08-21T18:01:16Z"
+  },
+  {
+    "a": "to",
+    "b": "Government",
+    "choice": "hyphen",
+    "resolved": "to-Government",
+    "why": "Government-to-Government identifier",
+    "decided_at": "2026-08-21T18:01:16Z"
+  }
+]

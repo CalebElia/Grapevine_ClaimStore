@@ -1,0 +1,26 @@
+[
+  {
+    "a": "U",
+    "b": "20836",
+    "choice": "hyphen",
+    "resolved": "U-20836",
+    "why": "Utility rate-case docket identifier.",
+    "decided_at": "2026-08-21T18:00:31Z"
+  },
+  {
+    "a": "zero",
+    "b": "waste",
+    "choice": "hyphen",
+    "resolved": "zero-waste",
+    "why": "Common real compound term.",
+    "decided_at": "2026-08-21T18:00:31Z"
+  },
+  {
+    "a": "co",
+    "b": "designed",
+    "choice": "hyphen",
+    "resolved": "co-designed",
+    "why": "Standard hyphenated participial form.",
+    "decided_at": "2026-08-21T18:00:31Z"
+  }
+]

@@ -1,0 +1,66 @@
+[
+  {
+    "a": "to",
+    "b": "date",
+    "choice": "hyphen",
+    "resolved": "to-date",
+    "why": "\u201cTo-date\u201d is a plausible written compound.",
+    "decided_at": "2026-08-21T18:00:54Z"
+  },
+  {
+    "a": "U",
+    "b": "21291",
+    "choice": "hyphen",
+    "resolved": "U-21291",
+    "why": "Utility rate-case docket identifier.",
+    "decided_at": "2026-08-21T18:00:54Z"
+  },
+  {
+    "a": "all",
+    "b": "electric",
+    "choice": "hyphen",
+    "resolved": "all-electric",
+    "why": "Real compound modifier.",
+    "decided_at": "2026-08-21T18:00:54Z"
+  },
+  {
+    "a": "zero",
+    "b": "emissions",
+    "choice": "hyphen",
+    "resolved": "zero-emissions",
+    "why": "Real compound modifier.",
+    "decided_at": "2026-08-21T18:00:54Z"
+  },
+  {
+    "a": "plant",
+    "b": "forward",
+    "choice": "hyphen",
+    "resolved": "plant-forward",
+    "why": "Real compound modifier.",
+    "decided_at": "2026-08-21T18:00:54Z"
+  },
+  {
+    "a": "follow",
+    "b": "up",
+    "choice": "hyphen",
+    "resolved": "follow-up",
+    "why": "\u201cFollow-up\u201d is a standard compound noun.",
+    "decided_at": "2026-08-21T18:00:54Z"
+  },
+  {
+    "a": "co",
+    "b": "designed",
+    "choice": "hyphen",
+    "resolved": "co-designed",
+    "why": "\u201cCo-designed\u201d is standard usage.",
+    "decided_at": "2026-08-21T18:00:54Z"
+  },
+  {
+    "a": "sustainability",
+    "b": "focused",
+    "choice": "hyphen",
+    "resolved": "sustainability-focused",
+    "why": "Real compound modifier.",
+    "decided_at": "2026-08-21T18:00:54Z"
+  }
+]

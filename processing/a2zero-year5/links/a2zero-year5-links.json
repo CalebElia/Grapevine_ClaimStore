@@ -26,14 +26,17 @@
   {
     "uri": "https://www.a2gov.org/sustainability-innovations-home/about-osi/a2zero-community-collaborators/",
     "page_no": 3,
-    "anchor_text": "become an A2ZERO Ambassador, take one of our sustainability challenges, join us an A2ZERO Collab- orator, or find new and innovative ways to help grow the sustainability movement locally. And, if you",
-    "context_sentence": "",
-    "char_start": null,
-    "char_end": null,
+    "anchor_text": "You can join us at one of our upcoming events, participate in our A2ZERO Green Business Challenge, become an A2ZERO Ambassador, take one of our sustainability challenges, join us an A2ZERO Collaborator, or find new and innovative ways to help grow the sustainability movement locally.",
+    "context_sentence": "You can join us at one of our upcoming events, participate in our A2ZERO Green Business Challenge, become an A2ZERO Ambassador, take one of our sustainability challenges, join us an A2ZERO Collaborator, or find new and innovative ways to help grow the sustainability movement locally.",
+    "char_start": 1641,
+    "char_end": 1925,
     "block_kind": null,
-    "located": false,
+    "located": true,
     "source_content_hash": "9267a4ec9a5263688ff5194f3f0298c0c66625c7deacf0aa6c65d955ed0d4b9b",
-    "harvested_at": "2026-08-21T17:40:26Z"
+    "harvested_at": "2026-08-21T17:40:26Z",
+    "anchored_by": "semantic_pass",
+    "why": "Mentions joining A2ZERO Collaborator",
+    "decided_at": "2026-08-21T18:01:23Z"
   },
   {
     "uri": "https://www.a2gov.org/sustainability-innovations-home/newsletter-events/",
@@ -254,14 +257,17 @@
   {
     "uri": "https://www.a2gov.org/sustainability-innovations-home/sustainability-me/for-families-individuals/solar-in-ann-arbor/",
     "page_no": 6,
-    "anchor_text": "Our Solarize solar installed Solarize was",
-    "context_sentence": "",
-    "char_start": null,
-    "char_end": null,
+    "anchor_text": "Our Solarize program reached 5.4MW of solar installed through the program!",
+    "context_sentence": "Our Solarize program reached 5.4MW of solar installed through the program!",
+    "char_start": 7673,
+    "char_end": 7747,
     "block_kind": null,
-    "located": false,
+    "located": true,
     "source_content_hash": "9267a4ec9a5263688ff5194f3f0298c0c66625c7deacf0aa6c65d955ed0d4b9b",
-    "harvested_at": "2026-08-21T17:40:26Z"
+    "harvested_at": "2026-08-21T17:40:26Z",
+    "anchored_by": "semantic_pass",
+    "why": "Solarize program information",
+    "decided_at": "2026-08-21T18:01:23Z"
   },
   {
     "uri": "https://www.canwashtenaw.org/bryant",
@@ -410,14 +416,17 @@
   {
     "uri": "https://www.theride.org/about/projects/zero-emissions-bus-initiative",
     "page_no": 9,
-    "anchor_text": "OSI supported TheRide in their successful grant application for $25 MILLION to fund zero- emission buses and refueling stations. The program is part of the Federal Transit Administration\u2019s",
-    "context_sentence": "",
-    "char_start": null,
-    "char_end": null,
+    "anchor_text": "OSI supported TheRide in their successful grant application for $25 MILLION to fund zero-emission buses and refueling stations.",
+    "context_sentence": "OSI supported TheRide in their successful grant application for $25 MILLION to fund zero-emission buses and refueling stations.",
+    "char_start": 16148,
+    "char_end": 16275,
     "block_kind": null,
-    "located": false,
+    "located": true,
     "source_content_hash": "9267a4ec9a5263688ff5194f3f0298c0c66625c7deacf0aa6c65d955ed0d4b9b",
-    "harvested_at": "2026-08-21T17:40:26Z"
+    "harvested_at": "2026-08-21T17:40:26Z",
+    "anchored_by": "semantic_pass",
+    "why": "TheRide zero-emission bus initiative",
+    "decided_at": "2026-08-21T18:01:23Z"
   },
   {
     "uri": "https://a2gbc.org/",
@@ -914,14 +923,17 @@
   {
     "uri": "https://www.a2gov.org/departments/sustainability/Sustainability-Me/Businesses/Pages/A2-Green-Business-Challenge.aspx",
     "page_no": 23,
-    "anchor_text": "Scale the Ann Arbor Green Business Challenge to 50 local businesses.",
-    "context_sentence": "",
-    "char_start": null,
-    "char_end": null,
+    "anchor_text": "You can join us at one of our upcoming events, participate in our A2ZERO Green Business Challenge, become an A2ZERO Ambassador, take one of our sustainability challenges, join us an A2ZERO Collaborator, or find new and innovative ways to help grow the sustainability movement locally.",
+    "context_sentence": "You can join us at one of our upcoming events, participate in our A2ZERO Green Business Challenge, become an A2ZERO Ambassador, take one of our sustainability challenges, join us an A2ZERO Collaborator, or find new and innovative ways to help grow the sustainability movement locally.",
+    "char_start": 1641,
+    "char_end": 1925,
     "block_kind": null,
-    "located": false,
+    "located": true,
     "source_content_hash": "9267a4ec9a5263688ff5194f3f0298c0c66625c7deacf0aa6c65d955ed0d4b9b",
-    "harvested_at": "2026-08-21T17:40:26Z"
+    "harvested_at": "2026-08-21T17:40:26Z",
+    "anchored_by": "semantic_pass",
+    "why": "Invites participation in challenge",
+    "decided_at": "2026-08-21T18:01:23Z"
   },
   {
     "uri": "https://www.a2gov.org/departments/sustainability/Sustainability-Me/Families-Individuals/Pages/Aging-in-Place-Efficiently.aspx",
