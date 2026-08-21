@@ -1,7 +1,7 @@
 # A2ZER0 Annual Report Year Five
 <!-- gate: PASS -->
 
-<!-- generated 2026-08-21T03:21:00Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-21T14:32:40Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 2 figure(s) · 23 caption(s) tagged · 0 furniture block(s) · 11 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 5 -->
 <!-- COVERAGE PERIOD: June 1, 2024 – May 31, 2025 -> 2024-06-01..2025-05-31 (364 days) -->

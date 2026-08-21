@@ -1,7 +1,7 @@
 # A2ZERO YEAR FOUR ANNUAL REPORT JULY 1, 2023 – JUNE 3, 2024
 <!-- gate: PASS -->
 
-<!-- generated 2026-08-21T03:20:57Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-21T14:32:37Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 0 figure(s) · 16 caption(s) tagged · 0 furniture block(s) · 0 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 4 -->
 <!-- COVERAGE PERIOD: JULY 1, 2023 – JUNE 3, 2024 -> 2023-07-01..2024-06-03 (338 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
@@ -132,6 +132,8 @@ Strategy 1 of A²ZERO calls for the community’s electrical energy to be powere
 > Drilling for the installation of geothermal at 121 Catherine Street, July 2023.
 
 <!-- p.8 -->
+## STRATEGY 2: Switch our Appliances and Vehicles from Gasoline, Diesel, Propane, Coal, and Natural Gas to Electric
+
 Strategy 2 of A²ZERO focuses on beneficial electrification, or the switching of appliances and vehicles to those powered with electric (away from fossil fuel powered infrastructure). A lot of work in year four focused on advancing beneficial electrification, be that through educational campaigns, engagement activities, the creation of new programs, or grant writing. Some of the most notable activities to advance Strategy 2 over the last year include:
 
 - Hosted 2nd Annual Home Electrification Expo and actively planning the 3rd annual Expo.
@@ -149,8 +151,6 @@ Strategy 2 of A²ZERO focuses on beneficial electrification, or the switching of
 - Began designing a district geothermal system in the Bryant neighborhood through a grant from the U.S. Department of Energy. This system is being designed to cover at least 75% of the heating and cooling load for 262 households, the County Mental Health facility, Bryant Elementary School, the Bryant Community Center, and the City’s public works facility.
 
 - Initiated work on a city-wide networked geothermal study to understand the potential for geothermal systems to support the decarbonization of heating and cooling systems in the City.
-
-## STRATEGY 2: Switch our Appliances and Vehicles from Gasoline, Diesel, Propane, Coal, and Natural Gas to Electric
 
 <!-- p.9 -->
 - Supported the gas leaf blower phase-out ordinance by launching a new website, a series of educational materials, and personalized outreach. Preparing to launch a bulk buy program for electric yard equipment in late 2024.

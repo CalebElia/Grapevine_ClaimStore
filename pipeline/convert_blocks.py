@@ -563,6 +563,73 @@ def order_single_column_pages(resolved: list[dict]) -> int:
     return moved
 
 
+_LABEL = re.compile(r"\s*([A-Za-z][A-Za-z\s]{0,18}?)\s*"
+                    r"(\d+|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN)\b", re.I)
+
+
+def heading_label(text: str) -> str | None:
+    """A heading's LABEL -- its leading words up to and including its number.
+
+    _lead_shape's three tokens are too fine for this: "STRATEGY 1: Powering Our" and
+    "STRATEGY 2: Switch our" share no shape at all under it, so seven headings of one
+    obvious series looked like seven unrelated blocks. What recurs across a section series
+    is the label, not the title.
+    """
+    m = _LABEL.match(text or "")
+    return f"{m.group(1).strip().lower()} #" if m else None
+
+
+def place_swept_headings(resolved: list[dict], shapes: set[str]) -> int:
+    """Move a swept heading to the top of its page when the document puts its series there.
+
+    Year 4 prints each strategy heading inside the photograph that opens its section, so
+    Docling models no block for it and the coverage sweep recovers it -- then appends it at
+    the END of its page, which is where strays go by design. Strategy 2's heading therefore
+    printed after the bullets it introduces, and the section had no title where a reader,
+    or a sectioner, would look for one.
+
+    THE DOCUMENT SAYS WHERE IT BELONGS, WHICH IS CALEB'S POINT: "each of these annual
+    reports has a repeated structure for their strategy sections... within each report
+    there's a stylistic structure that's consistent. That's how you know where the
+    Strategy 2 is supposed to live." Year 4's other strategy headings open their page --
+    and so do Year 3's 7 of 7 and Year 5's 7 of 7. So the rule is not "swept headings go to
+    the top" but "this heading joins a series this document consistently opens pages with".
+
+    Three conditions, and the population is one block in five reports: it must be SWEPT, so
+    there is no reading order to disturb -- a stray never had one; it must carry a heading
+    shape the document itself uses; and its label must recur on at least two modelled
+    headings, a clear majority of which open their own page.
+    """
+    txt = [b for b in resolved if (b.get("text") or "").strip()]
+    first_on_page: dict[int, dict] = {}
+    for b in txt:
+        first_on_page.setdefault(b["page_no"], b)
+    series: dict[str, list[dict]] = {}
+    for b in txt:
+        if b["kind"] == "SectionHeaderItem":
+            lb = heading_label(b.get("text") or "")
+            if lb:
+                series.setdefault(lb, []).append(b)
+
+    moved = 0
+    for b in list(resolved):
+        if b["kind"] != "UncoveredText" or not _matches_heading_shape(b, shapes):
+            continue
+        peers = series.get(heading_label(b.get("text") or "") or "", [])
+        if len(peers) < 2:
+            continue
+        opens = sum(1 for p in peers if first_on_page.get(p["page_no"]) is p)
+        if opens * 2 <= len(peers):
+            continue                       # the series does not open pages; leave it be
+        head = first_on_page.get(b["page_no"])
+        if head is None or head is b:
+            continue
+        resolved.remove(b)
+        resolved.insert(resolved.index(head), {**b, "_ord": head["_ord"] - 0.0001})
+        moved += 1
+    return moved
+
+
 def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
                           hyph: set[str] | None = None) -> int:
     """Merge a block that ends mid-sentence with the block that finishes it.
@@ -1829,6 +1896,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
                 content_recovered.append((pno, txt[:70]))
 
     order_single_column_pages(resolved)
+    place_swept_headings(resolved, heading_shapes(resolved))
     n_joined = rejoin_open_sentences(resolved, words, hyph)
     mark_signoff(resolved)
     assign_nesting(resolved, ems, pictures=blocks)

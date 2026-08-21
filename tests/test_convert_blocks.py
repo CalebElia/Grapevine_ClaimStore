@@ -1878,3 +1878,48 @@ def test_the_two_coordinate_systems_are_reconciled_before_sorting():
              "bbox": [50.0, 300.0, 300.0, 320.0], "coord_origin": "", "page_h": 792.0}]
     assert order_single_column_pages(page) == 0                   # already top-to-bottom
     assert [b["text"] for b in page] == ["top of page", "middle"]
+
+
+def test_a_swept_heading_joins_the_series_that_opens_its_pages():
+    """Year 4 prints each strategy heading inside the photograph opening its section, so
+    Docling models no block and the sweep appends it at the page END -- Strategy 2 printed
+    after the bullets it introduces."""
+    from pipeline.convert_blocks import place_swept_headings
+    d = {"coord_origin": "BOTTOMLEFT", "page_h": 792.0}
+    resolved = [
+        {**d, "kind": "SectionHeaderItem", "text": "STRATEGY 1: Powering Our Grid",
+         "page_no": 5, "_ord": 0.0},
+        {**d, "kind": "SectionHeaderItem", "text": "STRATEGY 3: Improve Efficiency",
+         "page_no": 11, "_ord": 1.0},
+        {**d, "kind": "TextItem", "text": "Strategy 2 focuses on electrification.",
+         "page_no": 8, "_ord": 2.0},
+        {**d, "kind": "ListItem", "text": "Hosted the Electrification Expo.",
+         "page_no": 8, "_ord": 3.0},
+        {**d, "kind": "UncoveredText", "text": "STRATEGY 2: Switch our Appliances",
+         "page_no": 8, "_ord": 4.0}]
+    assert place_swept_headings(resolved, {"strategy 2"}) == 1
+    p8 = [b["text"] for b in resolved if b["page_no"] == 8]
+    assert p8[0].startswith("STRATEGY 2:")       # now opens its page
+    assert p8[1].startswith("Strategy 2 focuses") # ahead of the prose it introduces
+
+
+def test_a_swept_heading_stays_put_when_the_series_does_not_open_pages():
+    """Year 1's "In Year One, we:" recurs seven times and opens no page at all."""
+    from pipeline.convert_blocks import place_swept_headings
+    d = {"coord_origin": "BOTTOMLEFT", "page_h": 792.0}
+    resolved = [
+        {**d, "kind": "TextItem", "text": "Body of page two.", "page_no": 2, "_ord": 0.0},
+        {**d, "kind": "SectionHeaderItem", "text": "In Year 1, we:", "page_no": 2, "_ord": 1.0},
+        {**d, "kind": "SectionHeaderItem", "text": "In Year 2, we:", "page_no": 3, "_ord": 2.0},
+        {**d, "kind": "TextItem", "text": "Body of page four.", "page_no": 4, "_ord": 3.0},
+        {**d, "kind": "UncoveredText", "text": "In Year 3, we:", "page_no": 4, "_ord": 4.0}]
+    assert place_swept_headings(resolved, {"in year 3"}) == 0
+
+
+def test_a_swept_heading_with_no_series_is_left_alone():
+    from pipeline.convert_blocks import place_swept_headings
+    d = {"coord_origin": "BOTTOMLEFT", "page_h": 792.0}
+    resolved = [{**d, "kind": "TextItem", "text": "Body.", "page_no": 3, "_ord": 0.0},
+                {**d, "kind": "UncoveredText", "text": "CLOSING 1 THOUGHT", "page_no": 3,
+                 "_ord": 1.0}]
+    assert place_swept_headings(resolved, {"closing 1"}) == 0
