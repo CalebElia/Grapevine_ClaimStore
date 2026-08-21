@@ -1,0 +1,22 @@
+{
+  "_what": "Human rulings on a document's coverage period, for documents that do not state one in a machine-readable form.",
+  "_why": "documents.covers_period_start/end exist because the wiki lost a report's period. Two of the five A2Zero annual reports do not print a parseable range: Year 1 prints none at all, and Year 2 prints '2021 - 2022', a year pair rather than two dates. Leaving them NULL puts the corpus back in the position that column was created to prevent.",
+  "_never": "This file never overrides a period the document states. A stated range is evidence; anything here is an inference, and ingest records it as covers_period_source='human_estimate' so a query can tell them apart. If a document later turns out to state its period after all, the stated value wins and the entry here should be deleted rather than reconciled.",
+  "_basis": "Ann Arbor's fiscal year runs July 1 to June 30 (City Charter). A2ZERO was adopted by Council in June 2020, so the first annual report covers FY2021. Years 3 and 4 state July 1 to June 30 explicitly, which corroborates the series convention; Year 5 deliberately does not follow it (June 1 to May 31).",
+  "periods": [
+    {
+      "document": "a2zero-year1",
+      "covers_period_start": "2020-07-01",
+      "covers_period_end": "2021-06-30",
+      "source": "human_estimate",
+      "note": "FY2021. Caleb, 2026-08-21. The report states no period. A2ZERO was adopted June 2020 and this is 'One Year of A2ZERO'; the series uses Ann Arbor's July-June fiscal year. Best estimate, not stated by the document."
+    },
+    {
+      "document": "a2zero-year2",
+      "covers_period_start": "2021-07-01",
+      "covers_period_end": "2022-06-30",
+      "source": "human_estimate",
+      "note": "FY2022. Caleb, 2026-08-21. The report prints '2021 - 2022', a year pair with no dates. Resolved to Ann Arbor's fiscal year on the series convention that Years 3 and 4 state explicitly. Best estimate, not stated by the document."
+    }
+  ]
+}

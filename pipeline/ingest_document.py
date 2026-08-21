@@ -16,11 +16,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from pipeline.canonical import Canonical, build, sections
+
+def _pipeline_version() -> str:
+    """The git sha of the code that produced this conversion, so a converter change is
+    detectable rather than merely survivable."""
+    try:
+        return subprocess.run(["git", "rev-parse", "--short", "HEAD"],
+                              capture_output=True, text=True, timeout=5).stdout.strip() or "?"
+    except Exception:
+        return "?"
+
 
 # ── tiering ───────────────────────────────────────────────────────────────────────────
 #
@@ -80,6 +92,8 @@ class DocumentRecord:
     period_flagged: bool
     page_count: int
     content_hash: str
+    period_source: str = "unknown"
+    period_note: str | None = None
 
 
 def read_document(md: str, canon: Canonical) -> DocumentRecord:
@@ -106,8 +120,25 @@ def read_document(md: str, canon: Canonical) -> DocumentRecord:
     )
 
 
+def read_period_registry(path: Path | None, doc_key: str) -> dict | None:
+    """A human's ruling on a period the document does not state, or None.
+
+    NEVER OVERRIDES A STATED PERIOD -- the caller applies this only when the document
+    printed nothing parseable. A stated range is evidence; this is an inference, and the
+    two are stored under different covers_period_source values so a timeline query can
+    tell a date the City published from one we decided was probably right.
+    """
+    if not path or not path.exists():
+        return None
+    for e in json.loads(path.read_text()).get("periods", []):
+        if e.get("document") == doc_key:
+            return e
+    return None
+
+
 def plan(md_path: Path, links_path: Path | None = None,
-         hyphens_path: Path | None = None, figures_path: Path | None = None) -> dict:
+         hyphens_path: Path | None = None, figures_path: Path | None = None,
+         pictures_path: Path | None = None, periods_path: Path | None = None) -> dict:
     """Everything that would be written, without writing any of it."""
     md = md_path.read_text()
     canon = build(md)
@@ -132,16 +163,37 @@ def plan(md_path: Path, links_path: Path | None = None,
                      "n_units": len(s["units"])})
 
     load = lambda p: json.loads(p.read_text()) if p and p.exists() else []
-    links, figs = load(links_path), load(figures_path)
+    links, figs, pics = load(links_path), load(figures_path), load(pictures_path)
+
+    # A figure's bbox lives in pictures.json, not figures.json -- extract_figures records
+    # what it read, not where it read it. Matched on (page, label), which is unique in this
+    # corpus; a page with two figures of one label would need a finer key and is not
+    # invented here.
+    by_pic = {(x["page_no"], x.get("top_label")): x for x in pics}
+    for f in figs:
+        f["_bbox"] = (by_pic.get((f["page_no"], f.get("top_label")), {}) or {}).get("bbox")
+        f["_conf"] = f.get("top_conf")
+
+    ruling = read_period_registry(periods_path, md_path.stem.replace("-reviewed", ""))
+    if ruling and not doc.covers_period_start:
+        doc.covers_period_start = ruling["covers_period_start"]
+        doc.covers_period_end = ruling["covers_period_end"]
+        doc.period_source = "human_estimate"
+        doc.period_note = ruling["note"]
+    elif doc.covers_period_start:
+        doc.period_source = "stated"
+
     return {
         "document": doc,
         "sections": secs,
-        "links": {"total": len(links),
+        "title": next((u.text for u in canon.units if u.kind == "title"), md_path.stem),
+        "converter_version": _pipeline_version(),
+        "links": {"records": links, "total": len(links),
                   "located": sum(1 for l in links if l.get("located")),
                   "by_model": sum(1 for l in links
                                   if l.get("anchored_by") == "semantic_pass")},
         "hyphen_rulings": len(load(hyphens_path)),
-        "figures": {"total": len(figs),
+        "figures": {"records": figs, "total": len(figs),
                     "ornamental": sum(1 for f in figs
                                       if "<relevance>ornamental" in f.get("xml", ""))},
         "canonical": canon,
@@ -158,6 +210,8 @@ def render_plan(p: dict, label: str) -> str:
            (f"  period {d.covers_period_start} .. {d.covers_period_end} "
             f"({d.period_days} days)"
             + ("   ** NOT A YEAR — flagged, not repaired **" if d.period_flagged else "")
+            + f"   [{d.period_source}]"
+            + (f"\n    note: {d.period_note[:96]}" if d.period_note else "")
             if d.covers_period_start else
             "  period ** NONE PARSED — covers_period_start/end would be NULL **"),
            f"  links {p['links']['located']}/{p['links']['total']} located "
@@ -181,24 +235,139 @@ def render_plan(p: dict, label: str) -> str:
     return "\n".join(out)
 
 
+DSN = os.environ.get("GRAPEVINE_DSN",
+                     "host=/tmp port=5433 user=grapevine dbname=grapevine")
+
+
+def write(p: dict, md_path: Path, jurisdiction_id: int, doc_type: str,
+          source_url: str | None, dsn: str) -> tuple[int, dict]:
+    """Write the plan. Idempotent on the markdown path; refuses on a changed conversion.
+
+    REFUSING ON A CHANGED HASH IS THE POINT. A span is an offset into one exact string. If
+    the conversion changed, every stored span still round-trips against the text it was
+    written from and points at different words in the text that is now there -- which is
+    silent, and which is why re-ingesting a re-converted document must stop rather than
+    update in place. Deleting the document and its claims is a decision for a person.
+    """
+    import psycopg
+
+    d: DocumentRecord = p["document"]
+    if d.verdict == "REFUSE" and not d.override_reason:
+        raise SystemExit("[ingest] REFUSED conversion and no override reason recorded")
+
+    counts: dict[str, int] = {}
+    with psycopg.connect(dsn) as c, c.cursor() as cur:
+        cur.execute("SELECT id, content_hash FROM documents WHERE markdown_path = %s",
+                    (str(md_path),))
+        if (row := cur.fetchone()):
+            doc_id, seen = row
+            if seen != d.content_hash:
+                raise SystemExit(
+                    f"[ingest] document {doc_id} was ingested from a DIFFERENT conversion\n"
+                    f"         stored {seen[:16]}…  now {d.content_hash[:16]}…\n"
+                    f"         every span on it points into the old text. Remove the "
+                    f"document and its claims deliberately, then re-ingest.")
+            cur.execute("DELETE FROM document_sections WHERE document_id = %s", (doc_id,))
+            cur.execute("DELETE FROM document_figures  WHERE document_id = %s", (doc_id,))
+            cur.execute("DELETE FROM document_links    WHERE document_id = %s", (doc_id,))
+        else:
+            cur.execute(
+                """INSERT INTO documents
+                     (jurisdiction_id, doc_type, title, source_url, markdown_path,
+                      page_count, content_hash, covers_period_start, covers_period_end,
+                      covers_period_source, covers_period_note, converter,
+                      converter_version, parse_verdict, parse_override_reason)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                (jurisdiction_id, doc_type, p["title"], source_url, str(md_path),
+                 d.page_count, d.content_hash, d.covers_period_start, d.covers_period_end,
+                 d.period_source, d.period_note, "docling+pdfplumber",
+                 p["converter_version"], d.verdict, d.override_reason))
+            doc_id = cur.fetchone()[0]
+
+        for s in p["sections"]:
+            cur.execute(
+                """INSERT INTO document_sections
+                     (document_id, sequence, heading, char_start, char_end, page_start,
+                      page_end, extraction_tier, tier_assigned_by, content_hash,
+                      parse_flags)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (doc_id, s["sequence"], s["heading"], s["char_start"], s["char_end"],
+                 s["page_start"], s["page_end"], s["tier"], "ingest_document",
+                 s["content_hash"], json.dumps(s["parse_flags"]) if s["parse_flags"]
+                 else None))
+        counts["sections"] = len(p["sections"])
+
+        pts = 0
+        for f in p["figures"]["records"]:
+            cur.execute(
+                """INSERT INTO document_figures
+                     (document_id, page_no, bbox, classifier_label, classifier_conf,
+                      crop_path, crop_dpi, extracted_by, prompt_version, raw_xml,
+                      extracted_at, source_content_hash)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                (doc_id, f["page_no"], json.dumps(f.get("_bbox") or []),
+                 f.get("top_label") or "unknown", f.get("_conf"), f.get("crop_path"),
+                 600, f.get("deployment") or "unknown", "xml-v1",
+                 f.get("xml") or "(empty)", f.get("extracted_at"), d.content_hash))
+            fig_id = cur.fetchone()[0]
+            # An ORNAMENTAL figure is stored with its verdict and NO data points. An
+            # absent row is indistinguishable from one nobody looked at.
+            for pt in re.finditer(r'<point\s+([^/]*)/>', f.get("xml") or ""):
+                at = dict(re.findall(r'(\w+)="([^"]*)"', pt.group(1)))
+                if not at.get("label") or not at.get("value"):
+                    continue
+                cur.execute(
+                    """INSERT INTO figure_data_points
+                         (figure_id, label, value_text, unit, model_confidence)
+                       VALUES (%s,%s,%s,%s,%s)""",
+                    (fig_id, at["label"], at["value"], at.get("unit"),
+                     at.get("confidence")))
+                pts += 1
+        counts["figures"] = len(p["figures"]["records"])
+        counts["data_points"] = pts
+
+        for l in p["links"]["records"]:
+            cur.execute(
+                """INSERT INTO document_links
+                     (document_id, uri, anchor_text, context_sentence, page_no,
+                      char_start, char_end, located, source_content_hash, harvested_at)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (doc_id, l["uri"], (l.get("anchor_text") or l["uri"])[:2000],
+                 l.get("context_sentence"), l.get("page_no"), l.get("char_start"),
+                 l.get("char_end"), bool(l.get("located")), l.get("source_content_hash"),
+                 l.get("harvested_at")))
+        counts["links"] = len(p["links"]["records"])
+        c.commit()
+    return doc_id, counts
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="write a conversion into the claim store")
     ap.add_argument("--md", required=True)
     ap.add_argument("--links")
     ap.add_argument("--hyphens")
     ap.add_argument("--figures")
+    ap.add_argument("--pictures", help="<doc>-pictures.json; carries each figure's bbox")
+    ap.add_argument("--periods", help="registries/<juris>/document_periods.json")
+    ap.add_argument("--jurisdiction", type=int, default=1)
+    ap.add_argument("--doc-type", default="annual_report")
+    ap.add_argument("--source-url")
+    ap.add_argument("--dsn", default=None)
     ap.add_argument("--label", default="")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the plan and write nothing (the intended first use)")
     a = ap.parse_args()
 
-    p = plan(Path(a.md), Path(a.links) if a.links else None,
-             Path(a.hyphens) if a.hyphens else None,
-             Path(a.figures) if a.figures else None)
+    opt = lambda v: Path(v) if v else None
+    p = plan(Path(a.md), opt(a.links), opt(a.hyphens), opt(a.figures),
+             opt(a.pictures), opt(a.periods))
     print(render_plan(p, a.label or Path(a.md).stem))
-    if not a.dry_run:
-        print("\n[ingest] writing is not implemented yet — use --dry-run")
-        return 2
+    if a.dry_run:
+        return 0
+    doc_id, counts = write(p, Path(a.md), a.jurisdiction, a.doc_type,
+                           a.source_url, a.dsn or DSN)
+    print(f"\n[ingest] document {doc_id}: " +
+          " · ".join(f"{k} {v}" for k, v in counts.items()))
     return 0
 
 

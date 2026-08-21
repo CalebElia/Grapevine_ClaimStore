@@ -1,0 +1,210 @@
+[
+  {
+    "page_no": 1,
+    "bbox": [
+      16.132888793945312,
+      159.3878173828125,
+      186.44696044921875,
+      16.8614501953125
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0501,
+    "top_label": "other",
+    "top_conf": 0.48,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 1,
+    "bbox": [
+      429.2868347167969,
+      484.177978515625,
+      587.17724609375,
+      396.10791015625
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0287,
+    "top_label": "logo",
+    "top_conf": 1.0,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 2,
+    "bbox": [
+      34.88898468017578,
+      706.7369995117188,
+      576.5986938476562,
+      344.7159118652344
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.4046,
+    "top_label": "photograph",
+    "top_conf": 0.997,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 2,
+    "bbox": [
+      450.7386474609375,
+      251.89776611328125,
+      567.3828125,
+      184.73333740234375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0162,
+    "top_label": "logo",
+    "top_conf": 1.0,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 3,
+    "bbox": [
+      330.8899841308594,
+      222.08709716796875,
+      580.8319702148438,
+      157.56512451171875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0333,
+    "top_label": "engineering_drawing",
+    "top_conf": 0.572,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 4,
+    "bbox": [
+      65.73242950439453,
+      436.53045654296875,
+      546.1334838867188,
+      76.60125732421875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.3567,
+    "top_label": "photograph",
+    "top_conf": 0.987,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 6,
+    "bbox": [
+      362.5109558105469,
+      370.0093078613281,
+      545.4833984375,
+      97.775146484375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1028,
+    "top_label": "screenshot_from_computer",
+    "top_conf": 0.481,
+    "worth_extraction": true
+  },
+  {
+    "page_no": 7,
+    "bbox": [
+      46.94337463378906,
+      735.7997016906738,
+      564.6971435546875,
+      347.3216857910156
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.415,
+    "top_label": "photograph",
+    "top_conf": 0.987,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 8,
+    "bbox": [
+      51.96220397949219,
+      496.3384094238281,
+      559.7778930664062,
+      115.30950927734375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.3992,
+    "top_label": "photograph",
+    "top_conf": 0.998,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 9,
+    "bbox": [
+      339.7167053222656,
+      348.5347595214844,
+      582.0283813476562,
+      166.684814453125
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0909,
+    "top_label": "photograph",
+    "top_conf": 0.989,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 10,
+    "bbox": [
+      119.66397857666016,
+      408.9710388183594,
+      491.74365234375,
+      77.31341552734375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2546,
+    "top_label": "photograph",
+    "top_conf": 0.989,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 11,
+    "bbox": [
+      347.3441467285156,
+      404.3498229980469,
+      585.3980712890625,
+      292.0363464355469
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0552,
+    "top_label": "photograph",
+    "top_conf": 0.996,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 13,
+    "bbox": [
+      96.9605712890625,
+      377.85858154296875,
+      547.7562866210938,
+      73.19207763671875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2834,
+    "top_label": "photograph",
+    "top_conf": 0.999,
+    "worth_extraction": false
+  }
+]

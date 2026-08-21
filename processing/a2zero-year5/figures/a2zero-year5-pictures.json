@@ -1,0 +1,530 @@
+[
+  {
+    "page_no": 1,
+    "bbox": [
+      114.3330307006836,
+      737.6147422790527,
+      292.1145324707031,
+      637.0672607421875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0369,
+    "top_label": "logo",
+    "top_conf": 1.0,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 1,
+    "bbox": [
+      299.7552185058594,
+      777.2938833236694,
+      596.2296752929688,
+      596.7445831298828
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1104,
+    "top_label": "photograph",
+    "top_conf": 0.999,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 1,
+    "bbox": [
+      299.7703857421875,
+      586.9539947509766,
+      596.325927734375,
+      406.1662292480469
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1106,
+    "top_label": "photograph",
+    "top_conf": 0.974,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 1,
+    "bbox": [
+      292.5306396484375,
+      393.8871154785156,
+      598.5963134765625,
+      211.713623046875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.115,
+    "top_label": "photograph",
+    "top_conf": 0.955,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 1,
+    "bbox": [
+      299.6492919921875,
+      198.62457275390625,
+      596.2813110351562,
+      16.57708740234375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1114,
+    "top_label": "photograph",
+    "top_conf": 0.997,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 3,
+    "bbox": [
+      115.03443908691406,
+      248.08203125,
+      562.22607421875,
+      79.75439453125
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1553,
+    "top_label": "photograph",
+    "top_conf": 0.999,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 4,
+    "bbox": [
+      49.219459533691406,
+      228.018310546875,
+      496.0024108886719,
+      46.468505859375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1673,
+    "top_label": "bar_chart",
+    "top_conf": 0.997,
+    "worth_extraction": true
+  },
+  {
+    "page_no": 5,
+    "bbox": [
+      117.8069839477539,
+      407.95135498046875,
+      564.9661865234375,
+      58.0341796875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.3228,
+    "top_label": "screenshot_from_computer",
+    "top_conf": 0.543,
+    "worth_extraction": true
+  },
+  {
+    "page_no": 6,
+    "bbox": [
+      46.83667755126953,
+      756.8408813476562,
+      509.49444580078125,
+      489.4795227050781
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2552,
+    "top_label": "photograph",
+    "top_conf": 0.976,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 7,
+    "bbox": [
+      117.48921203613281,
+      314.2135009765625,
+      564.7738647460938,
+      63.6171875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2313,
+    "top_label": "photograph",
+    "top_conf": 0.996,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 8,
+    "bbox": [
+      47.900978088378906,
+      756.9617309570312,
+      509.759765625,
+      486.989013671875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2572,
+    "top_label": "photograph",
+    "top_conf": 0.987,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 9,
+    "bbox": [
+      117.12651824951172,
+      281.49041748046875,
+      345.4396667480469,
+      88.63995361328125
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0908,
+    "top_label": "photograph",
+    "top_conf": 1.0,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 9,
+    "bbox": [
+      357.4451599121094,
+      281.8821716308594,
+      564.3928833007812,
+      88.65765380859375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0825,
+    "top_label": "photograph",
+    "top_conf": 0.998,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 10,
+    "bbox": [
+      46.844337463378906,
+      748.55029296875,
+      509.283935546875,
+      485.7086486816406
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2508,
+    "top_label": "photograph",
+    "top_conf": 0.916,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 11,
+    "bbox": [
+      346.7274169921875,
+      704.3442001342773,
+      564.3858032226562,
+      396.24884033203125
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1384,
+    "top_label": "photograph",
+    "top_conf": 1.0,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 11,
+    "bbox": [
+      346.75494384765625,
+      361.5781555175781,
+      564.2435302734375,
+      54.61956787109375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1377,
+    "top_label": "photograph",
+    "top_conf": 0.999,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 12,
+    "bbox": [
+      46.631778717041016,
+      379.0200500488281,
+      497.1769104003906,
+      75.45233154296875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2822,
+    "top_label": "photograph",
+    "top_conf": 0.999,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 13,
+    "bbox": [
+      336.773681640625,
+      606.6465301513672,
+      564.4708862304688,
+      178.21826171875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2013,
+    "top_label": "photograph",
+    "top_conf": 0.978,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 14,
+    "bbox": [
+      46.936370849609375,
+      750.1341896057129,
+      509.6136169433594,
+      487.0882263183594
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2511,
+    "top_label": "photograph",
+    "top_conf": 0.992,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 15,
+    "bbox": [
+      395.1539306640625,
+      702.5353775024414,
+      577.1270141601562,
+      430.0919189453125
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1023,
+    "top_label": "photograph",
+    "top_conf": 0.993,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 15,
+    "bbox": [
+      395.3690185546875,
+      368.1692810058594,
+      576.3431396484375,
+      83.116943359375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1064,
+    "top_label": "photograph",
+    "top_conf": 0.998,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 16,
+    "bbox": [
+      70.93748474121094,
+      502.1604309082031,
+      496.4045715332031,
+      285.64996337890625
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1901,
+    "top_label": "photograph",
+    "top_conf": 0.998,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 16,
+    "bbox": [
+      70.99931335449219,
+      257.51715087890625,
+      496.41064453125,
+      54.283447265625
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1784,
+    "top_label": "photograph",
+    "top_conf": 1.0,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 17,
+    "bbox": [
+      105.28194427490234,
+      759.9593696594238,
+      564.0621948242188,
+      471.0625
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2734,
+    "top_label": "photograph",
+    "top_conf": 0.974,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 18,
+    "bbox": [
+      69.414306640625,
+      230.5545654296875,
+      496.3888854980469,
+      36.80340576171875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1707,
+    "top_label": "photograph",
+    "top_conf": 0.938,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 19,
+    "bbox": [
+      104.6951904296875,
+      757.163200378418,
+      564.4324951171875,
+      513.2122192382812
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2314,
+    "top_label": "photograph",
+    "top_conf": 0.987,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 20,
+    "bbox": [
+      98.42166137695312,
+      227.42864990234375,
+      432.9028015136719,
+      49.65716552734375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1227,
+    "top_label": "photograph",
+    "top_conf": 1.0,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 21,
+    "bbox": [
+      378.032470703125,
+      703.6559982299805,
+      576.4666748046875,
+      435.0332946777344
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.11,
+    "top_label": "photograph",
+    "top_conf": 0.997,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 21,
+    "bbox": [
+      378.9841003417969,
+      400.7741394042969,
+      577.4738159179688,
+      80.72308349609375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1311,
+    "top_label": "photograph",
+    "top_conf": 0.997,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 22,
+    "bbox": [
+      70.67361450195312,
+      551.7662200927734,
+      496.1382141113281,
+      296.435302734375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2241,
+    "top_label": "photograph",
+    "top_conf": 0.964,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 22,
+    "bbox": [
+      70.85633850097656,
+      284.8515319824219,
+      496.2795104980469,
+      39.29296875
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.2155,
+    "top_label": "photograph",
+    "top_conf": 0.987,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 23,
+    "bbox": [
+      105.04363250732422,
+      756.4984817504883,
+      412.69732666015625,
+      456.79833984375
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.1902,
+    "top_label": "photograph",
+    "top_conf": 0.993,
+    "worth_extraction": false
+  },
+  {
+    "page_no": 24,
+    "bbox": [
+      110.40650177001953,
+      593.7327575683594,
+      394.2900085449219,
+      434.2153015136719
+    ],
+    "coord_origin": "CoordOrigin.BOTTOMLEFT",
+    "page_w": 612.0,
+    "page_h": 792.0,
+    "area_frac": 0.0934,
+    "top_label": "logo",
+    "top_conf": 1.0,
+    "worth_extraction": false
+  }
+]

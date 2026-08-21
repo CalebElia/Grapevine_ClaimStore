@@ -67,3 +67,37 @@ def test_the_verdict_and_page_count_come_from_the_document():
     md = "# t\n\n<!-- gate: REVIEW -->\n\n<!-- p.1 -->\na\n\n<!-- p.9 -->\nb\n"
     d = read_document(md, build(md))
     assert d.verdict == "REVIEW" and d.page_count == 9
+
+
+def test_a_human_estimate_never_overrides_a_stated_period(tmp_path):
+    """A stated range is evidence; a registry entry is an inference. The two are stored
+    under different covers_period_source values so a timeline query can tell a date the
+    City published from one we decided was probably right."""
+    import json
+    from pipeline.ingest_document import plan
+    reg = tmp_path / "periods.json"
+    reg.write_text(json.dumps({"periods": [
+        {"document": "doc", "covers_period_start": "1999-01-01",
+         "covers_period_end": "1999-12-31", "source": "human_estimate", "note": "wrong"}]}))
+    md = tmp_path / "doc-reviewed.md"
+    md.write_text("# t\n\n<!-- gate: PASS -->\n"
+                  "<!-- COVERAGE PERIOD: x -> 2022-07-01..2023-06-30 (364 days) -->\n\n"
+                  "<!-- p.1 -->\nBody text here.\n")
+    p = plan(md, periods_path=reg)
+    assert p["document"].covers_period_start == "2022-07-01"     # the document wins
+    assert p["document"].period_source == "stated"
+
+
+def test_a_human_estimate_fills_a_period_the_document_does_not_state(tmp_path):
+    import json
+    from pipeline.ingest_document import plan
+    reg = tmp_path / "periods.json"
+    reg.write_text(json.dumps({"periods": [
+        {"document": "doc", "covers_period_start": "2020-07-01",
+         "covers_period_end": "2021-06-30", "source": "human_estimate",
+         "note": "FY2021. Caleb. Report states no period."}]}))
+    md = tmp_path / "doc-reviewed.md"
+    md.write_text("# t\n\n<!-- gate: PASS -->\n\n<!-- p.1 -->\nBody text here.\n")
+    p = plan(md, periods_path=reg)
+    assert p["document"].period_source == "human_estimate"
+    assert p["document"].period_note.startswith("FY2021")
