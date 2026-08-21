@@ -59,3 +59,34 @@ def test_a_missing_registry_file_is_empty_not_an_error(tmp_path):
     the system working. It must not raise."""
     from pipeline.resolve_orgs import read_funder_aliases
     assert read_funder_aliases(tmp_path / "nope.json") == {}
+
+
+# --- programs are not organisations and not instruments ---------------------------------
+
+def test_a_program_name_resolves_without_being_duplicated_as_an_alias():
+    """The bug this pins: read_funder_programs first read only the `aliases` list, so
+    "Energy Efficiency and Conservation Block Grant" -- declared as a programme and never
+    as an alias -- resolved to nothing, silently, while the registry plainly contained it."""
+    from pipeline.resolve_orgs import read_funder_programs
+    pr = read_funder_programs()
+    assert pr["energy efficiency and conservation block grant"] == \
+        "Energy Efficiency and Conservation Block Grant"
+    assert pr["eecbg"] == "Energy Efficiency and Conservation Block Grant"
+
+
+def test_every_program_declares_who_decided_it():
+    import json
+    from pathlib import Path
+    for p in json.loads(Path("registries/ann_arbor/funder_aliases.json").read_text())["programs"]:
+        assert p.get("name") and p.get("by"), p
+
+
+def test_a_program_may_have_no_administering_org():
+    """MI-HOPE's administering agency is not stated anywhere in this corpus. A NULL there is
+    a research question, not a row to guess at -- so the registry must permit it."""
+    import json
+    from pathlib import Path
+    progs = json.loads(Path("registries/ann_arbor/funder_aliases.json").read_text())["programs"]
+    mihope = next(p for p in progs if p["name"] == "MI-HOPE")
+    assert mihope["administered_by"] is None
+    assert "not stated" in (mihope.get("note") or "").lower()

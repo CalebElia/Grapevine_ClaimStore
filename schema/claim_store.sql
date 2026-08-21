@@ -1066,7 +1066,7 @@ CREATE TABLE fiscal_references (
     currency            CHAR(3) DEFAULT 'USD',
     fiscal_year         TEXT,
     funding_source      TEXT,                   -- vocab: funding_source
-    funding_instrument  TEXT,
+    funding_instrument  TEXT,                   -- vocab: funding_instrument
     recurrence          TEXT,                   -- vocab: funding_recurrence
     purpose             TEXT,
     awarding_org_id     INT REFERENCES orgs(id),

@@ -95,6 +95,31 @@ def read_funder_aliases(
             for a in json.loads(path.read_text()).get("aliases", [])}
 
 
+def read_funder_programs(
+        path: Path = Path("registries/ann_arbor/funder_aliases.json")) -> dict[str, str]:
+    """How the corpus writes a funder -> the NAMED PROGRAM the money came under.
+
+    Distinct from read_funder_aliases, which answers "who paid". A document writing
+    "SEMCOG Carbon Reduction Program" states two facts: the body is SEMCOG and the vehicle
+    is that programme. Resolving only the first answers who and discards under-what, and
+    under-what is what a researcher follows across years and cities.
+    """
+    if not path.exists():
+        return {}
+    raw = json.loads(path.read_text())
+    # A PROGRAMME'S OWN NAME IS A KEY. The Year 3 report writes "Energy Efficiency and
+    # Conservation Block Grant" and nothing else -- no agency, no abbreviation. Requiring
+    # every such string to be duplicated into the alias list as well is curation the file
+    # already contains, and the first version of this silently resolved nothing for exactly
+    # that reason: EECBG was declared as a programme and never as an alias.
+    out = {p["name"].lower(): p["name"] for p in raw.get("programs", [])}
+    out |= {p["abbreviation"].lower(): p["name"]
+            for p in raw.get("programs", []) if p.get("abbreviation")}
+    out |= {a["as_written"].lower(): a["program"]
+            for a in raw.get("aliases", []) if a.get("program")}
+    return out
+
+
 def mentions(text: str, name: str) -> bool:
     """Whether `text` names this organisation. Word-bounded; short names must stand alone."""
     n = name.strip()
@@ -193,15 +218,38 @@ def backfill_funders(dsn: str = DSN, dry_run: bool = False) -> list[tuple]:
 
     done = []
     with psycopg.connect(dsn) as c, c.cursor() as cur:
-        cur.execute("SELECT id, funder_name_text FROM fiscal_references "
-                    "WHERE awarding_org_id IS NULL AND funder_name_text IS NOT NULL")
-        for fid, name in cur.fetchall():
-            oid = _funder_org(cur, name)
-            if not oid:
+        programs = read_funder_programs()
+        cur.execute("SELECT id, funder_name_text, awarding_org_id, program_id "
+                    "FROM fiscal_references WHERE funder_name_text IS NOT NULL "
+                    "AND (awarding_org_id IS NULL OR program_id IS NULL)")
+        for fid, name, had_org, had_prog in cur.fetchall():
+            oid = _funder_org(cur, name) if had_org is None else None
+            # THE PROGRAMME IS RESOLVED SEPARATELY FROM THE BODY. A reference can know one
+            # and not the other in either direction: "MI-HOPE" names a programme whose
+            # administering agency this corpus never states, and "State of Michigan" names
+            # a body under no programme we can see. Filling both from one lookup would
+            # force a guess in whichever direction was short.
+            pid = None
+            if had_prog is None and (pname := programs.get((name or "").lower())):
+                cur.execute("SELECT id FROM funding_programs WHERE name=%s", (pname,))
+                if (r := cur.fetchone()):
+                    pid = r[0]
+                    # A programme carries its administering body. If the reference could
+                    # not resolve an org on its own, inherit it -- that is not inference,
+                    # it is the curated link in funding_programs.
+                    if oid is None and had_org is None:
+                        cur.execute("SELECT administering_org_id FROM funding_programs "
+                                    "WHERE id=%s", (pid,))
+                        oid = cur.fetchone()[0]
+            if oid is None and pid is None:
                 continue
             if not dry_run:
-                cur.execute("UPDATE fiscal_references SET awarding_org_id=%s WHERE id=%s",
-                            (oid, fid))
+                if oid is not None:
+                    cur.execute("UPDATE fiscal_references SET awarding_org_id=%s WHERE id=%s",
+                                (oid, fid))
+                if pid is not None:
+                    cur.execute("UPDATE fiscal_references SET program_id=%s WHERE id=%s",
+                                (pid, fid))
             done.append((fid, name, oid))
         if not dry_run:
             c.commit()

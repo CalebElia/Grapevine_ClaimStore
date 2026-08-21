@@ -75,6 +75,10 @@ INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
 ('rejection_class',        'Why an alternative was rejected. Feeds scope conditions.',             TRUE,  'other'),
 ('commitment_status',      'State of an open loop',                                                TRUE,  'open'),
 ('funding_source',         'Where money came from',                                                TRUE,  'other'),
+-- NB: no '- -' (joined) inside a description string. The repo's SQL guards strip line
+-- comments without tracking string literals, so a double dash here truncates the row
+-- and test_parens_balanced fails pointing at the whole file. Use a colon or a comma.
+('funding_instrument',     'The financial mechanism of an award: not its source, not its program', TRUE,  'other'),
 ('funding_recurrence',     'One-time vs recurring',                                                TRUE,  'unknown'),
 ('award_status',           'Lifecycle of an award. REVERSALS ARE THE FINDING.',                    TRUE,  'unknown'),
 ('quantity_unit',          'Unit of a non-monetary quantity',                                      TRUE,  NULL),
@@ -317,6 +321,12 @@ INSERT INTO vocabulary_terms (vocabulary, term, approved_by) VALUES
 ('commitment_status','abandoned','schema-v0.2'),
 
 ('funding_source','millage','schema-v0.2'),('funding_source','federal_grant','schema-v0.2'),
+('funding_instrument','block_grant','schema-v0.2'),('funding_instrument','competitive_grant','schema-v0.2'),
+('funding_instrument','formula_grant','schema-v0.2'),('funding_instrument','mini_grant','schema-v0.2'),
+('funding_instrument','sponsorship','schema-v0.2'),('funding_instrument','rebate','schema-v0.2'),
+('funding_instrument','loan','schema-v0.2'),('funding_instrument','revolving_loan','schema-v0.2'),
+('funding_instrument','appropriation','schema-v0.2'),('funding_instrument','millage_revenue','schema-v0.2'),
+('funding_instrument','other','schema-v0.2'),
 ('funding_source','state_grant','schema-v0.2'),('funding_source','county','schema-v0.2'),
 ('funding_source','general_fund','schema-v0.2'),('funding_source','bond','schema-v0.2'),
 ('funding_source','surplus','schema-v0.2'),('funding_source','rate_payer','schema-v0.2'),
@@ -503,6 +513,8 @@ CREATE TRIGGER trg_vocab_alt_rej BEFORE INSERT OR UPDATE ON considered_alternati
     FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('rejection_class','rejection_class');
 CREATE TRIGGER trg_vocab_commitments BEFORE INSERT OR UPDATE ON commitments
     FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('commitment_status','status');
+CREATE TRIGGER trg_vocab_fiscal_instr BEFORE INSERT OR UPDATE ON fiscal_references
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('funding_instrument','funding_instrument');
 CREATE TRIGGER trg_vocab_fiscal_src BEFORE INSERT OR UPDATE ON fiscal_references
     FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('funding_source','funding_source');
 CREATE TRIGGER trg_vocab_fiscal_rec BEFORE INSERT OR UPDATE ON fiscal_references
