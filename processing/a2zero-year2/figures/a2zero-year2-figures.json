@@ -1,0 +1,13 @@
+[
+  {
+    "page_no": 6,
+    "top_label": "screenshot_from_computer",
+    "top_conf": 0.481,
+    "crop_path": "/private/tmp/claude-501/-Users-calebjohnson-Desktop-Grapevine/ba0eb9ed-4922-45e2-9fa2-7539575b4f5c/scratchpad/y2_figs/page06_fig6.png",
+    "xml": "<figure_description>\n  <relevance>ornamental</relevance>\n  <relevance_reason>The image is a screenshot of the ENERGY STAR Portfolio Manager reporting interface, and no displayed value is identified as specific to the document's subject.</relevance_reason>\n  <type>other</type>\n  <title>Source EUI Report</title>\n  <summary>The screenshot illustrates a software report containing portfolio energy-use callouts and charts grouped by category and property type.</summary>\n  <data_points>\n  </data_points>\n  <illegible_regions>Some account text, chart category labels, and small interface text are not readable with confidence.</illegible_regions>\n</figure_description>",
+    "deployment": "gpt-5.6-sol",
+    "seconds": 5.8,
+    "finish_reason": "stop",
+    "extracted_at": "2026-08-20T22:13:35Z"
+  }
+]

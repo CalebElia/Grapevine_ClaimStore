@@ -1,0 +1,13 @@
+[
+  {
+    "page_no": 2,
+    "top_label": "pie_chart",
+    "top_conf": 1.0,
+    "crop_path": "/private/tmp/claude-501/-Users-calebjohnson-Desktop-Grapevine/ba0eb9ed-4922-45e2-9fa2-7539575b4f5c/scratchpad/y3_figs/page02_fig4.png",
+    "xml": "<figure_description>\n  <relevance>substantive</relevance>\n  <relevance_reason>The image shows a pie chart with subject-specific percentage shares for electricity, natural gas, transportation, waste, propane, and fuel oil.</relevance_reason>\n  <type>pie_chart</type>\n  <title></title>\n  <summary>The pie chart displays six categories, with Electricity at 41%, Transportation at 29.72%, Natural Gas at 27%, Waste at 2%, Propane at 0.5%, and Fuel Oil at 0.06%.</summary>\n  <data_points>\n    <point label=\"Electricity\" value=\"41\" unit=\"percent\" confidence=\"high\"/>\n    <point label=\"Natural Gas\" value=\"27\" unit=\"percent\" confidence=\"high\"/>\n    <point label=\"Transportation\" value=\"29.72\" unit=\"percent\" confidence=\"high\"/>\n    <point label=\"Waste\" value=\"2\" unit=\"percent\" confidence=\"high\"/>\n    <point label=\"Propane\" value=\"0.5\" unit=\"percent\" confidence=\"high\"/>\n    <point label=\"Fuel Oil\" value=\"0.06\" unit=\"percent\" confidence=\"high\"/>\n  </data_points>\n  <illegible_regions>none</illegible_regions>\n</figure_description>",
+    "deployment": "gpt-5.6-sol",
+    "seconds": 5.2,
+    "finish_reason": "stop",
+    "extracted_at": "2026-08-20T00:36:03Z"
+  }
+]

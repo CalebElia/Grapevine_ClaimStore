@@ -59,7 +59,7 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 - [x] `a2zero-year3-reviewed.md:7` — coverage period read as **JULY 1, 2022-JUNE 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
 - [x] `a2zero-year3-reviewed.md:247` p.12 — hyphen then SPACE in **City- and** — a line-break split usually joins to *City-and*; only a suspended hyphen ("City- and community-wide") keeps the space
     → Keep the "City- and community-wide" spelling that is correct. There's a larger issue here, likely caused by the weirdly changing fonts in the image, but lines 272-274 should be all one line, and read, "Together with Public Works and Natural Areas Preservation, submitted a USDA Forest Service Urban & Community Forestry Inflation Reduction Act grant proposal to fund an update to Ann Arbor’s Urban Tree Canopy assessment, advance private property tree planting efforts, create a NAP management plan, and conduct a feasibility study for a City- and County-owned tree nursery." ALSO, lines 270 and 272 are incorrectly indented, mirroring the image layout. But semantically, these are the same as all the other bullets. This isn't a sublist with a preceding ":" function.
-- [ ] `a2zero-year3-reviewed.md` — 3 ambiguous hyphen(s) ruled by the semantic pass, no human action needed unless one looks wrong; kept hyphenated: U-20836, zero-waste, co-designed
+- [x] `a2zero-year3-reviewed.md` — 3 ambiguous hyphen(s) ruled by the semantic pass, no human action needed unless one looks wrong; kept hyphenated: U-20836, zero-waste, co-designed
 
 ### B. Placement — text is present; is it in the right place?
 - [x] `a2zero-year3-reviewed.md` — section spine: 12 headings (INTRODUCTION, GREENHOUSE GAS EMISSIONS , STRATEGY ONE: POWER OUR E, STRATEGY TWO: SWITCH OUR , STRATEGY THREE: SIGNIFICA, STRATEGY FOUR: REDUCE THE…) — do they match the PDF's contents page, in order and with none invented?
@@ -74,7 +74,7 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 
 ### A. Values — check against the PDF
 - [x] `a2zero-year4-reviewed.md:7` — coverage period read as **JULY 1, 2023 – JUNE 3, 2024 -> 2023-07-01..2024-06-03 (338 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
-- [ ] `a2zero-year4-reviewed.md` — 8 ambiguous hyphen(s) ruled by the semantic pass, no human action needed unless one looks wrong; kept hyphenated: to-date, U-21291, all-electric, zero-emissions, plant-forward, follow-up, co-designed, sustainability-focused
+- [x] `a2zero-year4-reviewed.md` — 8 ambiguous hyphen(s) ruled by the semantic pass, no human action needed unless one looks wrong; kept hyphenated: to-date, U-21291, all-electric, zero-emissions, plant-forward, follow-up, co-designed, sustainability-focused
 
 ### B. Placement — text is present; is it in the right place?
 - [x] `a2zero-year4-reviewed.md` — section spine: 12 headings (CONTENTS, INTRODUCTION, GREENHOUSE GAS EMISSIONS , STRATEGY 1: Powering Our , STRATEGY 2: Switch our Ap, STRATEGY 3: Significantly…) — do they match the PDF's contents page, in order and with none invented?
@@ -142,7 +142,7 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 - [x] `a2zero-year5-reviewed.md:131` p.5 — figure value **2024 solar installations in Ann Arbor = 250** — read off an image by a vision model; confirm against the chart
 - [x] `a2zero-year5-reviewed.md:132` p.5 — figure value **2025 solar installations in Ann Arbor = 20** — read off an image by a vision model; confirm against the chart
 - [x] `a2zero-year5-reviewed.md:7` — coverage period read as **June 1, 2024 – May 31, 2025 -> 2024-06-01..2025-05-31 (364 days)** — confirm against the report's cover
-- [ ] `a2zero-year5-reviewed.md` — 3 ambiguous hyphen(s) ruled by the semantic pass, no human action needed unless one looks wrong; kept hyphenated: science-based, zero-emission, to-Government
+- [x] `a2zero-year5-reviewed.md` — 3 ambiguous hyphen(s) ruled by the semantic pass, no human action needed unless one looks wrong; kept hyphenated: science-based, zero-emission, to-Government
 
 ### B. Placement — text is present; is it in the right place?
 - [x] `a2zero-year5-reviewed.md:16` p.2 — recovered region, placement INFERRED: > 3 INTRODUCTION

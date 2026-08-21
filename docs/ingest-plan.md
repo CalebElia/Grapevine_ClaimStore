@@ -146,9 +146,20 @@ single most-repaired thing in this corpus and are verified against each PDF.
 - `page_start` / `page_end` — from the surrounding `<!-- p.N -->` markers. These are now
   reliable: an empty marker (one naming a page that carries none of the text under it) is
   no longer emitted.
-- `extraction_tier` — `A` where the section contains dollar figures or targets, `B` for
-  strategy and GHG sections, `C` for contents, closing, sign-offs and caption-only regions.
-  Tier C is never sent for extraction, which is where most of the cost saving lives.
+- `extraction_tier` — measured across all 59 sections of the five reports:
+  **C** where a section has no enumerated content and runs to less than a couple of
+  paragraphs (the corpus separates cleanly — every front-matter block, contents page,
+  masthead and closing is ≤411 chars, the smallest substantive section is 792);
+  **A** where it carries a currency figure, or 15+ quantities (which is what catches the
+  GREENHOUSE GAS EMISSIONS SUMMARY sections — 17–24 quantities and not one dollar sign,
+  and the most claim-bearing pages in these reports); **B** otherwise.
+
+  **Correction to the inherited plan.** PLAN.md says tier C "is where most of the cost
+  saving lives". On this corpus that is false: C excludes **1.4%** of the text (1,951 of
+  141,819 characters). An annual report is almost entirely substantive — it has a cover, a
+  contents page and a closing, and everything between them is claims. Tiering here earns
+  its place by marking what must *not* be extracted from, not by saving money. Expect the
+  ratio to differ sharply on minutes and dockets, which carry far more boilerplate.
 - `parse_confidence` — **defaults to `unaudited`**, and extraction refuses anything that is
   not `clean`. Silence is never evidence of a clean parse.
 
