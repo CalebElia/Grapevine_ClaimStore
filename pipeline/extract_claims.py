@@ -63,13 +63,40 @@ For each claim return an object:
   "asserted_start", "asserted_end" -- ISO dates (YYYY-MM-DD) IF the text states or clearly
                   implies when the thing happened. Omit entirely if it does not.
   "asserted_date_text" -- the words the date came from, if any.
-  "quantity"   -- present ONLY if the claim states a measured amount. An object:
+  "quantities" -- a LIST, empty if the claim states no measured amount. Each:
                   {"value_low": number, "unit": "...", "measure": "...", "verbatim": "..."}
-  "fiscal"     -- present ONLY if the claim states money. An object:
+  "fiscal"     -- a LIST, empty if the claim states no money. Each:
                   {"amount_low": number, "currency": "USD", "purpose": "...",
                    "funding_source": "...", "verbatim": "..."}
 
+ONE CLAIM PER ASSERTION, NOT ONE PER NUMBER. A sentence may state several measured things
+at once:
+
+    "AIP completed retrofits in the homes of 17 program participants, helping to reduce
+     energy burdens with $45,800 in utility costs saved plus a reduction of 113 metric
+     tons of carbon emissions."
+
+That is ONE claim -- one thing the City says it did -- carrying THREE payloads: a quantity
+of 17 participants, a fiscal reference of $45,800, and a quantity of 113 metric tons. Do
+not emit it as three claims. Two claims must never share the same verbatim.
+
+VERBATIM MUST BE A COMPLETE SENTENCE. A clause on its own is not a claim: "which would
+significantly improve the health and safety of new buildings" has no subject, and a reader
+following that span learns nothing. Quote the whole sentence, and let the payload carry the
+detail.
+
 Return ONLY a JSON array of these objects. No prose, no markdown fence."""
+
+
+def _as_list(*candidates) -> list[dict]:
+    """Accept a list, a bare object, or nothing. The contract asks for a list; a model that
+    returns the single object it used to return is still understood rather than dropped."""
+    for c in candidates:
+        if isinstance(c, list):
+            return [x for x in c if isinstance(x, dict)]
+        if isinstance(c, dict):
+            return [c]
+    return []
 
 
 @dataclass
@@ -230,8 +257,9 @@ def store(res: Result, section_id: int, document_id: int, content_hash: str,
             claim_id = cur.fetchone()[0]
             counts["claims"] += 1
 
-            q = p.get("quantity")
-            if isinstance(q, dict) and q.get("value_low") is not None:
+            for q in _as_list(p.get("quantities"), p.get("quantity")):
+                if q.get("value_low") is None:
+                    continue
                 cur.execute(
                     """INSERT INTO quantities
                          (claim_id, value_low, unit, measure, source_type, verbatim)
@@ -240,8 +268,9 @@ def store(res: Result, section_id: int, document_id: int, content_hash: str,
                      "annual_report", (q.get("verbatim") or a.verbatim)[:2000]))
                 counts["quantities"] += 1
 
-            f = p.get("fiscal")
-            if isinstance(f, dict) and f.get("amount_low") is not None:
+            for f in _as_list(p.get("fiscal"), p.get("fiscal_references")):
+                if f.get("amount_low") is None:
+                    continue
                 cur.execute(
                     """INSERT INTO fiscal_references
                          (claim_id, amount_low, currency, purpose, funding_source,
@@ -287,6 +316,13 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
     t0 = time.time()
     proposals = propose(section, heading)
     res = anchor_all(proposals, section)
+    # TWO CLAIMS ON ONE SPAN MEANS THE CONTRACT WAS NOT FOLLOWED. Not rejected -- the
+    # verbatim is real -- but it is the exact defect the first hand-read found, so it is
+    # counted and printed rather than left to be noticed in SQL later.
+    seen: dict[tuple[int, int], int] = {}
+    for x in res.anchored:
+        seen[(x.span_start, x.span_end)] = seen.get((x.span_start, x.span_end), 0) + 1
+    shared = {k: n for k, n in seen.items() if n > 1}
     if rejects_path and res.rejected:
         rejects_path.parent.mkdir(parents=True, exist_ok=True)
         rejects_path.write_text(json.dumps(res.rejected, indent=2))
@@ -296,7 +332,12 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
            "rejected": len(res.rejected), "located_rate": res.located_rate,
            "seconds": round(time.time() - t0, 1), "result": res,
            "exact": sum(1 for x in res.anchored if x.method == "exact"),
-           "folded": sum(1 for x in res.anchored if x.method == "folded")}
+           "folded": sum(1 for x in res.anchored if x.method == "folded"),
+           "distinct_spans": len(seen), "shared_spans": len(shared),
+           "money_in_text": len(re.findall(r"\$[\d,]+", section)),
+           "fiscal_proposed": sum(len(_as_list(x.proposal.get("fiscal"),
+                                               x.proposal.get("fiscal_references")))
+                                  for x in res.anchored)}
     if not dry_run:
         out["stored"] = store(res, section_id, doc_id, doc_hash, a,
                               "extract_claims/gpt", dsn)
@@ -317,6 +358,16 @@ def main() -> int:
     print(f"  proposed {r['proposed']} · anchored {r['anchored']} "
           f"({r['exact']} exact, {r['folded']} folded) · rejected {r['rejected']} "
           f"· located-rate {r['located_rate']:.0%} · {r['seconds']}s")
+    # A PAYLOAD TYPE THAT GOES TO ZERO WHILE THE TEXT IS FULL OF IT is what a silent
+    # storage bug looks like from the outside: the run reports success and the column is
+    # simply empty. Counting what the SECTION contains is the only way to notice.
+    if r["money_in_text"] and not r["fiscal_proposed"]:
+        print(f"  ** the section contains {r['money_in_text']} currency figure(s) and no "
+              f"claim carries a fiscal payload — check the contract and the storage path **")
+    if r["shared_spans"]:
+        print(f"  ** {r['shared_spans']} span(s) carry more than one claim — "
+              f"{r['anchored']} claims on {r['distinct_spans']} spans. One claim per "
+              f"assertion; a sentence with several numbers takes several payloads. **")
     if "stored" in r:
         print("  stored " + " · ".join(f"{k} {v}" for k, v in r["stored"].items()))
     for x in r["result"].rejected:

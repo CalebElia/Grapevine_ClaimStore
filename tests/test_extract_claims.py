@@ -76,3 +76,21 @@ def test_the_located_rate_is_reported_and_a_zero_reject_rate_is_visible():
     r = anchor_all([{"verbatim": "Provided $300,000 in grants to local housing providers."},
                     {"verbatim": "invented"}], SECTION)
     assert r.located_rate == 0.5
+
+
+def test_payloads_accept_a_list_and_still_accept_a_bare_object():
+    """The contract asks for a list. A model returning the single object it used to return
+    is understood rather than dropped."""
+    from pipeline.extract_claims import _as_list
+    assert _as_list([{"value_low": 17}, {"value_low": 113}]) == [{"value_low": 17},
+                                                                 {"value_low": 113}]
+    assert _as_list({"value_low": 17}) == [{"value_low": 17}]
+    assert _as_list(None, None) == []
+    assert _as_list([1, "x", {"value_low": 3}]) == [{"value_low": 3}]
+
+
+def test_the_prompt_requires_one_claim_per_assertion_and_whole_sentences():
+    from pipeline.extract_claims import PROMPT
+    assert "ONE CLAIM PER ASSERTION, NOT ONE PER NUMBER" in PROMPT
+    assert "never share the same verbatim" in PROMPT
+    assert "VERBATIM MUST BE A COMPLETE SENTENCE" in PROMPT
