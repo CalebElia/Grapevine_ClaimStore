@@ -1645,3 +1645,50 @@ def test_the_letter_o_ending_a_word_is_not_a_bullet():
     dl = "· AmeriCorps program to OSI for support. · Washtenaw County ($4,000)."
     assert split_on_docling_bullets(pdf, dl) == [
         "AmeriCorps program to OSI for support.", "Washtenaw County ($4,000)."]
+
+
+def _rb(kind, text, page=1):
+    return {"kind": kind, "text": text, "page_no": page}
+
+
+def test_a_sentence_split_across_a_column_is_rejoined():
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("ListItem", "The Greenbelt reached 7,600 acres of farmland and"),
+          _rb("TextItem", "natural areas permanently protected surrounding the City.")]
+    assert rejoin_open_sentences(bs) == 1
+    assert len(bs) == 1
+    assert bs[0]["text"].startswith("The Greenbelt reached 7,600 acres of farmland and natural")
+
+
+def test_a_trailing_hyphen_joins_without_a_space():
+    """"collect feedback on soon-" + "to-be created" is one word broken across a column."""
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("ListItem", "collect feedback on soon-"), _rb("TextItem", "to-be created rebates.")]
+    rejoin_open_sentences(bs, words=set(), hyph={("soon", "to")})
+    assert bs[0]["text"] == "collect feedback on soon-to-be created rebates."
+
+
+def test_a_line_break_split_across_a_column_loses_its_hyphen():
+    """"col-" + "laborations" is one word broken by the line, not a compound."""
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("ListItem", "we value col-"), _rb("TextItem", "laborations with partners.")]
+    rejoin_open_sentences(bs, words={"collaborations"}, hyph=set())
+    assert bs[0]["text"] == "we value collaborations with partners."
+
+
+def test_two_finished_bullets_are_never_merged():
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("ListItem", "Planted 10,000 trees."), _rb("ListItem", "installed four monitors.")]
+    assert rejoin_open_sentences(bs) == 0 and len(bs) == 2
+
+
+def test_a_capitalised_next_block_is_a_new_item():
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("ListItem", "Planted 10,000 trees"), _rb("ListItem", "Installed four monitors.")]
+    assert rejoin_open_sentences(bs) == 0 and len(bs) == 2
+
+
+def test_a_heading_is_never_absorbed_into_the_block_above():
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("ListItem", "Planted 10,000 trees"), _rb("SectionHeaderItem", "next steps")]
+    assert rejoin_open_sentences(bs) == 0 and len(bs) == 2

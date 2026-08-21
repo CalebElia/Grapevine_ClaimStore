@@ -434,6 +434,66 @@ def split_on_docling_bullets(pdf_text: str, docling_text: str) -> list[str] | No
     return parts
 
 
+_OPEN_END = re.compile(r'[.!?:;]["\u201d)]?\s*$')
+
+
+def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
+                          hyph: set[str] | None = None) -> int:
+    """Merge a block that ends mid-sentence with the block that finishes it.
+
+    A sentence that runs into the next column -- especially where the continuation sits
+    under an image -- is modelled by Docling as a SEPARATE block, and it lands wherever
+    reading order puts it. Year 3 shipped ten of them:
+
+        "The Greenbelt reached 7,600 acres of farmland and"
+        "natural areas permanently protected surrounding the City of Ann Arbor..."
+
+    Split like that, neither half is a claim. The first asserts nothing and the second has
+    no subject, so extraction against either produces a fragment with a verbatim that is
+    real and a meaning that is not. Keeping the sentence whole matters more downstream
+    than any other structural property, which is Caleb's standing rule and the reason this
+    runs before nesting and captions.
+
+    TWO CONDITIONS, BOTH REQUIRED. The first block must end OPEN -- no terminal
+    punctuation -- and the second must begin lowercase. A well-formed list item begins
+    with a capital, so a lowercase opening is not a new item under any reading; and a
+    block ending in a full stop is finished no matter what follows it. Measured across the
+    corpus the pair fires ten times on Year 3 and NOT ONCE on Years 1, 2, 4 or 5, so it
+    cannot disturb documents that were already correct.
+
+    A TRAILING HYPHEN IS DECIDED, NOT ASSUMED. "collect feedback on soon-" plus "to-be
+    created" is one hyphenated word broken across a column and keeps its hyphen; "col-"
+    plus "laborations" is a line-break split and loses it. That is the same question
+    apply_hyphen_decisions answers inside a block, so it is answered the same way here,
+    against the same document-built vocabulary, rather than by picking one and being
+    wrong half the time.
+    """
+    joined = 0
+    i = 0
+    while i < len(resolved) - 1:
+        a, b = resolved[i], resolved[i + 1]
+        at, bt = (a.get("text") or "").strip(), (b.get("text") or "").strip()
+        if (at and bt
+                and a["kind"] not in ("SectionHeaderItem", "TitleItem", "PictureItem")
+                and b["kind"] not in ("SectionHeaderItem", "TitleItem", "PictureItem")
+                and not a.get("is_furniture") and not b.get("is_furniture")
+                and not a.get("caption_for") and not b.get("caption_for")
+                and not _OPEN_END.search(at)
+                and re.match(r"^[a-z]", bt)):
+            if at.endswith("-"):
+                lead, tail = at.split()[-1][:-1], bt.split()[0]
+                keep = decide_hyphen(lead, tail, words or set(), hyph or set()) != "join"
+                a["text"] = at + bt if keep else at[:-1] + bt
+            else:
+                a["text"] = f"{at} {bt}"
+            a["_rejoined"] = True
+            del resolved[i + 1]
+            joined += 1
+            continue
+        i += 1
+    return joined
+
+
 def _lead_shape(text: str) -> str:
     """A block's LEADING shape -- the first three word-ish tokens, digits collapsed.
 
@@ -1460,6 +1520,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
                                      "docling_text": ""})
                 content_recovered.append((pno, txt[:70]))
 
+    n_joined = rejoin_open_sentences(resolved, words, hyph)
     assign_nesting(resolved, ems)
     mark_furniture(resolved)
 

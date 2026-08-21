@@ -1,12 +1,12 @@
 # Year three Annual Report
 <!-- gate: REVIEW -->
-<!-- gate medium: truncation -- 3 block(s) end on a dangling word -- a continuation line was probably dropped -->
+<!-- gate medium: truncation -- 2 block(s) end on a dangling word -- a continuation line was probably dropped -->
 
-<!-- generated 2026-08-20T23:57:11Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-21T00:03:21Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 2 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 3 -->
 <!-- COVERAGE PERIOD: July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
-<!-- 0% OCR: 0 of 198 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
+<!-- 0% OCR: 0 of 189 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
 
 <!-- p.1 -->
 July 1, 2022-June 3, 2023
@@ -71,9 +71,7 @@ Strategy 1 of A2ZERO calls for the community’s electric needs to be powered wi
 
 - Commissioning of an Energy Options Analysis to determine the financial viability of the proposed Sustainable Energy Utility (SEU), traditional municipalization, and other options for meeting our community-wide renewable energy goals.
 
-- Submitted testimony in a DTE rate case (U-20836), objecting to a proposed rate increase,
-
-- challenging proposed new distributed generation rates, promoting increased reliability standards, supporting new clean energy and energy storage pilots, and calling for significantly improved streetlighting services and rates, among other topics.
+- Submitted testimony in a DTE rate case (U-20836), objecting to a proposed rate increase, challenging proposed new distributed generation rates, promoting increased reliability standards, supporting new clean energy and energy storage pilots, and calling for significantly improved streetlighting services and rates, among other topics.
 
 - Intervened and submitted testimony in additional Michigan Public Service Commission cases to improve renewable energy opportunities, decrease rates, and improve reliability, including: U-21172, U-21297, and U-21376.
 
@@ -92,9 +90,7 @@ Strategy 1 of A2ZERO calls for the community’s electric needs to be powered wi
 <!-- p.4 -->
 - Supported clean energy legislation introduced in the Michigan House and Senate, including Community Solar legislation and legislation to remove the 1% distributed generation cap.
 
-- Submitted a grant to the U.S. Department of Energy to formally create the proposed Sustainable Energy Utility. Decisions on this grant opportunity
-
-are due in mid-2024.
+- Submitted a grant to the U.S. Department of Energy to formally create the proposed Sustainable Energy Utility. Decisions on this grant opportunity are due in mid-2024.
 
 - Released a request for proposals in tandem with the University of Michigan to add an additional 1MW of solar to City facilities, and upwards of 20MW at University sites.
 
@@ -134,9 +130,7 @@ Advancing Strategy 2, also known as beneficial electrification, has been a signi
 
 - Collaborated with IBEW/NECA - our local Electrical Workers Union - on electrification readiness and supported their campaign called “The Future is Electric.” As part of this campaign, IBEW/NECA have released a series of informational videos to help residents know what might be involved in upgrading their homes for electrification of appliances and vehicles.
 
-- Held a convening with over 30 contractors across multiple disciplines to discuss misconceptions around electrification, promote City electrification programs and resources, collect feedback on soon-
-
-to-be created A2ZERO rebate programs, and discern best practices for increasing electrification through contractor collaboration.
+- Held a convening with over 30 contractors across multiple disciplines to discuss misconceptions around electrification, promote City electrification programs and resources, collect feedback on soon-to-be created A2ZERO rebate programs, and discern best practices for increasing electrification through contractor collaboration.
 
 <!-- p.7 -->
 ## STRATEGY THREE: SIGNIFICANTLY IMPROVE THE ENERGY EFFICIENCY IN OUR HOMES, BUSINESS, SCHOOLS, PLACES OF WORSHIP, RECREATIONAL SITES, AND GOVERNMENT FACILITIES
@@ -236,11 +230,9 @@ If we had to pick a word of the year in the OSI office, it would be circularity!
 
 - Created a video explaining what the Circular Economy is and its implications as part of a new series called “Making the Old New: Stories of Circularity.” Also completed two additional videos in the series about the Sister Lakes Association and El Harissa.
 
-- Created a decluttering/moving database and outreach magnet to provide resources for those
+- Created a decluttering/moving database and outreach magnet to provide resources for those moving or wishing to downsize their possessions. Find the link on the city’s reuse page.
 
 <!-- p.11 -->
-moving or wishing to downsize their possessions. Find the link on the city’s reuse page.
-
 - Hosted two events to address waste when students move into and out of the city. The events included reuse and recycling for scrap metal, foam, and general recycling as well as donations to Kiwanis.
 
 - A2ZERO Ambassadors initiated work to increase composting rates by undertaking deep engagement activities and by distributing compost carts to residents who don’t yet have them.
@@ -264,17 +256,13 @@ Enhancing the resilience of our people and our exceptional community are pivotal
 
   - Reached approximately 5,750 trees planted/ distributed through the 10,000 Trees program.
 
-  - Together with Public Works and Natural Areas Preservation, submitted a USDA Forest Service Urban & Community Forestry Inflation Reduction Actgrant proposal to fundan
-
-update to Ann Arbor’s Urban Tree Canopy assessment, advance private property tree planting efforts, create a NAP management plan, and conduct a feasibility study for a City- and County-owned tree nursery.
+  - Together with Public Works and Natural Areas Preservation, submitted a USDA Forest Service Urban & Community Forestry Inflation Reduction Actgrant proposal to fundan update to Ann Arbor’s Urban Tree Canopy assessment, advance private property tree planting efforts, create a NAP management plan, and conduct a feasibility study for a City- and County-owned tree nursery.
 
 - Presented on the 10,000 Trees program’s progress and success at the 2023 Partners in Community Forestry conference and ArborCon 2023.
 
 - Installed two additional air quality monitors, bringing the total number up to four.
 
-- The Greenbelt reached 7,600 acres of farmland and
-
-natural areas permanently protected surrounding the City of Ann Arbor. The farmland protected by the Greenbelt has the potential to produce the calories needed to feed over 52,000 people!
+- The Greenbelt reached 7,600 acres of farmland and natural areas permanently protected surrounding the City of Ann Arbor. The farmland protected by the Greenbelt has the potential to produce the calories needed to feed over 52,000 people!
 
 - Launched a data visualization platform for airquality monitoring at www.a2gov.org/airdata.
 
@@ -302,9 +290,7 @@ Many of the activities undertaken to advance A2ZERO fall into multiple strategie
 
 - Three OSI staff graduated from Champions for Change, elevating their commitment to racial equity in work and life. As of publication, five OSI staff have completed this program.
 
-- Staff participated in multiple
-
-national cohorts with peer cities for sharing of best practices and collaboration around climate work, including electrification, renewable energy, and equity.
+- Staff participated in multiple national cohorts with peer cities for sharing of best practices and collaboration around climate work, including electrification, renewable energy, and equity.
 
 - Re-structured the A2ZERO newsletter, The Charging Station, and began releasing monthly issues.
 
@@ -314,17 +300,13 @@ national cohorts with peer cities for sharing of best practices and collaboratio
 
 - OSI staff member joined the University of Michigan Museum of Natural History’s Board of Advisors.
 
-- Engaged the A2ZERO Collaborators network via virtual
-
-and in-person events designed to unlock their potential as planning and implementation partners. Plus, the A2ZERO Collaborators network grew to over 120 organizations!
+- Engaged the A2ZERO Collaborators network via virtual and in-person events designed to unlock their potential as planning and implementation partners. Plus, the A2ZERO Collaborators network grew to over 120 organizations!
 
 - OSI held a summer and fall Green Fair, bringing sustainability to the community through a wide variety of engagement platforms at the one-day event.
 
-- Ann Arborites voted to become the 8th community in America to tax themselves to fund local
+- Ann Arborites voted to become the 8th community in America to tax themselves to fund local climate action in November by passing the 20-year Community Climate Action Millage.
 
 <!-- p.14 -->
-climate action in November by passing the 20-year Community Climate Action Millage.
-
 - Granted over $70,000 through our Sustaining Ann Arbor Together grant program for community activities that help advance A2ZERO.
 
 - Hosted over 150 community events, meetings, presentations, or discussions with a wide variety of Ann Arborites.
