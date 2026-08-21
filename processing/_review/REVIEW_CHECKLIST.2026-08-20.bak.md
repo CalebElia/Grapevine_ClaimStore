@@ -1,10 +1,6 @@
 # A2Zero conversion — human review checklist
 
-Generated 2026-08-21T00:20:32Z.
-
-Ticks and notes from your earlier passes are carried forward wherever the item is
-word-for-word the same. Years 1, 2, 4 and 5 are byte-identical to what you reviewed;
-Year 3 changed substantially, so its items are new and start unticked.
+Generated 2026-08-20T22:39:25Z.
 
 Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs a fix.
 
@@ -50,27 +46,38 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 ## Year 3  (a2zero-year3-reviewed.md)
 
 ### A. Values — check against the PDF
-- [ ] `a2zero-year3-reviewed.md:45` p.2 — figure value **Electricity = 41** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:46` p.2 — figure value **Natural Gas = 27** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:47` p.2 — figure value **Transportation = 29.72** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:48` p.2 — figure value **Waste = 2** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:49` p.2 — figure value **Propane = 0.5** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:50` p.2 — figure value **Fuel Oil = 0.06** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:7` — coverage period read as **July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
-- [ ] `a2zero-year3-reviewed.md:253` p.12 — hyphen then SPACE in **City- and** — a line-break split usually joins to *City-and*; only a suspended hyphen ("City- and community-wide") keeps the space
-- [ ] `a2zero-year3-reviewed.md:72` — hyphen kept on **U-20836** because the document gave no evidence either way; should it be *U20836*?
-- [ ] `a2zero-year3-reviewed.md:213` — hyphen kept on **zero-waste** because the document gave no evidence either way; should it be *zerowaste*?
-- [ ] `a2zero-year3-reviewed.md:379` — hyphen kept on **co-designed** because the document gave no evidence either way; should it be *codesigned*?
+- [x] `a2zero-year3-reviewed.md:49` p.2 — figure value **Electricity = 41** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:50` p.2 — figure value **Natural Gas = 27** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:51` p.2 — figure value **Transportation = 29.72** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:52` p.2 — figure value **Waste = 2** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:53` p.2 — figure value **Propane = 0.5** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:54` p.2 — figure value **Fuel Oil = 0.06** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:36` p.2 — block ENDS at “… of its electricity from renewable sources, representing an” — does the sentence finish there, or was a continuation line dropped?
+    → Sentence is completed in the next column under the figure, so the sentence should finish as "… of its electricity from renewable sources, representing an offset of 6% of community-wide emissions." That string is sitting in line 66, with a recovery flag on it.
+- [x] `a2zero-year3-reviewed.md:205` p.9 — block ENDS at “Passed a resolution to restrict turns on red lights in” — does the sentence finish there, or was a continuation line dropped?
+    → Dropped the rest of the sentence because it carries to the next column, sitting under the image. The line is "... the downtown, reducing vehicle/bicyclist conflicts." The data is in the md, just sitting alone at line 213.
+- [x] `a2zero-year3-reviewed.md:280` p.12 — block ENDS at “The Greenbelt reached 7,600 acres of farmland and” — does the sentence finish there, or was a continuation line dropped?
+    → Dropped the rest of the sentence. Similar pattern. The sentence carries across the columns and sits under an image. In this case, the rest of the sentence is simply separated, sitting at line 282.
+- [x] `a2zero-year3-reviewed.md:8` — coverage period read as **July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
+    → Leave as is. We don't know why it reads June 3. June 30 makes more sense, but we'd need to confirm inaccuracy with the author. We should report dates as we recieve them, unless there's disagreement about the report dates within the report itself. 
+- [x] `a2zero-year3-reviewed.md:274` p.12 — hyphen then SPACE in **City- and** — a line-break split usually joins to *City-and*; only a suspended hyphen ("City- and community-wide") keeps the space
+    → Keep the "City- and community-wide" spelling that is correct. There's a larger issue here, likely caused by the weirdly changing fonts in the image, but lines 272-274 should be all one line, and read, "Together with Public Works and Natural Areas Preservation, submitted a USDA Forest Service Urban & Community Forestry Inflation Reduction Act grant proposal to fund an update to Ann Arbor’s Urban Tree Canopy assessment, advance private property tree planting efforts, create a NAP management plan, and conduct a feasibility study for a City- and County-owned tree nursery." ALSO, lines 270 and 272 are incorrectly indented, mirroring the image layout. But semantically, these are the same as all the other bullets. This isn't a sublist with a preceding ":" function.
+- [x] `a2zero-year3-reviewed.md:79` — hyphen kept on **U-20836** because the document gave no evidence either way; should it be *U20836*?
+- [x] `a2zero-year3-reviewed.md:144` — hyphen kept on **soon-to** because the document gave no evidence either way; should it be *soonto*?
+    → "soon-to-be" is correct in here, but lines 142 and 144 are broken and should read as one line: "Held a convening with over 30 contractors across multiple disciplines to discuss misconceptions around electrification, promote City electrification programs and resources, collect feedback on soon-to-be created A2ZERO rebate programs, and discern best practices for increasing electrification through contractor collaboration."
+- [x] `a2zero-year3-reviewed.md:230` — hyphen kept on **zero-waste** because the document gave no evidence either way; should it be *zerowaste*?
+- [x] `a2zero-year3-reviewed.md:399` — hyphen kept on **co-designed** because the document gave no evidence either way; should it be *codesigned*?
 
 ### B. Placement — text is present; is it in the right place?
-- [ ] `a2zero-year3-reviewed.md:269` p.12 — recovered region, placement INFERRED: > NaturalAreas Preservation,submitted a USDAForest
-- [ ] `a2zero-year3-reviewed.md` — section spine: 12 headings (INTRODUCTION, GREENHOUSE GAS EMISSIONS , STRATEGY ONE: POWER OUR E, STRATEGY TWO: SWITCH OUR , STRATEGY THREE: SIGNIFICA, STRATEGY FOUR: REDUCE THE…) — do they match the PDF's contents page, in order and with none invented?
-- [ ] `a2zero-year3-reviewed.md:408` p.16 — two headings with nothing between them: 'CLOSING' then 'Year three Annual Report' — one heading split in two?
-- [ ] `a2zero-year3-reviewed.md:332` — 13 nested list item(s); confirm they really belong under the bullet above them
+- [ ] `a2zero-year3-reviewed.md:22` p.1 — recovered region, placement INFERRED: > July 1, 2022-June 3, 2023
+- [ ] `a2zero-year3-reviewed.md:65` p.2 — recovered region, placement INFERRED: > offset of 6% of community-wide emissions.
+- [ ] `a2zero-year3-reviewed.md:436` p.16 — recovered region, placement INFERRED: > July 1, 2022-June 3, 2023
+- [ ] `a2zero-year3-reviewed.md` — section spine: 13 headings (INTRODUCTION, The Ann Arbor Office of S, GREENHOUSE GAS EMISSIONS , STRATEGY ONE: POWER OUR E, STRATEGY TWO: SWITCH OUR , STRATEGY THREE: SIGNIFICA…) — do they match the PDF's contents page, in order and with none invented?
+- [ ] `a2zero-year3-reviewed.md:428` p.16 — two headings with nothing between them: 'CLOSING' then 'Year three Annual Report' — one heading split in two?
+- [ ] `a2zero-year3-reviewed.md:270` — 2 nested list item(s); confirm they really belong under the bullet above them
 
 ### C. Labels — skim; a wrong one is mislabelled, not lost
-- [ ] `a2zero-year3-reviewed.md:17` p.1 — tagged FURNITURE: > The Ann Arbor Office of Sustainability and Innovations Team
-- [ ] `a2zero-year3-reviewed.md:20` p.1 — tagged FURNITURE: > Missy, Zach, Julie, Sean, Thea, Simi, Hannah, Joe, Sheronda, Bryce, Jenn
+- (nothing in this category)
 
 
 ## Year 4  (a2zero-year4-reviewed.md)
