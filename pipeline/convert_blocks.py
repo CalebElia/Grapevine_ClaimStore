@@ -300,6 +300,36 @@ def trim_to_docling(pdf_text: str, docling_text: str) -> str:
     return pdf_text
 
 
+def adopt_rendered_case(pdf_text: str, docling_text: str) -> str:
+    """Take Docling's CASE where the two readers agree on every letter but disagree on it.
+
+    Year 3 sets its title in AlgreSansNC, a display face whose lowercase codepoints draw
+    capital glyphs. pdfplumber reports the codepoints -- "Year three Annual Report" -- and
+    the page shows YEAR THREE ANNUAL REPORT, which is what Docling reports, because Docling
+    reads the rendered page rather than the character stream. Caleb, twice: "In the PDF
+    it's all caps, just like all the other section headers."
+
+    THIS IS THE SUPERSCRIPT ARGUMENT AGAIN. pdfplumber is authoritative for WHICH letters
+    a block contains and this does not touch that: the guard is that the two readings must
+    be identical case-insensitively, so no letter can be added, dropped or changed. What it
+    defers on is a property the character stream genuinely gets wrong about this font, and
+    where a second independent reader of the same page disagrees, the rendering is what the
+    document says.
+
+    Narrow by measurement, not by hope: across all five reports this fires on four blocks,
+    all of them Year 3's title and date on pages 1 and 16, and on nothing in Years 1, 2, 4
+    or 5. It also requires Docling's form to be the UPPERCASE one, so an OCR read that
+    merely lowercased a heading can never rewrite a correct block.
+    """
+    p, d = " ".join(pdf_text.split()), " ".join(docling_text.split())
+    if not p or not d or p == d or p.lower() != d.lower():
+        return pdf_text
+    letters = [c for c in d if c.isalpha()]
+    if letters and all(c.isupper() for c in letters):
+        return d
+    return pdf_text
+
+
 def choose_block_text(pdf_text: str, docling_text: str) -> tuple[str, str]:
     """(text, source) for one block: pdfplumber's characters, or Docling's OCR.
 
@@ -1530,6 +1560,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             continue                      # no text; re-interleaved for the renderer below
         raw = trim_to_docling(raw, b.get("docling_text") or "")
         raw, src = choose_block_text(raw, b.get("docling_text") or "")
+        raw = adopt_rendered_case(raw, b.get("docling_text") or "")
         if src == "docling_ocr" and ocr_terms:
             # OCR-sourced only: a text layer's characters are authoritative, and A2ZERO
             # set as A²ZERO is typography to preserve, not a misread to repair.

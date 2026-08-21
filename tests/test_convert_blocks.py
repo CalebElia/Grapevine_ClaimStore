@@ -1810,3 +1810,23 @@ def test_genuinely_dropped_text_is_still_reported():
     assembled = "Passed a resolution to restrict turns on red lights in"
     page = ["the", "downtown", "reducing", "vehicle", "bicyclist", "conflicts"]
     assert missing_runs(page, assembled)
+
+
+def test_a_display_font_case_is_taken_from_the_rendered_read():
+    """Year 3's AlgreSansNC draws capitals from lowercase codepoints, so pdfplumber
+    reports "Year three Annual Report" for a page that shows YEAR THREE ANNUAL REPORT."""
+    from pipeline.convert_blocks import adopt_rendered_case
+    assert adopt_rendered_case("Year three Annual Report",
+                               "YEAR THREE ANNUAL REPORT") == "YEAR THREE ANNUAL REPORT"
+
+
+def test_case_is_only_taken_when_every_letter_matches():
+    """pdfplumber stays authoritative for WHICH letters a block contains."""
+    from pipeline.convert_blocks import adopt_rendered_case
+    assert adopt_rendered_case("A2ZERO Week", "AZERO WEEK") == "A2ZERO Week"
+    assert adopt_rendered_case("Natural Areas", "NATURAL AREAS ALSO") == "Natural Areas"
+
+
+def test_a_lowercased_ocr_read_never_rewrites_a_heading():
+    from pipeline.convert_blocks import adopt_rendered_case
+    assert adopt_rendered_case("STRATEGY ONE", "strategy one") == "STRATEGY ONE"

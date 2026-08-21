@@ -2,7 +2,7 @@
 <!-- gate: REVIEW -->
 <!-- gate medium: truncation -- 1 block(s) end on a dangling word -- a continuation line was probably dropped -->
 
-<!-- generated 2026-08-21T02:26:14Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-21T02:29:10Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 0 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 0 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 1 -->
 <!-- 0% OCR: 0 of 96 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->

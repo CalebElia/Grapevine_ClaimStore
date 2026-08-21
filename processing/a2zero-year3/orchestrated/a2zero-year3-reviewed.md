@@ -1,14 +1,14 @@
-# Year three Annual Report
+# YEAR THREE ANNUAL REPORT
 <!-- gate: PASS -->
 
-<!-- generated 2026-08-21T02:26:18Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-21T02:29:14Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 0 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 3 -->
-<!-- COVERAGE PERIOD: July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
+<!-- COVERAGE PERIOD: JULY 1, 2022-JUNE 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
 <!-- 0% OCR: 0 of 185 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
 
 <!-- p.1 -->
-July 1, 2022-June 3, 2023
+JULY 1, 2022-JUNE 3, 2023
 
 ## INTRODUCTION
 
@@ -402,8 +402,8 @@ As illustrated above, year three of A2ZERO was filled with a wide variety of act
 <!-- p.16 -->
 ## CLOSING
 
-## Year three Annual Report
+## YEAR THREE ANNUAL REPORT
 
-July 1, 2022-June 3, 2023
+JULY 1, 2022-JUNE 3, 2023
 
 A2ZERO is our community’s plan to become carbon neutral in a just and equitable way by the year 2030. Achieving this audacious, aggressive, and scientifically necessary plan requires all of us. Learn more about how to join us in the movement at www.a2gov.org/sustainability. With questions about our achievements, our work so far, or our future endeavors, please contact us at Sustainability@a2gov.org.
