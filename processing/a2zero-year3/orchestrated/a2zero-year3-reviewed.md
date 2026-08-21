@@ -1,11 +1,11 @@
 # Year three Annual Report
 <!-- gate: PASS -->
 
-<!-- generated 2026-08-21T00:19:55Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
-<!-- 1 figure(s) · 0 caption(s) tagged · 2 furniture block(s) · 1 region(s) recovered by the coverage sweep -->
+<!-- generated 2026-08-21T02:26:18Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 0 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 3 -->
 <!-- COVERAGE PERIOD: July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
-<!-- 0% OCR: 0 of 186 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
+<!-- 0% OCR: 0 of 185 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
 
 <!-- p.1 -->
 July 1, 2022-June 3, 2023
@@ -14,11 +14,9 @@ July 1, 2022-June 3, 2023
 
 As A2ZERO turns three, we find it time to once again reflect on actions and activities taken to-date and those still needed to hit our goal of community-wide carbon neutrality by the year 2030. A lot of great work was embarked on in the last year, as outlined below. Much of this work focused on building a foundation for long-term climate action or built upon foundations laid in previous years. Together, our community has reduced greenhouse gas emissions by over 22% - creating the momentum necessary to hit our audacious climate goals. Yet we know a great deal more is needed. That’s why staff in the Ann Arbor Office of Sustainability and Innovations (OSI), the caretakers for A2ZERO, are working hard to create new programs and initiatives that will ensure everyone in our community can participate in the climate movement. If you haven’t already joined us, we encourage you to sign up for our monthly newsletter to learn more about activities and ways to get involved. Or consider becoming an A2ZERO Ambassador to help us spread the word about A2ZERO in the community. You can also join our team as a full-time employee, AmeriCorps member, intern, or volunteer – check out opportunities as they emerge here. Regardless of how you’re able, please get involved - because achieving our goals is only possible when we all work together.
 
-<!-- FURNITURE: staff roster / sign-off, not an assertion -->
-> The Ann Arbor Office of Sustainability and Innovations Team
+The Ann Arbor Office of Sustainability and Innovations Team
 
-<!-- FURNITURE: staff roster / sign-off, not an assertion -->
-> Missy, Zach, Julie, Sean, Thea, Simi, Hannah, Joe, Sheronda, Bryce, Jennifer, Carissa, and Ryan
+Missy, Zach, Julie, Sean, Thea, Simi, Hannah, Joe, Sheronda, Bryce, Jennifer, Carissa, and Ryan
 
 <!-- p.2 -->
 ## GREENHOUSE GAS EMISSIONS SUMMARY
@@ -265,9 +263,6 @@ Enhancing the resilience of our people and our exceptional community are pivotal
 - Hosted over a dozen community-basedorganizations to explore creation of a resilience network.
 
 - Applied for a federal EPA grant to formally launcha resilience network and expand resilience hubs throughout the County.
-
-<!-- recovered by coverage sweep: no Docling block modelled this region on page 12; placement inferred -->
-> NaturalAreas Preservation,submitted a USDAForest
 
 <!-- p.13 -->
 ## STRATEGY SEVEN: OTHER STRATEGIES (NOTABLE ACCOMPLISHMENTS OR EFFORTS)

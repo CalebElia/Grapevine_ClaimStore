@@ -103,8 +103,16 @@ def decide_hyphen(a: str, b: str, words: set[str], hyph: set[str]) -> str:
     citation, which is the one failure this project is built to prevent; the honest move
     is to surface the case for a later pass that can actually judge it.
     """
+    # A PLURAL IS EVIDENCE FOR ITS SINGULAR. Year 5 writes "Collaborators" seven times and
+    # "Collaborator" never, so the joined form was unattested and the split kept its
+    # hyphen -- "Collab-orator", which Caleb rightly called a nonsense word. The document
+    # does know this word; it knows it in the plural, and a trailing s is not a different
+    # claim about whether these two fragments are one word. The reverse also holds, so a
+    # singular in the text vouches for a plural at the seam.
     joined, hyphenated = f"{a}{b}".lower(), f"{a.lower()}-{b.lower()}"
-    ev_join, ev_hyph = joined in words, hyphenated in hyph
+    ev_join = (joined in words or f"{joined}s" in words
+               or (joined.endswith("s") and joined[:-1] in words))
+    ev_hyph = hyphenated in hyph
     if ev_join and not ev_hyph:
         return "join"
     if ev_hyph and not ev_join:
@@ -569,9 +577,14 @@ def mark_signoff(resolved: list[dict]) -> int:
     So the ruling is made on what follows -- a bare roster -- and the geometry is not
     consulted at all.
 
-    Both blocks are kept and marked, never dropped. They belong to `people`; they assert
-    nothing about the world, and thirteen first names extracted as claims would be
-    thirteen statements the report never made.
+    IT IS DEMOTED, NOT TAGGED. I marked both blocks furniture on the first pass and Caleb
+    rejected that, on both documents that have one: "I would have just captured this as
+    plain text. It's the signature to the introduction and those names are OSI staff
+    members." He is right and the distinction is worth keeping straight. Furniture is a
+    page footer -- a repeating template that belongs to the page rather than to the
+    document. A sign-off belongs to the document: it says who wrote it, which is exactly
+    the kind of thing `people` and the attribution layer want. Being wrong as a HEADING
+    does not make it furniture; it makes it a paragraph.
     """
     n = 0
     for i, b in enumerate(resolved[:-1]):
@@ -581,7 +594,6 @@ def mark_signoff(resolved: list[dict]) -> int:
                 and nxt.get("page_no") == b.get("page_no")
                 and looks_like_roster(nxt.get("text") or "")):
             b["kind"] = "TextItem"
-            b["is_furniture"] = nxt["is_furniture"] = True
             b["_signoff"] = nxt["_signoff"] = True
             n += 1
     return n
@@ -608,7 +620,11 @@ def looks_like_roster(text: str, min_names: int = 4) -> bool:
     parts = [p for p in parts if p]
     if len(parts) < min_names:
         return False
-    return all(re.fullmatch(r"[A-Z][a-z]+", p) and p not in _NOT_A_NAME for p in parts)
+    # A NAME MAY CARRY AN APOSTROPHE OR A HYPHEN. Year 5's roster contains "DeAndre'",
+    # which failed a plain [A-Z][a-z]+ and took the whole sign-off with it, so Year 5 kept
+    # a heading that introduces nothing but fifteen first names.
+    return all(re.fullmatch(r"[A-Z][a-zA-Z'\u2019-]+", p) and p not in _NOT_A_NAME
+               for p in parts)
 
 
 def _lead_shape(text: str) -> str:
@@ -1261,6 +1277,18 @@ def missing_runs(page_words: list[str], assembled: str,
     """
     norm = lambda w: re.sub(r"[^a-z0-9]", "", w.lower())
     hay = {w for w in (norm(x) for x in assembled.split()) if w}
+    # SPACING IS A PROPERTY OF THE READING, NOT OF THE DOCUMENT. This sweep reads the raw
+    # page, where Year 3 draws its word spaces on their own baseline, so it produces
+    # "NaturalAreas" for text the block carries as "Natural Areas". A set of whole words
+    # can never match a fused token, so the sweep declared a correctly-converted sentence
+    # missing and recovered a mangled duplicate of it underneath. Matching against the
+    # page's letters with every break removed answers the question actually being asked --
+    # is this text present -- rather than whether both readings broke it the same way.
+    # Only for tokens long enough that a substring hit means something: a short one would
+    # match inside almost any page, and short ones are the function words this already
+    # treats as neutral.
+    hay_run = "".join(norm(x) for x in assembled.split())
+    present = lambda n: n in hay or (len(n) >= 6 and n in hay_run)
 
     # A STOPWORD NEITHER PROVES NOR BREAKS A GAP. Plain membership missed "the downtown,
     # reducing vehicle/bicyclist conflicts" entirely, because "the" occurs elsewhere on
@@ -1277,7 +1305,7 @@ def missing_runs(page_words: list[str], assembled: str,
             if cur:
                 cur.append(w)
             continue
-        if n in hay:
+        if present(n):
             if len(cur) >= min_run:
                 runs.append(cur)
             cur = []
@@ -1300,8 +1328,17 @@ def already_present(candidate: str, assembled: str) -> bool:
 
     Being outside a box is not the same as being absent from the document, and only the
     second one justifies recovery.
+
+    SPACING IS NOT PART OF THE QUESTION. The sweep reads the raw page, where Year 3 draws
+    its word spaces on their own baseline, so it sees "NaturalAreas Preservation,submitted
+    a USDAForest" while the block -- whose crop is small enough for those spaces to be
+    snapped back -- carries "Natural Areas Preservation, submitted a USDA Forest". Compared
+    word-for-word the two do not match, and the sweep recovered a fused duplicate of a
+    sentence already correctly in place. Caleb: "This is redundant text that's correctly in
+    line 253." Whether a word break was detected is a property of the READING, not of the
+    document, so it is removed from both sides before asking whether the text is present.
     """
-    norm = lambda t: " ".join(re.sub(r"[^a-z0-9 ]", " ", t.lower()).split())
+    norm = lambda t: re.sub(r"[^a-z0-9]", "", t.lower())
     c = norm(candidate)
     return bool(c) and c in norm(assembled)
 

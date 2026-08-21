@@ -1,7 +1,7 @@
 # A2ZER0 Annual Report Year Five
 <!-- gate: PASS -->
 
-<!-- generated 2026-08-21T00:20:01Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-21T02:26:23Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 2 figure(s) · 23 caption(s) tagged · 0 furniture block(s) · 11 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 5 -->
 <!-- COVERAGE PERIOD: June 1, 2024 – May 31, 2025 -> 2024-06-01..2025-05-31 (364 days) -->
@@ -43,13 +43,13 @@ This Annual Report reflects upon and celebrates the milestones accomplished duri
 
 In the pages that follow, we highlight some of the work that took place this last year as well as what’s on the horizon. We’ve tried to celebrate milestones while also reflecting on what we learned and what we plan to change in the years ahead. Where possible, we highlight the collaborators that are helping us move climate action forward in the community. We celebrate the residents, businesses, nonprofits, institutions, and individuals that share their time, talent, and expertise with our Office, the Office of Sustainability and Innovations, and the City as a whole.
 
-If you’ve joined us at an A2ZERO event, participated in one of our programs, or given us feedback over the years, thank you! And if you’d like to join the movement, we can’t wait to welcome you. You can join us at one of our upcoming events, participate in our A2ZERO Green Business Challenge, become an A2ZERO Ambassador, take one of our sustainability challenges, join us an A2ZERO Collab-orator, or find new and innovative ways to help grow the sustainability movement locally. And, if you haven’t yet, sign up for our monthly newsletter, The Charging Station, to make sure you’re always in the know on sustainability programs and activities unfolding in the community.
+If you’ve joined us at an A2ZERO event, participated in one of our programs, or given us feedback over the years, thank you! And if you’d like to join the movement, we can’t wait to welcome you. You can join us at one of our upcoming events, participate in our A2ZERO Green Business Challenge, become an A2ZERO Ambassador, take one of our sustainability challenges, join us an A2ZERO Collaborator, or find new and innovative ways to help grow the sustainability movement locally. And, if you haven’t yet, sign up for our monthly newsletter, The Charging Station, to make sure you’re always in the know on sustainability programs and activities unfolding in the community.
 
 Those who have heard us speak have often heard our Office talk about the importance of doing this work together, with “together” being the key word. A goal as big, bold, and audacious as community-wide carbon neutrality requires all of us. And that’s why we can’t wait to work with YOU to help Ann Arbor show the world what it looks like when a community comes together to tackle one of the most pressing issues of our time.
 
 Sincerely,
 
-## The City of Ann Arbor Office of Sustainability and Innovations
+The City of Ann Arbor Office of Sustainability and Innovations
 
 Missy, Simi, Steve, DeAndre’, Aiden, Connor, Claire, Carissa, Grace, Bryce, Maggie, Valerie, Joe, Jordan, Azella, Genevieve, Sean, Julie, and Jerrell
 

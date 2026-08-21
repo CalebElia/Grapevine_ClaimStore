@@ -1741,8 +1741,10 @@ def test_a_heading_over_a_roster_is_a_signoff_not_a_section():
     bs = [_rb("SectionHeaderItem", "The Ann Arbor Office of Sustainability and Innovations Team"),
           _rb("TextItem", "Missy, Zach, Julie, Sean, Thea, Simi, Hannah, Joe, and Ryan")]
     assert mark_signoff(bs) == 1
-    assert bs[0]["kind"] == "TextItem"
-    assert bs[0]["is_furniture"] and bs[1]["is_furniture"]      # kept, marked, not dropped
+    assert bs[0]["kind"] == "TextItem"                          # demoted from heading
+    # PLAIN TEXT, NOT FURNITURE. Furniture is a page footer -- a template belonging to the
+    # page. A sign-off belongs to the DOCUMENT: it says who wrote it.
+    assert not bs[0].get("is_furniture") and not bs[1].get("is_furniture")
 
 
 def test_a_real_heading_over_prose_is_untouched():
@@ -1761,3 +1763,50 @@ def test_a_bullet_flowed_around_a_picture_keeps_its_depth():
     normal = {"bbox": [35.7, 560.7, 277.2, 522.6]}
     assert flowed_around_picture(flowed, [pic])
     assert not flowed_around_picture(normal, [pic])
+
+
+def test_a_name_with_an_apostrophe_still_reads_as_a_roster():
+    """Year 5's roster contains "DeAndre'", which failed a plain [A-Z][a-z]+ and took the
+    whole sign-off with it."""
+    from pipeline.convert_blocks import looks_like_roster
+    assert looks_like_roster("Missy, Simi, Steve, DeAndre', Aiden, Connor, and Claire")
+    assert looks_like_roster("Mary-Jane, Anne-Marie, Bryce, and Ryan")
+    assert not looks_like_roster("We planted trees, hosted events, and installed monitors.")
+
+
+def test_a_plural_in_the_document_vouches_for_its_singular():
+    """Year 5 says "Collaborators" seven times and "Collaborator" never, so "Collab-orator"
+    kept a hyphen no reader would write."""
+    from pipeline.convert_blocks import decide_hyphen
+    assert decide_hyphen("Collab", "orator", {"collaborators"}, set()) == "join"
+    assert decide_hyphen("program", "s", {"program"}, set()) == "join"
+    assert decide_hyphen("zero", "emission", set(), {"zero-emission"}) == "hyphen"
+
+
+def test_a_fused_recovery_matches_its_spaced_original():
+    """The sweep reads the raw page, where Year 3's word spaces sit on their own baseline,
+    so it sees "NaturalAreas Preservation,submitted" for text the block carries spaced."""
+    from pipeline.convert_blocks import already_present
+    assert already_present("NaturalAreas Preservation,submitted a USDAForest",
+                           "Together with Public Works and Natural Areas Preservation, "
+                           "submitted a USDA Forest Service grant proposal.")
+    assert not already_present("Planted 10,000 trees in the Bryant neighborhood",
+                               "Together with Public Works and Natural Areas Preservation.")
+
+
+def test_a_fused_token_is_not_reported_missing():
+    """The content sweep reads the raw page, where Year 3's spaces sit on their own
+    baseline. A set of whole words can never match "NaturalAreas", so it declared a
+    correctly-converted sentence missing and recovered a mangled duplicate of it."""
+    from pipeline.convert_blocks import missing_runs
+    assembled = ("Together with Public Works and Natural Areas Preservation, submitted "
+                 "a USDA Forest Service grant proposal to fund an update.")
+    page = ["NaturalAreas", "Preservation,submitted", "a", "USDAForest"]
+    assert missing_runs(page, assembled) == []
+
+
+def test_genuinely_dropped_text_is_still_reported():
+    from pipeline.convert_blocks import missing_runs
+    assembled = "Passed a resolution to restrict turns on red lights in"
+    page = ["the", "downtown", "reducing", "vehicle", "bicyclist", "conflicts"]
+    assert missing_runs(page, assembled)

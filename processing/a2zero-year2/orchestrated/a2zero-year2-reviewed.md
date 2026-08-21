@@ -2,7 +2,7 @@
 <!-- gate: REVIEW -->
 <!-- gate medium: ocr_fraction -- 98% of text blocks read by OCR -- not character-exact; claims from this document need a lower evidence grade -->
 
-<!-- generated 2026-08-21T00:19:52Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-21T02:26:15Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 1 figure(s) · 0 caption(s) tagged · 7 furniture block(s) · 0 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 2 -->
 <!-- 96% OCR: 150 of 157 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: docling_ocr. -->
