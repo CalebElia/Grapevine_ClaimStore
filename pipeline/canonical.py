@@ -200,6 +200,33 @@ def sections(canon: Canonical) -> list[dict]:
         cur["units"].append(u)
     if cur is not None:
         out.append(cur)
+
+    # A CAPTION THAT OPENS THE NEXT SECTION'S PAGE BELONGS TO IT. Years 4 and 5 open each
+    # section with a full-bleed photograph, and its caption is emitted BEFORE the heading,
+    # so it lands at the end of the previous section. Fifteen sections across the corpus
+    # end on a caption and fourteen of them are that section's own closing photo -- the
+    # page tells them apart. Year 5's page 23 carries "Emergency kit supplies distribution."
+    # and YEAR 6 PRIORITIES; a caption sharing a page with the NEXT heading is that
+    # section's opening image, not this one's parting shot.
+    #
+    # No claim is at risk either way -- a caption is tagged and never extracted -- but the
+    # section's char range and content_hash would otherwise cover text belonging to its
+    # neighbour, and a figure attributed to the wrong section is wrong in the store.
+    for i in range(len(out) - 1):
+        here, nxt = out[i], out[i + 1]
+        prose = [u for u in here["units"] if u.is_prose]
+        head = next((u for u in nxt["units"] if u.is_prose), None)
+        if (len(prose) > 1 and prose[-1].kind == "caption" and head is not None
+                and prose[-1].page_no is not None
+                and prose[-1].page_no == head.page_no):
+            moved = prose[-1]
+            here["units"].remove(moved)
+            nxt["units"].insert(0, moved)
+            here["char_end"] = max(u.char_end for u in here["units"] if u.is_prose)
+            nxt["char_start"] = moved.char_start
+            if here["page_end"] is not None and prose[-2].page_no is not None:
+                here["page_end"] = prose[-2].page_no
+
     for s in out:
         s["content_hash"] = hashlib.sha256(
             canon.text[s["char_start"]:s["char_end"]].encode()).hexdigest()

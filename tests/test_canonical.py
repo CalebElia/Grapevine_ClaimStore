@@ -158,3 +158,29 @@ def test_the_real_corpus_round_trips():
         # every heading the renderer emitted survives into the span space
         heads = [l[3:].strip() for l in p.read_text().splitlines() if l.startswith("## ")]
         assert all(h in c.text for h in heads), p.name
+
+
+def test_a_caption_opening_the_next_page_moves_to_the_next_section():
+    """Years 4 and 5 open each section with a full-bleed photo whose caption is emitted
+    BEFORE the heading. Fifteen sections end on a caption; the page tells the one that is
+    the next section's opener from the fourteen that are their own closing photo."""
+    md = ("# t\n\n<!-- p.19 -->\n## STRATEGY 7: OTHER\n\n- Did a thing.\n\n"
+          "<!-- p.23 -->\n<!-- CAPTION: a photograph on page 23 -->\n"
+          "> Emergency kit supplies distribution.\n\n"
+          "## YEAR 6 PRIORITIES\n\nNext year we will do more.\n")
+    secs = sections(build(md))
+    s7 = next(s for s in secs if s["heading"] == "STRATEGY 7: OTHER")
+    s8 = next(s for s in secs if s["heading"] == "YEAR 6 PRIORITIES")
+    assert "Emergency kit" not in [u.text[:13] for u in s7["units"]]
+    assert any("Emergency kit" in u.text for u in s8["units"])
+
+
+def test_a_closing_photo_stays_with_its_own_section():
+    """Caption on page 7, next heading on page 8: Strategy 1's own parting shot."""
+    md = ("# t\n\n<!-- p.5 -->\n## STRATEGY 1\n\n- Did a thing.\n\n"
+          "<!-- p.7 -->\n<!-- CAPTION: a photograph on page 7 -->\n"
+          "> Drilling for the geothermal system.\n\n"
+          "<!-- p.8 -->\n## STRATEGY 2\n\nMore text.\n")
+    secs = sections(build(md))
+    s1 = next(s for s in secs if s["heading"] == "STRATEGY 1")
+    assert any("Drilling" in u.text for u in s1["units"])
