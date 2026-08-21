@@ -50,22 +50,22 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 ## Year 3  (a2zero-year3-reviewed.md)
 
 ### A. Values — check against the PDF
-- [ ] `a2zero-year3-reviewed.md:43` p.2 — figure value **Electricity = 41** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:44` p.2 — figure value **Natural Gas = 27** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:45` p.2 — figure value **Transportation = 29.72** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:46` p.2 — figure value **Waste = 2** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:47` p.2 — figure value **Propane = 0.5** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:48` p.2 — figure value **Fuel Oil = 0.06** — read off an image by a vision model; confirm against the chart
-- [ ] `a2zero-year3-reviewed.md:7` — coverage period read as **JULY 1, 2022-JUNE 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
-- [ ] `a2zero-year3-reviewed.md:251` p.12 — hyphen then SPACE in **City- and** — a line-break split usually joins to *City-and*; only a suspended hyphen ("City- and community-wide") keeps the space
-- [ ] `a2zero-year3-reviewed.md:70` — hyphen kept on **U-20836** because the document gave no evidence either way; should it be *U20836*?
-- [ ] `a2zero-year3-reviewed.md:211` — hyphen kept on **zero-waste** because the document gave no evidence either way; should it be *zerowaste*?
-- [ ] `a2zero-year3-reviewed.md:374` — hyphen kept on **co-designed** because the document gave no evidence either way; should it be *codesigned*?
+- [x] `a2zero-year3-reviewed.md:43` p.2 — figure value **Electricity = 41** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:44` p.2 — figure value **Natural Gas = 27** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:45` p.2 — figure value **Transportation = 29.72** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:46` p.2 — figure value **Waste = 2** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:47` p.2 — figure value **Propane = 0.5** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:48` p.2 — figure value **Fuel Oil = 0.06** — read off an image by a vision model; confirm against the chart
+- [x] `a2zero-year3-reviewed.md:7` — coverage period read as **JULY 1, 2022-JUNE 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
+- [x] `a2zero-year3-reviewed.md:251` p.12 — hyphen then SPACE in **City- and** — a line-break split usually joins to *City-and*; only a suspended hyphen ("City- and community-wide") keeps the space
+- [x] `a2zero-year3-reviewed.md:70` — hyphen kept on **U-20836** because the document gave no evidence either way; should it be *U20836*?
+- [x] `a2zero-year3-reviewed.md:211` — hyphen kept on **zero-waste** because the document gave no evidence either way; should it be *zerowaste*?
+- [x] `a2zero-year3-reviewed.md:374` — hyphen kept on **co-designed** because the document gave no evidence either way; should it be *codesigned*?
 
 ### B. Placement — text is present; is it in the right place?
 - [x] `a2zero-year3-reviewed.md` — section spine: 12 headings (INTRODUCTION, GREENHOUSE GAS EMISSIONS , STRATEGY ONE: POWER OUR E, STRATEGY TWO: SWITCH OUR , STRATEGY THREE: SIGNIFICA, STRATEGY FOUR: REDUCE THE…) — do they match the PDF's contents page, in order and with none invented?
     → The only thing odd is the spelling of "# Year three Annual Report". In the PDF it's all caps, just like all the other section headers.
-- [ ] `a2zero-year3-reviewed.md:327` — 13 nested list item(s); confirm they really belong under the bullet above them
+- [x] `a2zero-year3-reviewed.md:327` — 13 nested list item(s); confirm they really belong under the bullet above them
 
 ### C. Labels — skim; a wrong one is mislabelled, not lost
 - (nothing in this category)
@@ -77,7 +77,7 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 - [x] `a2zero-year4-reviewed.md:7` — coverage period read as **JULY 1, 2023 – JUNE 3, 2024 -> 2023-07-01..2024-06-03 (338 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
 - [x] `a2zero-year4-reviewed.md:79` — hyphen kept on **to-date** because the document gave no evidence either way; should it be *todate*?
 - [x] `a2zero-year4-reviewed.md:106` — hyphen kept on **U-21291** because the document gave no evidence either way; should it be *U21291*?
-- [ ] `a2zero-year4-reviewed.md:145` — hyphen kept on **all-electric** because the document gave no evidence either way; should it be *allelectric*?
+- [x] `a2zero-year4-reviewed.md:145` — hyphen kept on **all-electric** because the document gave no evidence either way; should it be *allelectric*?
 - [x] `a2zero-year4-reviewed.md:254` — hyphen kept on **zero-emissions** because the document gave no evidence either way; should it be *zeroemissions*?
 - [x] `a2zero-year4-reviewed.md:287` — hyphen kept on **plant-forward** because the document gave no evidence either way; should it be *plantforward*?
 - [x] `a2zero-year4-reviewed.md:287` — hyphen kept on **follow-up** because the document gave no evidence either way; should it be *followup*?
@@ -156,7 +156,7 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 
 ### B. Placement — text is present; is it in the right place?
 - [x] `a2zero-year5-reviewed.md:16` p.2 — recovered region, placement INFERRED: > 3 INTRODUCTION
-- [ ] `a2zero-year5-reviewed.md` — section spine: 12 headings (CONTENTS, INTRODUCTION, GREENHOUSE GAS EMISSIONS , STRATEGY 1: 100% RENEWABL, STRATEGY 2: BENEFICIAL EL, STRATEGY 3: ENERGY EFFICI…) — do they match the PDF's contents page, in order and with none invented?
+- [x] `a2zero-year5-reviewed.md` — section spine: 12 headings (CONTENTS, INTRODUCTION, GREENHOUSE GAS EMISSIONS , STRATEGY 1: 100% RENEWABL, STRATEGY 2: BENEFICIAL EL, STRATEGY 3: ENERGY EFFICI…) — do they match the PDF's contents page, in order and with none invented?
 
 ### C. Labels — skim; a wrong one is mislabelled, not lost
 - [x] `a2zero-year5-reviewed.md:56` p.3 — tagged CAPTION: > The Office of Sustainability and Innovations pictured with the visiting 

@@ -442,3 +442,26 @@ def test_a_real_heading_is_untouched_by_the_lead_in_set():
     out = render_blocks([_blk("SectionHeaderItem", 2, "Strategy 1: Renewables")], {}, "T",
                         lead_ins={"in year one, we:"})
     assert "## Strategy 1: Renewables" in out
+
+
+def test_a_page_marker_is_not_emitted_for_a_block_that_renders_nothing():
+    """Year 3 read "<!-- p.4 --> ... <!-- p.3 --> <!-- p.4 -->" -- an empty p.3 between
+    page 4's bullets, because a photograph from page 3 that was not retained sits there in
+    the stream. A marker naming a page that carries none of the text under it is worse
+    than no marker: the checklist resolves every line reference against these."""
+    blocks = [{"kind": "TextItem", "text": "Title", "page_no": 1},
+              {"kind": "ListItem", "text": "Executed a contract for solar.", "page_no": 4},
+              {"kind": "PictureItem", "page_no": 3, "worth_extraction": False,
+               "self_ref": "#/pictures/1", "top_label": "photograph"},
+              {"kind": "ListItem", "text": "Supported clean energy legislation.", "page_no": 4}]
+    md = render_blocks(blocks, {}, "t", page_markers=True)
+    assert "<!-- p.3 -->" not in md
+    assert md.count("<!-- p.4 -->") == 1
+
+
+def test_a_page_marker_still_appears_for_a_page_with_content():
+    blocks = [{"kind": "TextItem", "text": "Title", "page_no": 1},
+              {"kind": "ListItem", "text": "On page four.", "page_no": 4},
+              {"kind": "ListItem", "text": "On page five.", "page_no": 5}]
+    md = render_blocks(blocks, {}, "t", page_markers=True)
+    assert "<!-- p.4 -->" in md and "<!-- p.5 -->" in md

@@ -114,7 +114,15 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
     stats = {"figures": 0, "captions_dropped": 0, "recovered": 0}
 
     page = None
+    pending_page = None
     in_recovered = False
+
+    def mark_page(buf: list[str]) -> None:
+        """Flush the page marker, if this page has not announced itself yet."""
+        nonlocal page
+        if page_markers and pending_page != page:
+            page = pending_page
+            buf.append(f"<!-- p.{page} -->")
     for b in blocks:
         kind, text = b["kind"], (b.get("text") or "").strip()
         if b["kind"] != "UncoveredText" and (b.get("text") or "").strip():
@@ -123,13 +131,19 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
         if title_ref is not None and b is title_ref:
             continue                       # already emitted as the H1
 
-        if page_markers and b.get("page_no") != page:
-            page = b.get("page_no")
-            out += [f"<!-- p.{page} -->"]
+        # THE MARKER FOLLOWS THE CONTENT, NOT THE BLOCK. Emitting it here printed a page
+        # marker for blocks that then produced nothing -- a photograph that was not
+        # retained, or a block whose text had been merged into its neighbour. Year 3 read
+        # "<!-- p.4 --> ... <!-- p.3 --> <!-- p.4 -->", an empty p.3 sandwiched between
+        # p.4's bullets, because a dropped picture from page 3 sits there in the stream.
+        # A marker that names a page carrying none of the text under it is worse than no
+        # marker: every line-number reference in the checklist is resolved against these.
+        pending_page = b.get("page_no")
 
         if kind == "PictureItem":
             if not b.get("worth_extraction"):
                 continue                       # a photograph carries no citable content
+            mark_page(out)
             stats["figures"] += 1
             cap = " ".join(captions.get(b.get("self_ref")) or []) or None
             fig_page = b["page_no"]        # NOT `page`: that tracks marker emission
@@ -157,6 +171,7 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
         if not text:
             continue
 
+        mark_page(out)
         tag = ""
         if srcs and b.get("text_source") and b["text_source"] != dominant:
             tag = f"{mark[b['text_source']]} "

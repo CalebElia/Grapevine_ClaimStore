@@ -1,7 +1,7 @@
 # YEAR THREE ANNUAL REPORT
 <!-- gate: PASS -->
 
-<!-- generated 2026-08-21T14:32:34Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- generated 2026-08-21T17:39:41Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
 <!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 0 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 3 -->
 <!-- COVERAGE PERIOD: JULY 1, 2022-JUNE 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
@@ -82,8 +82,6 @@ Strategy 1 of A2ZERO calls for the community’s electric needs to be powered wi
 
 - Continued working on a project to create a 20MW solar installation on the City’s capped landfill, which, when complete, would be one of the largest landfill solar projects in the nation.
 
-<!-- p.3 -->
-<!-- p.4 -->
 - Supported clean energy legislation introduced in the Michigan House and Senate, including Community Solar legislation and legislation to remove the 1% distributed generation cap.
 
 - Submitted a grant to the U.S. Department of Energy to formally create the proposed Sustainable Energy Utility. Decisions on this grant opportunity are due in mid-2024.
@@ -162,8 +160,6 @@ Energy efficiency - or energy waste reduction - is a critical element of achievi
 
 - Collaborated with the Ann Arbor Housing Commission to secure $3 million in federal aid to advance net zero energy affordable housing in the City.
 
-<!-- p.7 -->
-<!-- p.8 -->
 <!-- p.9 -->
 ## STRATEGY FOUR: REDUCE THE MILES WE TRAVEL IN OUR VEHICLES BY AT LEAST 50%
 
