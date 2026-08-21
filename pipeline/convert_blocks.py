@@ -468,6 +468,20 @@ def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
     against the same document-built vocabulary, rather than by picking one and being
     wrong half the time.
     """
+    def eligible(x: dict) -> bool:
+        return (x["kind"] not in ("SectionHeaderItem", "TitleItem", "PictureItem")
+                and not x.get("is_furniture") and not x.get("caption_for"))
+
+    def weld(a: dict, b: dict) -> None:
+        at, bt = a["text"].strip(), b["text"].strip()
+        if at.endswith("-"):
+            lead, tail = at.split()[-1][:-1], bt.split()[0]
+            keep = decide_hyphen(lead, tail, words or set(), hyph or set()) != "join"
+            a["text"] = at + bt if keep else at[:-1] + bt
+        else:
+            a["text"] = f"{at} {bt}"
+        a["_rejoined"] = True
+
     joined = 0
     i = 0
     while i < len(resolved) - 1:
@@ -480,17 +494,58 @@ def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
                 and not a.get("caption_for") and not b.get("caption_for")
                 and not _OPEN_END.search(at)
                 and re.match(r"^[a-z]", bt)):
-            if at.endswith("-"):
-                lead, tail = at.split()[-1][:-1], bt.split()[0]
-                keep = decide_hyphen(lead, tail, words or set(), hyph or set()) != "join"
-                a["text"] = at + bt if keep else at[:-1] + bt
-            else:
-                a["text"] = f"{at} {bt}"
-            a["_rejoined"] = True
+            weld(a, b)
             del resolved[i + 1]
             joined += 1
             continue
         i += 1
+
+    # SECOND PASS, ACROSS INTERVENING BLOCKS ON THE SAME PAGE. Two of Year 3's breaks are
+    # not adjacent: on page 2 the continuation is separated from its sentence by the pie
+    # chart's caption blocks, and on page 7 "households make health, safety, and quality
+    # of life improvements." lands after the WHOLE of page 8, because it sits under an
+    # image and reading order put it there. Caleb flagged the page-7 one twice.
+    #
+    # The search is deliberately narrow, because a mis-pairing here writes a sentence the
+    # document never contained. It stays on ONE page; it accepts only a TextItem, never a
+    # ListItem, since an orphaned continuation is what Docling types a bodiless fragment
+    # as; and it stops at the first other block that is itself open-ended, because two
+    # unfinished sentences and one continuation is an ambiguity, not a repair.
+    for i, a in enumerate(resolved):
+        at = (a.get("text") or "").strip()
+        if not at or not eligible(a) or _OPEN_END.search(at):
+            continue
+        for j in range(i + 1, len(resolved)):
+            b = resolved[j]
+            # A block from ANOTHER page is skipped, not stopped at. Year 3's page-7
+            # fragment sits under an image and reading order emits it after the whole of
+            # page 8, so the continuation and its sentence are separated by a page of
+            # unrelated text. Only a block of the PARENT's own page can be the
+            # continuation, and the search gives up once it is a page and a half past.
+            if b.get("page_no") != a.get("page_no"):
+                if (b.get("page_no") or 0) > (a.get("page_no") or 0) + 1:
+                    break
+                continue
+            bt = (b.get("text") or "").strip()
+            if not bt or b.get("caption_for") or b["kind"] == "PictureItem":
+                continue
+            if b["kind"] in ("SectionHeaderItem", "TitleItem"):
+                break
+            if not _OPEN_END.search(bt) and not re.match(r"^[a-z]", bt):
+                break                    # another open sentence -> ambiguous, give up
+            # UncoveredText counts too. A continuation the coverage sweep recovered is
+            # the same bodiless fragment as one Docling modelled -- Year 3 page 2's
+            # "offset of 6% of community-wide emissions." arrives that way, which is why
+            # Caleb found it sitting alone with a recovery flag on it.
+            if (b["kind"] in ("TextItem", "UncoveredText")
+                    and re.match(r"^[a-z]", bt) and eligible(b)):
+                weld(a, b)
+                del resolved[j]
+                joined += 1
+                break
+            # A FINISHED block is scanned PAST, not stopped at. Breaking here examined
+            # only the parent's immediate neighbour, which is precisely the case the
+            # adjacent pass already handled -- so this pass did nothing at all.
     return joined
 
 

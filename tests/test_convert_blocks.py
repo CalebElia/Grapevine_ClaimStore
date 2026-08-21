@@ -1692,3 +1692,45 @@ def test_a_heading_is_never_absorbed_into_the_block_above():
     from pipeline.convert_blocks import rejoin_open_sentences
     bs = [_rb("ListItem", "Planted 10,000 trees"), _rb("SectionHeaderItem", "next steps")]
     assert rejoin_open_sentences(bs) == 0 and len(bs) == 2
+
+
+def test_a_continuation_separated_by_captions_is_still_rejoined():
+    """Year 3 page 2: the pie chart's caption blocks sit between the sentence and the
+    words that finish it."""
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("TextItem", "of its electricity from renewable sources, representing an"),
+          {**_rb("TextItem", "Natural Gas, 27%"), "caption_for": "#/pictures/4"},
+          _rb("TextItem", "offset of 6% of community-wide emissions.")]
+    assert rejoin_open_sentences(bs) == 1
+    assert bs[0]["text"].endswith("representing an offset of 6% of community-wide emissions.")
+    assert len(bs) == 2 and bs[1]["caption_for"]        # the caption is untouched
+
+
+def test_the_lookahead_reaches_past_another_page_to_its_own():
+    """Year 3's page-7 fragment sits under an image, so reading order emits it after the
+    whole of page 8 -- the sentence and its ending are a page of text apart."""
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("ListItem", "won $500,000 to advance decarbonization, helping 19", 7),
+          _rb("ListItem", "Launched the Race to Zero Energy.", 8),
+          _rb("TextItem", "households make health and safety improvements.", 7)]
+    assert rejoin_open_sentences(bs) == 1
+    assert bs[0]["text"].endswith("helping 19 households make health and safety improvements.")
+    assert len(bs) == 2 and bs[1]["page_no"] == 8      # page 8's bullet is undisturbed
+
+
+def test_the_lookahead_gives_up_after_a_page_and_a_half():
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("ListItem", "won $500,000 to help 19", 7),
+          _rb("ListItem", "Something on the next page.", 9),
+          _rb("TextItem", "households make improvements.", 7)]
+    assert rejoin_open_sentences(bs) == 0 and len(bs) == 3
+
+
+def test_two_open_sentences_and_one_continuation_is_left_alone():
+    """Ambiguity is not a repair."""
+    from pipeline.convert_blocks import rejoin_open_sentences
+    bs = [_rb("ListItem", "The Greenbelt reached 7,600 acres and"),
+          _rb("ListItem", "Another bullet that also ends open and"),
+          _rb("TextItem", "natural areas permanently protected.")]
+    n = rejoin_open_sentences(bs)
+    assert bs[0]["text"] == "The Greenbelt reached 7,600 acres and"

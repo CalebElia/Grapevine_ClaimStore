@@ -1,12 +1,11 @@
 # Year three Annual Report
-<!-- gate: REVIEW -->
-<!-- gate medium: truncation -- 2 block(s) end on a dangling word -- a continuation line was probably dropped -->
+<!-- gate: PASS -->
 
-<!-- generated 2026-08-21T00:03:21Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
-<!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 2 region(s) recovered by the coverage sweep -->
+<!-- generated 2026-08-21T00:08:27Z -- structure and reading order from Docling, characters from pdfplumber, figures from vision extraction -->
+<!-- 1 figure(s) · 0 caption(s) tagged · 0 furniture block(s) · 1 region(s) recovered by the coverage sweep -->
 <!-- run: A2Zero Annual Report Year 3 -->
 <!-- COVERAGE PERIOD: July 1, 2022-June 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it -->
-<!-- 0% OCR: 0 of 189 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
+<!-- 0% OCR: 0 of 186 text blocks were read by OCR (no usable text layer), not extracted character-exact. Dominant source: pdfplumber. -->
 
 <!-- p.1 -->
 July 1, 2022-June 3, 2023
@@ -28,7 +27,7 @@ The A2ZERO goal of community-wide carbon neutrality requires reducing our commun
 
 Ann Arbor’s largest source of greenhouse gas (GHG) emissions is from the electricity we use in our homes and businesses (41% of emissions). These emissions are driven by both how much electricity we consume and how carbon intensive the fuel mix is that generates that electricity. In 2022, over 54% of DTE Electric’s Fuel Mix used to supply electricity to Ann Arbor (and other communities) was generated using coal. 13% of the fuel mix was generated with renewables (2% additional was purchased).
 
-DTE, the University of Michigan, and residents and businesses in Ann Arbor also purchase renewable energy. Michigan requires DTE meet a 15% renewable portfolio standard. In 2022, the University of Michigan purchased the equivalent of 39% of its electricity from renewable sources, representing an
+DTE, the University of Michigan, and residents and businesses in Ann Arbor also purchase renewable energy. Michigan requires DTE meet a 15% renewable portfolio standard. In 2022, the University of Michigan purchased the equivalent of 39% of its electricity from renewable sources, representing an offset of 6% of community-wide emissions.
 
 
 **Figure (pie_chart, page 2):** Waste, 2% Transportation, 29.72% Electricity, 41% Propane, 0.5% Fuel Oil, 0.06% Natural Gas, 27%
@@ -56,9 +55,6 @@ DTE, the University of Michigan, and residents and businesses in Ann Arbor also 
 Fossil fuels combusted in our vehicles for trips around town or commuting are another major source of emissions (30%). During 2020, miles traveled in our vehicles dropped 36% from the previous year; by 2022, they returned to 3% below 2018 levels.
 
 To learn more about the City’s greenhouse gas emissions inventory methodology, results, and actions, please see our Community Greenhouse Gas Inventory website.
-
-<!-- recovered by coverage sweep: no Docling block modelled this region on page 2; placement inferred -->
-> offset of 6% of community-wide emissions.
 
 <!-- p.3 -->
 ## STRATEGY ONE: POWER OUR ELECTRICAL GRID WITH 100% RENEWABLE ENERGY
@@ -149,7 +145,7 @@ Energy efficiency - or energy waste reduction - is a critical element of achievi
 
 - Fully drafted a Home Energy Rating Disclosure policy for home sales at time of listing, with the goal of introducing the ordinance in summer 2023.
 
-- In collaboration with Community Action Network (CAN), won $500,000 to advance neighborhood decarbonization in Bryant, which is helping 19
+- In collaboration with Community Action Network (CAN), won $500,000 to advance neighborhood decarbonization in Bryant, which is helping 19 households make health, safety, and quality of life improvements.
 
 - Actively promoted the State’s adoption of the 2021 International Model Building Code, which would significantly improve the health and safety of new buildings.
 
@@ -167,8 +163,6 @@ Energy efficiency - or energy waste reduction - is a critical element of achievi
 - Collaborated with the Ann Arbor Housing Commission to secure $3 million in federal aid to advance net zero energy affordable housing in the City.
 
 <!-- p.7 -->
-households make health, safety, and quality of life improvements.
-
 <!-- p.8 -->
 <!-- p.9 -->
 ## STRATEGY FOUR: REDUCE THE MILES WE TRAVEL IN OUR VEHICLES BY AT LEAST 50%
@@ -191,15 +185,13 @@ How we move about our community has a significant impact on our local carbon foo
 
 - Ann Arbor Downtown Development Authortiy (DDA) won the League of Michigan Bicyclists Outstanding Infrastructure Award for most improved bicycle-friendly infrastructure in the past year.
 
-- Passed a resolution to restrict turns on red lights in
+- Passed a resolution to restrict turns on red lights in the downtown, reducing vehicle/bicyclist conflicts.
 
 - The community passed a millage to support TheRide in improving and expanding public transit (goes into effect in 2024).
 
 - The City rezoned approximately 400 acres to TC1 (transit corridor) status.
 
 - Initiated a new speed management program to help reduce traffic accidents and advance the City’s goal of zero traffic fatalities and serious injuries (Vision Zero).
-
-the downtown, reducing vehicle/bicyclist conflicts.
 
 <!-- p.10 -->
 ## STRATEGY FIVE: CHANGE THE WAY WE USE, REUSE, AND DISPOSE OF MATERIALS
