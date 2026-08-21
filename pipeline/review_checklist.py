@@ -74,7 +74,8 @@ def _page_of(lines: list[str], lineno: int) -> str:
     return "?"
 
 
-def build(md_path: Path, report: dict, gate_findings: list, label: str) -> list[str]:
+def build(md_path: Path, report: dict, gate_findings: list, label: str,
+          rulings: list[dict] | None = None) -> list[str]:
     md = md_path.read_text()
     lines = _lines(md)
     name = md_path.name
@@ -153,12 +154,29 @@ def build(md_path: Path, report: dict, gate_findings: list, label: str) -> list[
                      f"*{m.group(1)}-{m.group(2)}*; only a suspended hyphen (\"City- and "
                      f"community-wide\") keeps the space")
 
+    # A RULED HYPHEN IS NOT A QUESTION. The semantic pass chooses between exactly two
+    # strings -- the joined form and the hyphenated one -- so a ruling cannot introduce a
+    # word, and a case it has answered does not need a human to answer it again. The
+    # ruling is SHOWN rather than hidden, in one summary line per document, because a
+    # reviewer should be able to see what was decided on their behalf and go look if a
+    # ruling surprises them.
+    ruled = {(r["a"], r["b"]): r for r in (rulings or [])}
     amb = report.get("ambiguous_hyphens") or []
     for x, y in amb:
+        if (x, y) in ruled:
+            continue
         hits = _find(lines, re.escape(f"{x}-{y}"))
         loc = f":{hits[0][0]}" if hits else ""
         a.append(f"- [ ] `{name}{loc}` — hyphen kept on **{x}-{y}** because the document "
                  f"gave no evidence either way; should it be *{x}{y}*?")
+    settled = [r for (x, y), r in ruled.items() if (x, y) in {tuple(v) for v in amb}]
+    if settled:
+        kept = ", ".join(f"{r['a']}-{r['b']}" for r in settled if r["choice"] == "hyphen")
+        joined = ", ".join(r["resolved"] for r in settled if r["choice"] == "join")
+        a.append(f"- [ ] `{name}` — {len(settled)} ambiguous hyphen(s) ruled by the "
+                 f"semantic pass, no human action needed unless one looks wrong"
+                 + (f"; kept hyphenated: {kept}" if kept else "")
+                 + (f"; joined: {joined}" if joined else ""))
     out += (a or ["- (nothing in this category)"]) + [""]
 
     # ── B: text present but possibly misplaced ─────────────────────────────────────────
@@ -247,6 +265,7 @@ def main() -> int:
     ap.add_argument("--md", required=True)
     ap.add_argument("--label", required=True)
     ap.add_argument("--figures-json")
+    ap.add_argument("--rulings", help="<doc>-hyphens.json from semantic_pass")
     ap.add_argument("--out", help="write here instead of stdout; refuses to clobber "
                                   "a file a human has already reviewed in")
     a = ap.parse_args()
@@ -260,7 +279,9 @@ def main() -> int:
     findings = assess(conv.text, conv.page_map, blocks,
                       reference_words=len(ref.split()),
                       reference_numbers=find_numbers(ref))
-    text = "\n".join(build(Path(a.md), report, findings, a.label))
+    rulings = (json.loads(Path(a.rulings).read_text())
+               if a.rulings and Path(a.rulings).exists() else [])
+    text = "\n".join(build(Path(a.md), report, findings, a.label, rulings))
     if not a.out:
         print(text)
         return 0

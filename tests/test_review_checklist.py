@@ -46,3 +46,32 @@ def test_a_note_on_its_own_line_still_protects(tmp_path):
     p = tmp_path / "c.md"
     p.write_text("- [ ] `y2.md` — something\n    → Should be deleted.\n")
     assert write_checklist(p, "fresh\n") is False
+
+
+def test_a_ruled_hyphen_stops_being_a_question(tmp_path):
+    """The semantic pass chooses between exactly two strings, so a ruling cannot introduce
+    a word and does not need answering twice."""
+    from pipeline.review_checklist import build
+    md = tmp_path / "y5.md"
+    md.write_text("# t\n\nzero-emission buses were funded.\n")
+    rep = {"ambiguous_hyphens": [["zero", "emission"]]}
+    open_q = "\n".join(build(md, rep, [], "Year 5"))
+    assert "should it be *zeroemission*?" in open_q
+
+    ruled = [{"a": "zero", "b": "emission", "choice": "hyphen",
+              "resolved": "zero-emission", "why": "real compound"}]
+    closed = "\n".join(build(md, rep, [], "Year 5", ruled))
+    assert "should it be *zeroemission*?" not in closed
+    # shown, not hidden -- a reviewer can see what was decided for them
+    assert "1 ambiguous hyphen(s) ruled" in closed and "zero-emission" in closed
+
+
+def test_an_unruled_hyphen_still_asks(tmp_path):
+    from pipeline.review_checklist import build
+    md = tmp_path / "y5.md"
+    md.write_text("# t\n\nzero-emission buses.\n")
+    rep = {"ambiguous_hyphens": [["zero", "emission"], ["Collab", "orator"]]}
+    ruled = [{"a": "zero", "b": "emission", "choice": "hyphen",
+              "resolved": "zero-emission", "why": "x"}]
+    out = "\n".join(build(md, rep, [], "Year 5", ruled))
+    assert "should it be *Collaborator*?" in out

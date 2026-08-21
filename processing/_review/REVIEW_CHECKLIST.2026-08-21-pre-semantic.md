@@ -1,10 +1,10 @@
 # A2Zero conversion — human review checklist
 
-Generated 2026-08-21T18:18:59Z.
+Generated 2026-08-21T14:42:10Z.
 
-Ticks and notes carry forward where the item is identical apart from its line
-number, which is a pointer rather than an identity. Ambiguous hyphens ruled by
-the semantic pass are summarised, not re-asked.
+Ticks and notes carry forward only where the item is word-for-word identical.
+An item embeds its line number and a snippet, so an identical item necessarily
+points at identical content; anything the last six commits touched resets.
 
 Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs a fix.
 
@@ -57,14 +57,15 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 - [x] `a2zero-year3-reviewed.md:47` p.2 — figure value **Propane = 0.5** — read off an image by a vision model; confirm against the chart
 - [x] `a2zero-year3-reviewed.md:48` p.2 — figure value **Fuel Oil = 0.06** — read off an image by a vision model; confirm against the chart
 - [x] `a2zero-year3-reviewed.md:7` — coverage period read as **JULY 1, 2022-JUNE 3, 2023 -> 2022-07-01..2023-06-03 (337 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
-- [x] `a2zero-year3-reviewed.md:247` p.12 — hyphen then SPACE in **City- and** — a line-break split usually joins to *City-and*; only a suspended hyphen ("City- and community-wide") keeps the space
-    → Keep the "City- and community-wide" spelling that is correct. There's a larger issue here, likely caused by the weirdly changing fonts in the image, but lines 272-274 should be all one line, and read, "Together with Public Works and Natural Areas Preservation, submitted a USDA Forest Service Urban & Community Forestry Inflation Reduction Act grant proposal to fund an update to Ann Arbor’s Urban Tree Canopy assessment, advance private property tree planting efforts, create a NAP management plan, and conduct a feasibility study for a City- and County-owned tree nursery." ALSO, lines 270 and 272 are incorrectly indented, mirroring the image layout. But semantically, these are the same as all the other bullets. This isn't a sublist with a preceding ":" function.
-- [ ] `a2zero-year3-reviewed.md` — 3 ambiguous hyphen(s) ruled by the semantic pass, no human action needed unless one looks wrong; kept hyphenated: U-20836, zero-waste, co-designed
+- [x] `a2zero-year3-reviewed.md:251` p.12 — hyphen then SPACE in **City- and** — a line-break split usually joins to *City-and*; only a suspended hyphen ("City- and community-wide") keeps the space
+- [x] `a2zero-year3-reviewed.md:70` — hyphen kept on **U-20836** because the document gave no evidence either way; should it be *U20836*?
+- [x] `a2zero-year3-reviewed.md:211` — hyphen kept on **zero-waste** because the document gave no evidence either way; should it be *zerowaste*?
+- [x] `a2zero-year3-reviewed.md:374` — hyphen kept on **co-designed** because the document gave no evidence either way; should it be *codesigned*?
 
 ### B. Placement — text is present; is it in the right place?
 - [x] `a2zero-year3-reviewed.md` — section spine: 12 headings (INTRODUCTION, GREENHOUSE GAS EMISSIONS , STRATEGY ONE: POWER OUR E, STRATEGY TWO: SWITCH OUR , STRATEGY THREE: SIGNIFICA, STRATEGY FOUR: REDUCE THE…) — do they match the PDF's contents page, in order and with none invented?
     → The only thing odd is the spelling of "# Year three Annual Report". In the PDF it's all caps, just like all the other section headers.
-- [x] `a2zero-year3-reviewed.md:323` — 13 nested list item(s); confirm they really belong under the bullet above them
+- [x] `a2zero-year3-reviewed.md:327` — 13 nested list item(s); confirm they really belong under the bullet above them
 
 ### C. Labels — skim; a wrong one is mislabelled, not lost
 - (nothing in this category)
@@ -74,29 +75,36 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 
 ### A. Values — check against the PDF
 - [x] `a2zero-year4-reviewed.md:7` — coverage period read as **JULY 1, 2023 – JUNE 3, 2024 -> 2023-07-01..2024-06-03 (338 days) -- NOT A YEAR; an annual report's stated period should be one, so treat this as unconfirmed until a human rules on it** — this is NOT a year long; Years 3 and 4 print "June 3" where the page means June 30, and it is a typo in the SOURCE, so the fix is a curator's ruling, not a re-extraction
-- [ ] `a2zero-year4-reviewed.md` — 8 ambiguous hyphen(s) ruled by the semantic pass, no human action needed unless one looks wrong; kept hyphenated: to-date, U-21291, all-electric, zero-emissions, plant-forward, follow-up, co-designed, sustainability-focused
+- [x] `a2zero-year4-reviewed.md:79` — hyphen kept on **to-date** because the document gave no evidence either way; should it be *todate*?
+- [x] `a2zero-year4-reviewed.md:106` — hyphen kept on **U-21291** because the document gave no evidence either way; should it be *U21291*?
+- [x] `a2zero-year4-reviewed.md:145` — hyphen kept on **all-electric** because the document gave no evidence either way; should it be *allelectric*?
+- [x] `a2zero-year4-reviewed.md:254` — hyphen kept on **zero-emissions** because the document gave no evidence either way; should it be *zeroemissions*?
+- [x] `a2zero-year4-reviewed.md:287` — hyphen kept on **plant-forward** because the document gave no evidence either way; should it be *plantforward*?
+- [x] `a2zero-year4-reviewed.md:287` — hyphen kept on **follow-up** because the document gave no evidence either way; should it be *followup*?
+- [x] `a2zero-year4-reviewed.md:489` — hyphen kept on **co-designed** because the document gave no evidence either way; should it be *codesigned*?
+- [x] `a2zero-year4-reviewed.md:511` — hyphen kept on **sustainability-focused** because the document gave no evidence either way; should it be *sustainabilityfocused*?
 
 ### B. Placement — text is present; is it in the right place?
 - [x] `a2zero-year4-reviewed.md` — section spine: 12 headings (CONTENTS, INTRODUCTION, GREENHOUSE GAS EMISSIONS , STRATEGY 1: Powering Our , STRATEGY 2: Switch our Ap, STRATEGY 3: Significantly…) — do they match the PDF's contents page, in order and with none invented?
     → Strategy 2 header should be on line 134, not 153. Appears this is likely related to the photo behind the header in the PDF. 
 
 ### C. Labels — skim; a wrong one is mislabelled, not lost
-- [x] `a2zero-year4-reviewed.md:107` p.6 — tagged CAPTION: > Solar array installed at Gallup Park.
-- [x] `a2zero-year4-reviewed.md:110` p.6 — tagged CAPTION: > Solar array installed at Huron Hills Golf Course.
-- [x] `a2zero-year4-reviewed.md:130` p.7 — tagged CAPTION: > Drilling for the installation of geothermal at 121 Catherine Street, Jul
-- [x] `a2zero-year4-reviewed.md:171` p.9 — tagged CAPTION: > Attendees at the Electrification Expo, August 2023.
-- [x] `a2zero-year4-reviewed.md:189` p.10 — tagged CAPTION: > Achieved 25% electrification of City’s light duty fleet vehicles.
-- [x] `a2zero-year4-reviewed.md:192` p.10 — tagged CAPTION: > Ann Arbor Mayor Christopher Taylor, Senior Analyst Simi Barr, and reside
-- [x] `a2zero-year4-reviewed.md:239` p.12 — tagged CAPTION: > The Bryant Community Center, home to lots of decarbonization work, in Ma
-- [x] `a2zero-year4-reviewed.md:276` p.14 — tagged CAPTION: > Participants of the bike rally at Green Fair 2023 enjoy their ride down 
-- [x] `a2zero-year4-reviewed.md:311` p.16 — tagged CAPTION: > Local Food Fest, September 2023.
-- [x] `a2zero-year4-reviewed.md:314` p.16 — tagged CAPTION: > Love a Park Day at Esch Park, June 2023.
-- [x] `a2zero-year4-reviewed.md:423` p.20 — tagged CAPTION: > Green Light episode on the Home Energy Rating Disclosure Ordinance, host
-- [x] `a2zero-year4-reviewed.md:426` p.20 — tagged CAPTION: > Earth Day 2024 celebrations hosted by the Leslie Science and Nature Cent
-- [x] `a2zero-year4-reviewed.md:430` p.21 — tagged CAPTION: > Ann Arbor Mayor Christopher Taylor and the Winter 2024 cohort of A2ZERO 
-- [x] `a2zero-year4-reviewed.md:478` p.22 — tagged CAPTION: > Ann Arbor Climate Corps members visiting a Greenbelt farm, December 2023
-- [x] `a2zero-year4-reviewed.md:518` p.23 — tagged CAPTION: > Unveiling of the Bryant Community Center as Ann Arbor’s first Resilience
-- [x] `a2zero-year4-reviewed.md:521` p.23 — tagged CAPTION: > Ann Arbor Climate Corps and Natural Area Preservation members at work to
+- [x] `a2zero-year4-reviewed.md:108` p.6 — tagged CAPTION: > Solar array installed at Gallup Park.
+- [x] `a2zero-year4-reviewed.md:111` p.6 — tagged CAPTION: > Solar array installed at Huron Hills Golf Course.
+- [x] `a2zero-year4-reviewed.md:131` p.7 — tagged CAPTION: > Drilling for the installation of geothermal at 121 Catherine Street, Jul
+- [x] `a2zero-year4-reviewed.md:172` p.9 — tagged CAPTION: > Attendees at the Electrification Expo, August 2023.
+- [x] `a2zero-year4-reviewed.md:190` p.10 — tagged CAPTION: > Achieved 25% electrification of City’s light duty fleet vehicles.
+- [x] `a2zero-year4-reviewed.md:193` p.10 — tagged CAPTION: > Ann Arbor Mayor Christopher Taylor, Senior Analyst Simi Barr, and reside
+- [x] `a2zero-year4-reviewed.md:240` p.12 — tagged CAPTION: > The Bryant Community Center, home to lots of decarbonization work, in Ma
+- [x] `a2zero-year4-reviewed.md:277` p.14 — tagged CAPTION: > Participants of the bike rally at Green Fair 2023 enjoy their ride down 
+- [x] `a2zero-year4-reviewed.md:312` p.16 — tagged CAPTION: > Local Food Fest, September 2023.
+- [x] `a2zero-year4-reviewed.md:315` p.16 — tagged CAPTION: > Love a Park Day at Esch Park, June 2023.
+- [x] `a2zero-year4-reviewed.md:424` p.20 — tagged CAPTION: > Green Light episode on the Home Energy Rating Disclosure Ordinance, host
+- [x] `a2zero-year4-reviewed.md:427` p.20 — tagged CAPTION: > Earth Day 2024 celebrations hosted by the Leslie Science and Nature Cent
+- [x] `a2zero-year4-reviewed.md:431` p.21 — tagged CAPTION: > Ann Arbor Mayor Christopher Taylor and the Winter 2024 cohort of A2ZERO 
+- [x] `a2zero-year4-reviewed.md:479` p.22 — tagged CAPTION: > Ann Arbor Climate Corps members visiting a Greenbelt farm, December 2023
+- [x] `a2zero-year4-reviewed.md:519` p.23 — tagged CAPTION: > Unveiling of the Bryant Community Center as Ann Arbor’s first Resilience
+- [x] `a2zero-year4-reviewed.md:522` p.23 — tagged CAPTION: > Ann Arbor Climate Corps and Natural Area Preservation members at work to
 
 
 ## Year 5  (a2zero-year5-reviewed.md)
@@ -142,7 +150,9 @@ Mark `- [x]` when reviewed and correct; `- [x]` plus a `→` note when it needs 
 - [x] `a2zero-year5-reviewed.md:131` p.5 — figure value **2024 solar installations in Ann Arbor = 250** — read off an image by a vision model; confirm against the chart
 - [x] `a2zero-year5-reviewed.md:132` p.5 — figure value **2025 solar installations in Ann Arbor = 20** — read off an image by a vision model; confirm against the chart
 - [x] `a2zero-year5-reviewed.md:7` — coverage period read as **June 1, 2024 – May 31, 2025 -> 2024-06-01..2025-05-31 (364 days)** — confirm against the report's cover
-- [ ] `a2zero-year5-reviewed.md` — 3 ambiguous hyphen(s) ruled by the semantic pass, no human action needed unless one looks wrong; kept hyphenated: science-based, zero-emission, to-Government
+- [x] `a2zero-year5-reviewed.md:62` — hyphen kept on **science-based** because the document gave no evidence either way; should it be *sciencebased*?
+- [x] `a2zero-year5-reviewed.md:222` — hyphen kept on **zero-emission** because the document gave no evidence either way; should it be *zeroemission*?
+- [x] `a2zero-year5-reviewed.md:414` — hyphen kept on **to-Government** because the document gave no evidence either way; should it be *toGovernment*?
 
 ### B. Placement — text is present; is it in the right place?
 - [x] `a2zero-year5-reviewed.md:16` p.2 — recovered region, placement INFERRED: > 3 INTRODUCTION
