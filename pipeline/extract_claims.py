@@ -65,6 +65,13 @@ For each claim return an object:
   "asserted_date_text" -- the words the date came from, if any.
   "quantities" -- a LIST, empty if the claim states no measured amount. Each:
                   {"value_low": number, "unit": "...", "measure": "...", "verbatim": "..."}
+                  "unit" is what you count IN (metric tons, households, MW, acres).
+                  "measure" is what is being COUNTED, and must be one of:
+                    emissions · energy · installed_capacity · savings · cost · participants
+                    population · households_served · facilities_treated · units_deployed
+                    area_protected · diversion · adoption_rate · goal_target · duration
+                    vote_share · other
+                  Two numbers sharing a unit but not a measure must never be summed.
   "fiscal"     -- a LIST, empty if the claim states no money. Each:
                   {"amount_low": number, "currency": "USD", "purpose": "...",
                    "funding_source": "...", "verbatim": "..."}
@@ -79,6 +86,17 @@ at once:
 That is ONE claim -- one thing the City says it did -- carrying THREE payloads: a quantity
 of 17 participants, a fiscal reference of $45,800, and a quantity of 113 metric tons. Do
 not emit it as three claims. Two claims must never share the same verbatim.
+
+ONE CLAIM PER LIST ITEM. A lead-in ending in a colon introduces a list, and each item in
+that list is its own assertion:
+
+    "OSI submitted multiple grants and was successful in securing:
+       MI-HOPE ($500,000) for the work to decarbonize the Bryant neighborhood.
+       AmeriCorps program ($229,000) to bring 10 AmeriCorps Members to OSI. ..."
+
+That is thirteen claims, not one -- each names a different grant, a different amount and a
+different funder, and a reader asking "who funded Bryant" needs MI-HOPE findable on its
+own. Never span a colon lead-in and its items in one verbatim.
 
 VERBATIM MUST BE A COMPLETE SENTENCE. A clause on its own is not a claim: "which would
 significantly improve the health and safety of new buildings" has no subject, and a reader
@@ -224,7 +242,8 @@ _MODALITY = {"asserted", "hedged", "hypothetical", "attributed_to_other"}
 
 
 def store(res: Result, section_id: int, document_id: int, content_hash: str,
-          section_char_start: int, extracted_by: str, dsn: str = DSN) -> dict:
+          section_char_start: int, extracted_by: str, dsn: str = DSN,
+          period: tuple | None = None) -> dict:
     """Write anchored claims. Spans are absolute offsets into the document's canonical text.
 
     WHY THE SPAN IS SHIFTED. `anchor` works within the section, because that is what the
@@ -255,6 +274,19 @@ def store(res: Result, section_id: int, document_id: int, content_hash: str,
                  content_hash, p.get("asserted_start") or None,
                  p.get("asserted_end") or None, p.get("asserted_date_text"), extracted_by))
             claim_id = cur.fetchone()[0]
+            # A CLAIM WITH NO DATE IS INVISIBLE FOREVER. Timeline queries compare
+            # intervals, so a NULL start cannot participate in one -- not wrong, absent.
+            # Every sentence here IS dated: the report covers a stated period, and a claim
+            # naming no date of its own happened somewhere inside it. Precision
+            # 'reporting_period' says exactly that and does not pretend to more.
+            if not p.get("asserted_start") and period and period[0]:
+                cur.execute(
+                    "UPDATE claims SET asserted_start=%s, asserted_end=%s, "
+                    "asserted_precision='reporting_period', "
+                    "asserted_date_text=coalesce(asserted_date_text,%s) WHERE id=%s",
+                    (period[0], period[1],
+                     f"inherited from the document's coverage period ({period[2]})",
+                     claim_id))
             counts["claims"] += 1
 
             for q in _as_list(p.get("quantities"), p.get("quantity")):
@@ -294,12 +326,13 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
         row = c.execute(
             """SELECT s.document_id, s.char_start, s.char_end, s.heading,
                       s.extraction_tier, s.parse_confidence, d.markdown_path,
-                      d.content_hash
+                      d.content_hash, d.covers_period_start, d.covers_period_end,
+                      d.covers_period_source
                FROM document_sections s JOIN documents d ON d.id = s.document_id
                WHERE s.id = %s""", (section_id,)).fetchone()
     if not row:
         raise SystemExit(f"[extract] no section {section_id}")
-    doc_id, a, b, heading, tier, conf, md_path, doc_hash = row
+    doc_id, a, b, heading, tier, conf, md_path, doc_hash, ps, pe, psrc = row
 
     # FAIL CLOSED. The whole point of section_audit is that this refuses.
     if conf != "clean":
@@ -312,6 +345,9 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
     if canon.content_hash != doc_hash:
         raise SystemExit("[extract] the conversion changed since ingest; re-ingest first.")
     section = canon.text[a:b]
+    # The provenance travels: Years 1 and 2 have a period a human ESTIMATED, and a claim
+    # dated from it inherits that, not the certainty of a stated one.
+    period = (ps, pe, psrc) if ps else None
 
     t0 = time.time()
     proposals = propose(section, heading)
@@ -340,7 +376,7 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
                                   for x in res.anchored)}
     if not dry_run:
         out["stored"] = store(res, section_id, doc_id, doc_hash, a,
-                              "extract_claims/gpt", dsn)
+                              "extract_claims/gpt", dsn, period)
     return out
 
 
