@@ -51,7 +51,23 @@ def is_received(verbatim: str) -> bool:
     return bool(_RECEIVED.search(verbatim or ""))
 
 
-def names_a_source(funding_source: str | None) -> bool:
+def names_a_source(funding_source: str | None, funder_name: str | None = None) -> bool:
+    """Whether this reference says WHO gave the money.
+
+    THE KIND IS NOT THE GIVER. funding_source is a vocabulary of categories --
+    federal_grant, philanthropic, millage -- and answers "what sort of money is this".
+    Reading it as the funder was this module's original bug: every reference the extraction
+    could not categorise held 'other', so a sentence naming the U.S Department of Energy
+    looked exactly like a sentence naming nobody, and both got a research question. Sending
+    a human to find a fact printed in the document they are already holding is the precise
+    opposite of what a lead queue is for.
+
+    funder_name_text is the giver, verbatim, and it is populated even when the registry
+    could not resolve it to an org. A name with no org id is a REGISTRY GAP -- fix the
+    registry -- not dark matter.
+    """
+    if (funder_name or "").strip():
+        return True
     return (funding_source or "").strip().lower() not in _EMPTY_SOURCE
 
 
@@ -63,7 +79,7 @@ def find_candidates(dsn: str = DSN) -> list[dict]:
     with psycopg.connect(dsn) as c:
         rows = c.execute(
             """SELECT f.id, f.claim_id, f.amount_low, f.funding_source, f.purpose,
-                      c.document_id, c.verbatim, c.document_section_id
+                      c.document_id, c.verbatim, c.document_section_id, f.funder_name_text
                FROM fiscal_references f JOIN claims c ON c.id = f.claim_id
                ORDER BY f.amount_low DESC""").fetchall()
         answers = c.execute(
@@ -80,8 +96,8 @@ def find_candidates(dsn: str = DSN) -> list[dict]:
     for doc, amt, src, cid, vb in answers:
         by_doc_amount.setdefault((doc, amt), []).append((cid, src, vb))
 
-    for fid, cid, amt, src, purpose, doc, verbatim, sec in rows:
-        if names_a_source(src) or not is_received(verbatim):
+    for fid, cid, amt, src, purpose, doc, verbatim, sec, funder in rows:
+        if names_a_source(src, funder) or not is_received(verbatim):
             continue
         answered = [x for x in by_doc_amount.get((doc, amt), []) if x[0] != cid]
         out.append({"fiscal_id": fid, "claim_id": cid, "amount": amt, "purpose": purpose,

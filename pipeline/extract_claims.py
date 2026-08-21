@@ -275,7 +275,16 @@ def _funder_org(cur, name: str | None) -> int | None:
     # alias, never a similarity score: a funder attributed to the wrong body says something
     # false about who paid, and the research question a NULL raises is the right outcome
     # when we do not know.
-    from pipeline.resolve_orgs import read_aliases
+    from pipeline.resolve_orgs import read_aliases, read_funder_aliases
+    # The corpus's own spelling first -- "SEMCOG", "U.S Department of Energy" -- then the
+    # wiki's alias table. Both are pairs a person decided are the same body; neither is a
+    # similarity score.
+    local = read_funder_aliases().get(n.lower())
+    if local:
+        cur.execute("SELECT id FROM orgs WHERE lower(name) = lower(%s)", (local,))
+        if (row := cur.fetchone()):
+            return row[0]
+        n = local
     aliases, _ = read_aliases()
     slug = aliases.get(n.lower())
     if not slug:
@@ -350,12 +359,17 @@ def store(res: Result, section_id: int, document_id: int, content_hash: str,
                 cur.execute(
                     """INSERT INTO fiscal_references
                          (claim_id, amount_low, currency, purpose, funding_source,
-                          source_type, verbatim, awarding_org_id)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                          source_type, verbatim, awarding_org_id, funder_name_text)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                     (claim_id, f.get("amount_low"), f.get("currency") or "USD",
                      f.get("purpose"), f.get("funding_source"), "annual_report",
                      (f.get("verbatim") or a.verbatim)[:2000],
-                     _funder_org(cur, f.get("funder_name"))))
+                     _funder_org(cur, f.get("funder_name")),
+                     # KEPT WHETHER OR NOT IT RESOLVED. The name is evidence; the id is a
+                     # join. Storing only the id threw away the document's own words every
+                     # time the registry was short a row, and a discarded name becomes a
+                     # research question asking who funded something the document names.
+                     (f.get("funder_name") or "").strip() or None))
                 counts["fiscal_references"] += 1
         c.commit()
     return counts

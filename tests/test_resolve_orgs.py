@@ -32,3 +32,30 @@ def test_a_hyphenated_neighbour_does_not_match():
 
 def test_an_empty_name_never_matches():
     assert not mentions("anything at all", "") and not mentions("anything", "   ")
+
+
+# --- the funder registry ----------------------------------------------------------------
+
+def test_every_funder_alias_declares_who_decided_it():
+    """No anonymous pairs. Each row asserts two names are the same body, which is a
+    judgement, and a judgement with no author cannot be audited or reversed."""
+    import json
+    from pathlib import Path
+    p = Path("registries/ann_arbor/funder_aliases.json")
+    for a in json.loads(p.read_text())["aliases"]:
+        assert a.get("as_written") and a.get("org") and a.get("by"), a
+
+
+def test_funder_aliases_are_read_case_insensitively():
+    from pipeline.resolve_orgs import read_funder_aliases
+    al = read_funder_aliases()
+    assert al.get("semcog") == "Southeast Michigan Council of Governments"
+    # keys are lowercased on read, so a document shouting the name still resolves
+    assert all(k == k.lower() for k in al)
+
+
+def test_a_missing_registry_file_is_empty_not_an_error(tmp_path):
+    """A corpus with no curated funders resolves nothing and emits questions -- which is
+    the system working. It must not raise."""
+    from pipeline.resolve_orgs import read_funder_aliases
+    assert read_funder_aliases(tmp_path / "nope.json") == {}

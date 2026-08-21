@@ -1,0 +1,94 @@
+{
+  "_what": "How this corpus's documents write a funder's name, mapped to the org registry's spelling.",
+  "_why": "fiscal_references.awarding_org_id is the join that answers 'who funds Bryant'. The extraction returns the funder exactly as the document names it -- 'SEMCOG', 'MI-HOPE' -- while orgs holds the registry spelling, 'Southeast Michigan Council of Governments'. 16 of 19 fiscal references knew their funder's name and could not resolve it. The gap is registry coverage, not matching logic.",
+  "_never": "Never a fuzzy match. Every entry here is a pair someone decided is the same body. A funder attributed to the wrong organisation says something false about who paid, which is worse than a NULL -- and the research question a NULL raises is the correct outcome when we do not know.",
+  "_when_absent": "A funder with no entry here resolves to NULL and emits a research question. That is the system working, not failing.",
+  "aliases": [
+    {
+      "as_written": "SEMCOG",
+      "org": "Southeast Michigan Council of Governments",
+      "by": "caleb"
+    },
+    {
+      "as_written": "U.S Department of Energy",
+      "org": "U.S. Department of Energy",
+      "by": "caleb"
+    },
+    {
+      "as_written": "US Department of Energy",
+      "org": "U.S. Department of Energy",
+      "by": "caleb"
+    },
+    {
+      "as_written": "AmeriCorps program",
+      "org": "AmeriCorps",
+      "by": "caleb"
+    },
+    {
+      "as_written": "EGLE",
+      "org": "Michigan Department of Environment, Great Lakes, and Energy",
+      "by": "caleb"
+    },
+    {
+      "as_written": "MI-HOPE",
+      "org": "MI-HOPE",
+      "by": "caleb",
+      "note": "Michigan Homeowner Assistance / MI Home Owner Preservation programme. Not in the wiki actor registry; created as an org by this file because a state programme that awards money is a funder in its own right."
+    },
+    {
+      "as_written": "McKnight Foundation",
+      "org": "McKnight Foundation",
+      "by": "caleb"
+    },
+    {
+      "as_written": "Solar Moonshot",
+      "org": "Solar Moonshot",
+      "by": "caleb"
+    },
+    {
+      "as_written": "American Lung Association",
+      "org": "American Lung Association",
+      "by": "caleb"
+    },
+    {
+      "as_written": "Bright Cities",
+      "org": "Bright Cities",
+      "by": "caleb"
+    },
+    {
+      "as_written": "Washtenaw County Waste Reduction Sponsorship",
+      "org": "Washtenaw County",
+      "by": "caleb"
+    },
+    {
+      "as_written": "Urban Sustainability Directors Network",
+      "org": "Urban Sustainability Directors Network",
+      "by": "caleb"
+    },
+    {
+      "as_written": "State of Michigan",
+      "org": "State of Michigan",
+      "by": "caleb"
+    },
+    {
+      "as_written": "Urban Sustainability Directors Network Emergent Learning Fund",
+      "org": "Urban Sustainability Directors Network",
+      "by": "caleb",
+      "note": "a named fund of USDN; the awarding body is USDN itself"
+    },
+    {
+      "as_written": "Urban Sustainability Directors Network Mini-Grant",
+      "org": "Urban Sustainability Directors Network",
+      "by": "caleb",
+      "note": "a named fund of USDN; the awarding body is USDN itself"
+    },
+    {
+      "as_written": "SEMCOG Carbon Reduction Program",
+      "org": "Southeast Michigan Council of Governments",
+      "by": "caleb",
+      "note": "SEMCOG's programme; the awarding body is SEMCOG"
+    }
+  ],
+  "_fund_vs_funder": "A document often names the FUND, not the body: 'Urban Sustainability Directors Network Emergent Learning Fund'. The fund is an instrument; the funder is USDN. Both fund names map to the same org here, deliberately -- 'every award USDN made' must return them together. The instrument is not lost: it stays in funder_name_text verbatim.",
+  "_specificity_drifts": "The extraction names the funder with VARYING specificity between runs -- 'SEMCOG' one pass, 'SEMCOG Carbon Reduction Program' the next -- because both are what the text says. That is not a model fault to be tuned away; it is why resolution must be retroactive. Adding a row here and running `resolve_orgs --backfill-funders` closes the gap without paying for another extraction."
+}

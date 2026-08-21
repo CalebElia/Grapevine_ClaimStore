@@ -81,6 +81,20 @@ def read_aliases(wiki: Path = WIKI) -> tuple[dict[str, str], set[str]]:
     return out, ambiguous
 
 
+def read_funder_aliases(
+        path: Path = Path("registries/ann_arbor/funder_aliases.json")) -> dict[str, str]:
+    """How this corpus writes a funder's name -> the org registry's spelling.
+
+    The wiki's alias table covers the bodies the wiki curated. A funder is a different
+    population: MI-HOPE awards money and is not an actor in Ann Arbor's climate work, so
+    nobody wrote it a wiki page. This file is where those pairs live, each with who decided.
+    """
+    if not path.exists():
+        return {}
+    return {a["as_written"].lower(): a["org"]
+            for a in json.loads(path.read_text()).get("aliases", [])}
+
+
 def mentions(text: str, name: str) -> bool:
     """Whether `text` names this organisation. Word-bounded; short names must stand alone."""
     n = name.strip()
@@ -160,9 +174,45 @@ def resolve(section_id: int | None, dsn: str = DSN, wiki: Path = WIKI,
     return out
 
 
+def backfill_funders(dsn: str = DSN, dry_run: bool = False) -> list[tuple]:
+    """Re-resolve stored funder names against the registry as it stands NOW.
+
+    WHY THIS EXISTS. funder_name_text records what the document said whether or not the
+    registry could place it, so a registry gap is recoverable -- but only if adding the row
+    can reach the claims already written. Without this, closing a gap means re-running the
+    extraction, which costs a model call and returns a DIFFERENT name: the funder's
+    specificity drifts between runs ('SEMCOG' vs 'SEMCOG Carbon Reduction Program'), so
+    re-extracting to fix one gap can open another. The registry is the thing that changed;
+    only the resolution should be recomputed.
+
+    Only ever fills a NULL. An awarding_org_id already set was decided against the evidence
+    at the time and is not overwritten by a later registry edit.
+    """
+    import psycopg
+    from pipeline.extract_claims import _funder_org
+
+    done = []
+    with psycopg.connect(dsn) as c, c.cursor() as cur:
+        cur.execute("SELECT id, funder_name_text FROM fiscal_references "
+                    "WHERE awarding_org_id IS NULL AND funder_name_text IS NOT NULL")
+        for fid, name in cur.fetchall():
+            oid = _funder_org(cur, name)
+            if not oid:
+                continue
+            if not dry_run:
+                cur.execute("UPDATE fiscal_references SET awarding_org_id=%s WHERE id=%s",
+                            (oid, fid))
+            done.append((fid, name, oid))
+        if not dry_run:
+            c.commit()
+    return done
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="seed orgs and attach claims to them")
     ap.add_argument("--seed", action="store_true")
+    ap.add_argument("--backfill-funders", action="store_true",
+                    help="re-resolve stored funder names against the current registry")
     ap.add_argument("--section-id", type=int)
     ap.add_argument("--dsn", default=DSN)
     ap.add_argument("--wiki", default=str(WIKI))
@@ -171,6 +221,13 @@ def main() -> int:
 
     if a.seed:
         print(f"[orgs] seeded {seed(a.dsn, Path(a.wiki))} organisation(s)")
+    if a.backfill_funders:
+        got = backfill_funders(a.dsn, a.dry_run)
+        for _fid, name, _oid in got:
+            print(f"  funder {name!r} -> org {_oid}")
+        print(f"[funders] {len(got)} reference(s) resolved from the registry")
+        return 0
+
     rows = resolve(a.section_id, a.dsn, Path(a.wiki), a.dry_run)
     one = [r for r in rows if len(r["matched"]) == 1]
     many = [r for r in rows if len(r["matched"]) > 1]

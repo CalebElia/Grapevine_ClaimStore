@@ -26,3 +26,27 @@ def test_a_vague_source_names_nobody():
 def test_a_real_source_is_a_source():
     for named in ("MI-HOPE", "McKnight Foundation", "federal aid", "State of Michigan"):
         assert names_a_source(named)
+
+
+# --- the giver is not the kind of money -------------------------------------------------
+
+def test_a_named_funder_silences_the_question_even_when_the_kind_is_other():
+    """The bug this pins: funding_source='other' meant 'uncategorised', not 'unfunded'.
+
+    Sixteen of nineteen references in the corpus held 'other', so a sentence naming the
+    U.S Department of Energy was indistinguishable from a sentence naming nobody, and the
+    store asked a human to go find a fact printed in the document they already have.
+    """
+    assert names_a_source("other", "U.S Department of Energy") is True
+    assert names_a_source(None, "MI-HOPE") is True
+
+
+def test_no_name_and_no_category_is_still_a_real_gap():
+    assert names_a_source("other", None) is False
+    assert names_a_source("other", "   ") is False
+
+
+def test_a_category_alone_still_counts_as_a_source():
+    """federal_grant does not say WHO, but it is not nothing -- the vocabulary was filled
+    deliberately, and questioning it would ask about money someone already classified."""
+    assert names_a_source("federal_grant", None) is True
