@@ -74,7 +74,16 @@ For each claim return an object:
                   Two numbers sharing a unit but not a measure must never be summed.
   "fiscal"     -- a LIST, empty if the claim states no money. Each:
                   {"amount_low": number, "currency": "USD", "purpose": "...",
-                   "funding_source": "...", "verbatim": "..."}
+                   "funding_source": "...", "funder_name": "...", "verbatim": "..."}
+                  These are TWO DIFFERENT THINGS and both matter.
+                  "funding_source" is the KIND of money, and must be one of:
+                    federal_grant · state_grant · county · philanthropic · utility
+                    rate_payer · millage · bond · general_fund · local_match · surplus
+                    other
+                  "funder_name" is WHO gave it, named exactly as the text names them:
+                    "MI-HOPE", "McKnight Foundation", "SEMCOG", "U.S Department of
+                    Energy". Omit if the text does not say. Never infer a funder from
+                    the kind of money, or a kind from the funder.
 
 ONE CLAIM PER ASSERTION, NOT ONE PER NUMBER. A sentence may state several measured things
 at once:
@@ -241,6 +250,41 @@ _POLARITY = {"support", "oppose", "informational", "mixed", "procedural"}
 _MODALITY = {"asserted", "hedged", "hypothetical", "attributed_to_other"}
 
 
+def _funder_org(cur, name: str | None) -> int | None:
+    """The named funder, resolved to an org, or None.
+
+    WHO gave the money and WHAT KIND of money it is are different questions with different
+    homes: funding_source is a vocabulary of categories (federal_grant, philanthropic,
+    millage), awarding_org_id is a referent. The first extraction filled neither -- it
+    wrote 'other' sixteen times because nothing told it the vocabulary existed, and put
+    "MI-HOPE" only in the verbatim, where no query can reach it.
+
+    Resolved by exact name, never fuzzily. A funder attributed to the wrong body is a
+    citation saying something false about who paid, which is worse than a NULL -- the
+    research question a NULL raises is the correct outcome when we do not know.
+    """
+    n = (name or "").strip()
+    if not n:
+        return None
+    cur.execute("SELECT id FROM orgs WHERE lower(name) = lower(%s)", (n,))
+    if (row := cur.fetchone()):
+        return row[0]
+    # THE WIKI'S ALIASES, WHICH IS WHERE THE JUDGEMENT ALREADY LIVES. A document writes
+    # "SEMCOG" where the registry holds "Southeast Michigan Council of Governments", and
+    # resolving that is not fuzzy matching -- somebody curated the pair. Exact match on an
+    # alias, never a similarity score: a funder attributed to the wrong body says something
+    # false about who paid, and the research question a NULL raises is the right outcome
+    # when we do not know.
+    from pipeline.resolve_orgs import read_aliases
+    aliases, _ = read_aliases()
+    slug = aliases.get(n.lower())
+    if not slug:
+        return None
+    cur.execute("SELECT id FROM orgs WHERE notes LIKE %s", (f"%wiki/actors/{slug}.md",))
+    row = cur.fetchone()
+    return row[0] if row else None
+
+
 def store(res: Result, section_id: int, document_id: int, content_hash: str,
           section_char_start: int, extracted_by: str, dsn: str = DSN,
           period: tuple | None = None) -> dict:
@@ -306,11 +350,12 @@ def store(res: Result, section_id: int, document_id: int, content_hash: str,
                 cur.execute(
                     """INSERT INTO fiscal_references
                          (claim_id, amount_low, currency, purpose, funding_source,
-                          source_type, verbatim)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                          source_type, verbatim, awarding_org_id)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
                     (claim_id, f.get("amount_low"), f.get("currency") or "USD",
                      f.get("purpose"), f.get("funding_source"), "annual_report",
-                     (f.get("verbatim") or a.verbatim)[:2000]))
+                     (f.get("verbatim") or a.verbatim)[:2000],
+                     _funder_org(cur, f.get("funder_name"))))
                 counts["fiscal_references"] += 1
         c.commit()
     return counts
