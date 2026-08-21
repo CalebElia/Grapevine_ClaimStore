@@ -1734,3 +1734,30 @@ def test_two_open_sentences_and_one_continuation_is_left_alone():
           _rb("TextItem", "natural areas permanently protected.")]
     n = rejoin_open_sentences(bs)
     assert bs[0]["text"] == "The Greenbelt reached 7,600 acres and"
+
+
+def test_a_heading_over_a_roster_is_a_signoff_not_a_section():
+    from pipeline.convert_blocks import mark_signoff
+    bs = [_rb("SectionHeaderItem", "The Ann Arbor Office of Sustainability and Innovations Team"),
+          _rb("TextItem", "Missy, Zach, Julie, Sean, Thea, Simi, Hannah, Joe, and Ryan")]
+    assert mark_signoff(bs) == 1
+    assert bs[0]["kind"] == "TextItem"
+    assert bs[0]["is_furniture"] and bs[1]["is_furniture"]      # kept, marked, not dropped
+
+
+def test_a_real_heading_over_prose_is_untouched():
+    from pipeline.convert_blocks import mark_signoff
+    bs = [_rb("SectionHeaderItem", "INTRODUCTION"),
+          _rb("TextItem", "As A2ZERO turns three, we reflect on actions taken to-date.")]
+    assert mark_signoff(bs) == 0 and bs[0]["kind"] == "SectionHeaderItem"
+
+
+def test_a_bullet_flowed_around_a_picture_keeps_its_depth():
+    """Year 3 page 12 flows two bullets around a photograph, so they start 135pt right of
+    their siblings -- ten times a real indent."""
+    from pipeline.convert_blocks import flowed_around_picture
+    pic = {"bbox": [37.6, 384.9, 165.1, 214.9]}
+    flowed = {"bbox": [171.4, 383.3, 302.5, 332.7]}
+    normal = {"bbox": [35.7, 560.7, 277.2, 522.6]}
+    assert flowed_around_picture(flowed, [pic])
+    assert not flowed_around_picture(normal, [pic])

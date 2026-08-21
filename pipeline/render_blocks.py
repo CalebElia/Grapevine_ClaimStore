@@ -223,8 +223,13 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             # because it asserts nothing about the world, and extracting seven of these
             # as claims would manufacture statements the report never makes.
             stats["furniture"] = stats.get("furniture", 0) + 1
-            out += ["<!-- FURNITURE: page footer, not an assertion -->",
-                    f"> {tag}{text}", ""]
+            # A ROSTER IS NOT A FOOTER. Both are furniture -- neither asserts anything
+            # about the world -- but calling Year 3's sign-off a "page footer" tells a
+            # reviewer something untrue about where it came from, and the tag is what
+            # ingest filters on.
+            kind_note = ("staff roster / sign-off, not an assertion"
+                         if b.get("_signoff") else "page footer, not an assertion")
+            out += [f"<!-- FURNITURE: {kind_note} -->", f"> {tag}{text}", ""]
             continue
 
         if kind == "UncoveredText":

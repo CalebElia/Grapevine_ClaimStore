@@ -549,6 +549,68 @@ def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
     return joined
 
 
+_NOT_A_NAME = {"The", "And", "Our", "This", "These", "We", "In", "At", "For", "With",
+               "City", "Ann", "Arbor", "Office", "Team", "Year", "January", "February",
+               "March", "April", "May", "June", "July", "August", "September", "October",
+               "November", "December", "Monday", "Tuesday", "Wednesday", "Thursday",
+               "Friday", "Saturday", "Sunday"}
+
+
+def mark_signoff(resolved: list[dict]) -> int:
+    """Demote a heading that introduces only a roster, and mark the pair as furniture.
+
+    A section heading introduces content. This one introduces thirteen first names and
+    then the document moves to page 2, which is a sign-off, not a section -- and it sat
+    in Year 3's spine as "## The Ann Arbor Office of Sustainability and Innovations Team".
+
+    The geometry agrees but cannot be trusted alone: 1.0pt separates it from its names
+    where the same page's real INTRODUCTION heading sits 21.9pt above its body. That gap
+    test, used by itself, also swallows Year 1's genuine "Next Steps" heading at 5.4pt.
+    So the ruling is made on what follows -- a bare roster -- and the geometry is not
+    consulted at all.
+
+    Both blocks are kept and marked, never dropped. They belong to `people`; they assert
+    nothing about the world, and thirteen first names extracted as claims would be
+    thirteen statements the report never made.
+    """
+    n = 0
+    for i, b in enumerate(resolved[:-1]):
+        nxt = resolved[i + 1]
+        if (b["kind"] == "SectionHeaderItem"
+                and not b.get("is_furniture")
+                and nxt.get("page_no") == b.get("page_no")
+                and looks_like_roster(nxt.get("text") or "")):
+            b["kind"] = "TextItem"
+            b["is_furniture"] = nxt["is_furniture"] = True
+            b["_signoff"] = nxt["_signoff"] = True
+            n += 1
+    return n
+
+
+def looks_like_roster(text: str, min_names: int = 4) -> bool:
+    """True if this block is a bare list of personal names and nothing else.
+
+    Year 3 page 1 signs off "The Ann Arbor Office of Sustainability and Innovations Team"
+    over "Missy, Zach, Julie, Sean, Thea, Simi, Hannah, Joe, Sheronda, Bryce, Jennifer,
+    Carissa, and Ryan". Docling types the first as a SectionHeaderItem, so it opened a
+    section that contains nothing but thirteen first names and then the document moves on.
+
+    A roster is recognised by what it is made of rather than by where it sits: every token
+    a single capitalised word, separated by commas, with an "and" before the last, and no
+    verb anywhere -- which is also why it asserts nothing and why render_blocks already
+    treats Year 5's staff roster as furniture. Extracting thirteen first names as claims
+    would manufacture statements the report never makes.
+    """
+    t = " ".join(text.split()).rstrip(".")
+    if "," not in t:
+        return False
+    parts = [p.strip() for p in re.sub(r"\band\b", ",", t).split(",")]
+    parts = [p for p in parts if p]
+    if len(parts) < min_names:
+        return False
+    return all(re.fullmatch(r"[A-Z][a-z]+", p) and p not in _NOT_A_NAME for p in parts)
+
+
 def _lead_shape(text: str) -> str:
     """A block's LEADING shape -- the first three word-ish tokens, digits collapsed.
 
@@ -734,7 +796,31 @@ def column_edges(x0s: list[float], min_gap: float = _MIN_GUTTER) -> list[float]:
     return edges
 
 
-def assign_nesting(blocks: list[dict], ems: dict[int, float] | None = None) -> None:
+def flowed_around_picture(b: dict, pictures: list[dict]) -> bool:
+    """True if this block's left edge is set by an image beside it, not by nesting.
+
+    Year 3 page 12 puts a photograph in the left half of the column and flows two bullets
+    around it, so they start at x=171.4 where their siblings start at 35.7. That is 135pt
+    of "indent" -- ten times a real one -- and the ladder read it as a sub-list, nesting
+    two ordinary achievements under the bullet above them. Caleb: "these are the same as
+    all the other bullets. This isn't a sublist with a preceding ':' function."
+
+    The page says so plainly. A picture ends at x=165.1, the two bullets begin 6.3pt to
+    its right, and their vertical spans overlap it; every other bullet on the page has
+    nothing to its left at all. So the question is not how far the block is indented but
+    whether anything is standing in the space -- and text flowed around an image carries
+    the depth it already had.
+    """
+    l, t, _, bot = b["bbox"]
+    for p in pictures:
+        pl, pt, pr, pb = p["bbox"]
+        if pr <= l + 12.0 and pr > pl and pt > bot and pb < t:
+            return True
+    return False
+
+
+def assign_nesting(blocks: list[dict], ems: dict[int, float] | None = None,
+                   pictures: list[dict] | None = None) -> None:
     """Set `list_level` on each block, in place.
 
     Indentation is measured from the block's OWN COLUMN's left edge, because on Year 2
@@ -789,6 +875,15 @@ def assign_nesting(blocks: list[dict], ems: dict[int, float] | None = None) -> N
     # sub-list at indent 38 and later returns to the parent level at indent 1 -- could
     # never come back up, and four parent bullets rendered as children of an awards list
     # they have nothing to do with.
+    # PICTURES COME FROM THE CALLER. convert() skips PictureItems in its resolve loop and
+    # re-interleaves them only for the renderer, so `blocks` here holds none at all and
+    # building the index from it found nothing -- the flow test ran on an empty list and
+    # silently answered "no" for every block.
+    pics_by_page: dict[int, list[dict]] = {}
+    for b in (pictures if pictures is not None else blocks):
+        if b.get("kind") == "PictureItem" and b.get("bbox"):
+            pics_by_page.setdefault(b.get("page_no"), []).append(b)
+
     ladder: list[float] = []
     anchor = 0
     level, base, cur_col = 0, 0, None
@@ -800,6 +895,8 @@ def assign_nesting(blocks: list[dict], ems: dict[int, float] | None = None) -> N
             continue
         col = max([e for e in edges if e <= b["x0"] + 1] or [edges[0]])
         indent = b["x0"] - col
+        if b.get("bbox") and flowed_around_picture(b, pics_by_page.get(b.get("page_no"), [])):
+            indent = ladder[-1] if ladder else 0.0     # an image set this edge, not a list
         if col != cur_col:
             base = level if cur_col is not None else 0
             cur_col, ladder, anchor = col, [indent], 0
@@ -1576,7 +1673,8 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
                 content_recovered.append((pno, txt[:70]))
 
     n_joined = rejoin_open_sentences(resolved, words, hyph)
-    assign_nesting(resolved, ems)
+    mark_signoff(resolved)
+    assign_nesting(resolved, ems, pictures=blocks)
     mark_furniture(resolved)
 
     text, page_map, with_offsets = assemble_blocks(resolved, n_pages)
