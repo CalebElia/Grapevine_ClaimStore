@@ -92,6 +92,23 @@
       "by": "caleb",
       "note": "SEMCOG's programme; the awarding body is SEMCOG",
       "program": "SEMCOG Carbon Reduction Program"
+    },
+    {
+      "as_written": "Department of Energy",
+      "org": "U.S. Department of Energy",
+      "by": "caleb"
+    },
+    {
+      "as_written": "American Forests",
+      "org": "American Forests",
+      "by": "caleb",
+      "note": "A national conservation nonprofit; a funder this corpus names and the wiki does not carry."
+    },
+    {
+      "as_written": "National Service Trust",
+      "org": "National Service Trust",
+      "by": "caleb",
+      "note": "The fund behind AmeriCorps education awards. Kept distinct from AmeriCorps itself because the corpus names it separately and merging them would assert a relationship no document here states."
     }
   ],
   "_fund_vs_funder": "A document often names the FUND, not the body: 'Urban Sustainability Directors Network Emergent Learning Fund'. The fund is an instrument; the funder is USDN. Both fund names map to the same org here, deliberately -- 'every award USDN made' must return them together. The instrument is not lost: it stays in funder_name_text verbatim.",
@@ -141,6 +158,14 @@
       "abbreviation": null,
       "funding_instrument": "sponsorship",
       "by": "caleb"
+    },
+    {
+      "name": "American Rescue Plan Act",
+      "administered_by": null,
+      "abbreviation": "ARPA",
+      "funding_instrument": "appropriation",
+      "by": "caleb",
+      "note": "Federal legislation, not an organisation. The administering agency is not stated in this corpus and is deliberately left NULL."
     }
   ]
 }
