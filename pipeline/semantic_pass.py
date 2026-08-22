@@ -260,40 +260,66 @@ _MD_LINK = re.compile(r"\[([^\]]*)\]\((?:[^)]*)\)")
 
 
 def build_conflict_case(token: str, primary_text: str, second_text: str,
+                        before: int = 5, after: int = 3,
                         context_chars: int = 150) -> dict | None:
-    """One adjudication case: both arms' readings of the same words, plus the sentence.
+    """One adjudication case: both arms' readings of the SAME span of page, plus context.
 
-    Returns None when the second arm's counterpart cannot be located. A case with one side
-    empty is not a choice -- it would ask the model to pick between a reading and nothing,
-    and the only answer it could give is the one we already have.
+    ANCHORED AT BOTH ENDS. A shared prefix is not enough. When one arm splits a word the
+    other joined, equal word counts cover unequal spans: the primary window ran through
+    "restructuring" while the second stopped at "a", and the difference between them then
+    read as a thirteen-character deletion that would have removed " restructuring" from the
+    document. Both windows must begin AND end on text the two arms agree about, so that
+    what lies between them is exactly what they disagreed about.
+
+    Returns None when no such pair of anchors exists -- if the arms never re-converge after
+    the token there is no safe window, and inventing one is how text gets deleted.
     """
-    # A URL IS NOT A READING. The CU arm emits markdown links, so the counterpart word can
+    # A URL IS NOT A READING. The CU arm emits markdown links, so a counterpart word can
     # arrive as "[program,](https://www.a2gov.org/...)". Keep the link TEXT, drop the target.
     second_text = _MD_LINK.sub(r"\1", second_text)
+    # WHITESPACE IS NOT CONTENT HERE. The second arm wraps lines, so it reads
+    # "a\nrestructuring" where the primary reads "a restructuring". Comparing them raw made
+    # every multi-word anchor fail, the search fell through to a one-word anchor, and that
+    # anchor matched inside another word. Collapse first, compare after.
+    second_text = re.sub(r"\s+", " ", second_text)
 
     pat = re.compile(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", re.I)
     words = primary_text.split()
     idx = next((i for i, w in enumerate(words) if pat.search(w)), None)
     if idx is None:
         return None
-    window = align_window(primary_text, token, second_text, before=5, after=2)
-    if window is None:
-        return None
 
-    primary_reading = words[idx].strip(".,;:!?)")
-    # The counterpart is what the second arm has AFTER the shared anchor, and the anchor is
-    # the leading part of the window -- so the counterpart is whatever the window added.
-    anchor_len = len(window.split()) - 2
-    tail = window.split()[max(anchor_len, 0):]
-    second_reading = " ".join(tail).strip(".,;:!?)") or None
-    if not second_reading:
-        return None
-
-    m = pat.search(primary_text)
-    a = max(0, m.start() - context_chars)
-    context = re.sub(r"\s+", " ", primary_text[a:m.end() + context_chars]).strip()
-    return {"token": token, "primary": primary_reading, "second": second_reading,
-            "context": context}
+    low = second_text.lower()
+    for n in range(min(before, idx), 0, -1):
+        head_words = words[idx - n:idx]
+        head = " ".join(head_words)
+        at = low.find(head.lower())
+        if at < 0:
+            continue
+        rest = second_text[at + len(head):]
+        # The trailing anchor: the first run of following words that BOTH arms produced.
+        for m in range(after, 0, -1):
+            tail_words = words[idx + 1:idx + 1 + m]
+            if len(tail_words) < m:
+                continue
+            tail = " ".join(tail_words)
+            # AS WORDS, NEVER AS A SUBSTRING. A one-word anchor like "a" will otherwise
+            # match the "a" inside "Care" and truncate the window mid-word.
+            tm = re.search(rf"(?<![a-z0-9]){re.escape(tail)}(?![a-z0-9])", rest, re.I)
+            if tm is None:
+                continue
+            end = tm.start()
+            primary_window = " ".join(head_words + [words[idx]] + tail_words)
+            second_window = (head + rest[:end] + tail).strip()
+            if primary_window == second_window:
+                continue
+            mm = pat.search(primary_text)
+            a = max(0, mm.start() - context_chars)
+            context = re.sub(r"\s+", " ",
+                             primary_text[a:mm.end() + context_chars]).strip()
+            return {"token": token, "primary": primary_window,
+                    "second": second_window, "context": context}
+    return None
 
 
 CONFLICT_PROMPT = """You are adjudicating a disagreement between two independent reads of \

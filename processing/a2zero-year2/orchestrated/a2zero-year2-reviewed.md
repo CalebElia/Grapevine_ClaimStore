@@ -156,7 +156,7 @@ In Year Two, we:
 
 - Set up Saturday service for downtown commercial recycling to begin July 1, 2022.
 
-- Sent recommendations for a sustainable food purchasing policy that applies to all City purchases of food items on February 1st, 2022 which were incorporated in the City Council's resolution passed on March 215, 2022. Currently working to implement.
+- Sent recommendations for a sustainable food purchasing policy that applies to all City purchases of food items on February 1st, 2022 which were incorporated in the City Council's resolution passed on March 21st, 2022. Currently working to implement.
 
 DIVE DEEPER into ANN ARBOR REDUCE, REUSE, RETURN (A2R3): US-made, USDA-approved, microwave-, freezer-, and dishwasher-safe reusable containers are available for takeout orders at Zingerman's Next Door Café, Ginger Deli, and El Harissa Market Café. Containers can be returned to any of the participating businesses to be cleaned and reused, reducing single-use container waste and building Ann Arbor's circular economy. Additional businesses will be added to the program continually. Visit Live Zero Waste to stay up to date with the program and to check out a container when you visit a participating business!
 

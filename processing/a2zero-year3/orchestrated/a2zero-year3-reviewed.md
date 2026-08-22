@@ -244,7 +244,7 @@ Enhancing the resilience of our people and our exceptional community are pivotal
 
 - Reached approximately 5,750 trees planted/ distributed through the 10,000 Trees program.
 
-- Together with Public Works and Natural Areas Preservation, submitted a USDA Forest Service Urban & Community Forestry Inflation Reduction Actgrant proposal to fundan update to Ann Arbor’s Urban Tree Canopy assessment, advance private property tree planting efforts, create a NAP management plan, and conduct a feasibility study for a City- and County-owned tree nursery.
+- Together with Public Works and Natural Areas Preservation, submitted a USDA Forest Service Urban & Community Forestry Inflation Reduction Act grant proposal to fund an update to Ann Arbor’s Urban Tree Canopy assessment, advance private property tree planting efforts, create a NAP management plan, and conduct a feasibility study for a City- and County-owned tree nursery.
 
 - Presented on the 10,000 Trees program’s progress and success at the 2023 Partners in Community Forestry conference and ArborCon 2023.
 
@@ -252,13 +252,13 @@ Enhancing the resilience of our people and our exceptional community are pivotal
 
 - The Greenbelt reached 7,600 acres of farmland and natural areas permanently protected surrounding the City of Ann Arbor. The farmland protected by the Greenbelt has the potential to produce the calories needed to feed over 52,000 people!
 
-- Launched a data visualization platform for airquality monitoring at www.a2gov.org/airdata.
+- Launched a data visualization platform for air quality monitoring at www.a2gov.org/airdata.
 
-- Launched the Pollinator-Aware Yard Careprogram, a restructuring of last year’s No Mow May program,with over 250 residents registered as participants.
+- Launched the Pollinator-Aware Yard Care program, a restructuring of last year’s No Mow May program,with over 250 residents registered as participants.
 
-- Hosted over a dozen community-basedorganizations to explore creation of a resilience network.
+- Hosted over a dozen community-based organizations to explore creation of a resilience network.
 
-- Applied for a federal EPA grant to formally launcha resilience network and expand resilience hubs throughout the County.
+- Applied for a federal EPA grant to formally launch a resilience network and expand resilience hubs throughout the County.
 
 <!-- p.13 -->
 ## STRATEGY SEVEN: OTHER STRATEGIES (NOTABLE ACCOMPLISHMENTS OR EFFORTS)

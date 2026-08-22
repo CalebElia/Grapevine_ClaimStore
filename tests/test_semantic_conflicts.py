@@ -115,8 +115,8 @@ def test_a_case_carries_both_readings_and_the_sentence():
     primary = "Launched the Pollinator-Aware Yard Careprogram, a restructuring of last year"
     second = "Launched the Pollinator-Aware Yard Care program, a restructuring"
     c = build_conflict_case("careprogram", primary, second)
-    assert c["primary"] == "Careprogram"
-    assert c["second"] == "Care program"
+    assert "Careprogram" in c["primary"]
+    assert "Care program" in c["second"]
     assert "Pollinator-Aware" in c["context"]
 
 
@@ -134,3 +134,79 @@ def test_a_case_with_no_locatable_counterpart_is_not_built():
     """No counterpart means no choice to offer. Returning a case with one side empty would
     ask the model to pick between a reading and nothing."""
     assert build_conflict_case("xyz", "unique phrase xyz here", "nothing alike") is None
+
+
+def test_both_readings_cover_the_same_span_of_the_page():
+    """A defect found when building the write-back: the case gave the model 'primary' as a
+    bare token ('215') and 'second' as a window ('21st, 2022'). The model chose correctly
+    anyway, but the recorded answer could not be written back -- substituting a window for
+    a token yields 'March 21st, 2022, 2022'. Both sides must be the same piece of page, so
+    the difference between them IS the correction."""
+    primary = "the resolution passed on March 215, 2022. Currently working"
+    second = "leaked GUID. passed on March 21st, 2022. Currently"
+    c = build_conflict_case("215", primary, second)
+    # Same anchor, same number of words: the two windows are the same piece of page, so
+    # the difference between them is exactly the correction.
+    assert len(c["primary"].split()) == len(c["second"].split())
+    assert c["primary"].startswith("passed on March")
+    assert c["second"].startswith("passed on March")
+    assert "215," in c["primary"] and "21st," in c["second"]
+
+    # ...and that is what makes the write-back safe.
+    from pipeline.write_back import minimal_edit
+    assert minimal_edit(c["primary"], c["second"]) == ("5", "st")
+
+
+def test_the_shared_anchor_appears_on_both_sides():
+    primary = "Launched the Pollinator-Aware Yard Careprogram, a restructuring of last"
+    second = "Launched the Pollinator-Aware Yard Care program, a restructuring"
+    c = build_conflict_case("careprogram", primary, second)
+    assert c["primary"].startswith(c["second"].split()[0])
+    assert "Careprogram," in c["primary"]
+    assert "Care program," in c["second"]
+
+
+def test_the_windows_end_on_a_shared_anchor_not_a_word_count():
+    """THE BUG THIS PINS, caught by a dry run and not by any earlier test.
+
+    When one arm splits a word the other joined, equal WORD COUNTS cover unequal spans of
+    page: the primary window ran through 'restructuring' while the second stopped at 'a'.
+    minimal_edit then reported ('program, a restructuring' -> ' program, a') -- a 13
+    character deletion that would have removed ' restructuring' from the document, and the
+    plan verified as internally consistent because both sides came from the same bad pair.
+
+    Both windows must END on shared text as well as begin on it. Then the difference
+    between them is exactly what the arms disagreed about.
+    """
+    primary = "Launched the Pollinator-Aware Yard Careprogram, a restructuring of last year"
+    second = "Launched the Pollinator-Aware Yard Care program, a restructuring of last"
+    c = build_conflict_case("careprogram", primary, second)
+    from pipeline.write_back import minimal_edit
+    old, new = minimal_edit(c["primary"], c["second"])
+    assert (old, new) == ("", " "), (c["primary"], c["second"], old, new)
+
+
+def test_no_shared_trailing_anchor_means_no_case():
+    """If the arms never re-converge after the token there is no safe window, and guessing
+    one is how ' restructuring' gets deleted."""
+    primary = "alpha beta target completely different words here"
+    second = "alpha beta targ et"
+    assert build_conflict_case("target", primary, second) is None
+
+
+def test_a_line_break_in_the_second_arm_does_not_defeat_the_anchor():
+    """The real failure, traced from Year 3. The CU arm wraps lines, so its text reads
+    "Care program, a\nrestructuring of" while the primary's words are space-joined. The
+    multi-word anchor "a restructuring of" therefore never matched, the search fell through
+    to the one-word anchor "a" -- which matched the "a" inside "Care" -- and the window
+    truncated to "...Yard Ca", a twelve-character deletion.
+
+    Two defects stacked: whitespace must be normalised before comparing, and an anchor must
+    be matched as WORDS so a short one cannot land inside another word."""
+    primary = "Launched the Yard Careprogram, a restructuring of last"
+    second = "Launched the Yard Care program, a\nrestructuring of last"
+    c = build_conflict_case("careprogram", primary, second)
+    assert c is not None
+    assert not c["second"].endswith("Ca"), c["second"]
+    from pipeline.write_back import minimal_edit
+    assert minimal_edit(c["primary"], c["second"]) == ("", " ")
