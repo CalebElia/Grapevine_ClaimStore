@@ -219,3 +219,148 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def align_window(primary: str, token: str, second: str,
+                 before: int = 4, after: int = 2) -> str | None:
+    """The second arm's counterpart to `token`, located by the words that precede it.
+
+    A BARE TOKEN IS NOT A READING. "215" is not a choice anyone can make; "March 215, 2022"
+    against "March 21st, 2022" is. So each side is presented as a window, and the windows
+    have to be the same piece of the page or the comparison is meaningless.
+
+    THE ANCHOR SHRINKS. The two arms differ NEAR the token -- that is why there is a
+    conflict -- so the longest anchor is the likeliest to fail. Dropping the outermost word
+    and retrying walks in from the part they disagree about toward the part they share.
+    Returns None when nothing matches, because inventing a counterpart would put words in
+    the second arm's mouth and hand the model a fabricated choice.
+    """
+    words = primary.split()
+    # A WHOLE WORD, NOT A SUBSTRING. Found the hard way: the Year 2 conflict token "wee"
+    # located itself inside "week-long" -- an unrelated, correctly-read word several
+    # sentences earlier -- and would have put an entirely fabricated disagreement to the
+    # model. The token is a word the second arm failed to produce, so it must be matched
+    # the way the conflict was detected: bounded.
+    pat = re.compile(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", re.I)
+    idx = next((i for i, w in enumerate(words) if pat.search(w)), None)
+    if idx is None:
+        return None
+    low = second.lower()
+    for n in range(min(before, idx), 0, -1):
+        anchor = " ".join(words[idx - n:idx]).lower()
+        at = low.find(anchor)
+        if at < 0:
+            continue
+        tail = second[at + len(anchor):].split()
+        return " ".join(words[idx - n:idx] + tail[:after]).strip()
+    return None
+
+
+_MD_LINK = re.compile(r"\[([^\]]*)\]\((?:[^)]*)\)")
+
+
+def build_conflict_case(token: str, primary_text: str, second_text: str,
+                        context_chars: int = 150) -> dict | None:
+    """One adjudication case: both arms' readings of the same words, plus the sentence.
+
+    Returns None when the second arm's counterpart cannot be located. A case with one side
+    empty is not a choice -- it would ask the model to pick between a reading and nothing,
+    and the only answer it could give is the one we already have.
+    """
+    # A URL IS NOT A READING. The CU arm emits markdown links, so the counterpart word can
+    # arrive as "[program,](https://www.a2gov.org/...)". Keep the link TEXT, drop the target.
+    second_text = _MD_LINK.sub(r"\1", second_text)
+
+    pat = re.compile(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", re.I)
+    words = primary_text.split()
+    idx = next((i for i, w in enumerate(words) if pat.search(w)), None)
+    if idx is None:
+        return None
+    window = align_window(primary_text, token, second_text, before=5, after=2)
+    if window is None:
+        return None
+
+    primary_reading = words[idx].strip(".,;:!?)")
+    # The counterpart is what the second arm has AFTER the shared anchor, and the anchor is
+    # the leading part of the window -- so the counterpart is whatever the window added.
+    anchor_len = len(window.split()) - 2
+    tail = window.split()[max(anchor_len, 0):]
+    second_reading = " ".join(tail).strip(".,;:!?)") or None
+    if not second_reading:
+        return None
+
+    m = pat.search(primary_text)
+    a = max(0, m.start() - context_chars)
+    context = re.sub(r"\s+", " ", primary_text[a:m.end() + context_chars]).strip()
+    return {"token": token, "primary": primary_reading, "second": second_reading,
+            "context": context}
+
+
+CONFLICT_PROMPT = """You are adjudicating a disagreement between two independent reads of \
+the same printed page. One read came from the PDF's text layer, the other from OCR of the \
+rendered pixels. Glyph geometry was already consulted and could not decide.
+
+For each case you get the token as each arm read it, plus the surrounding sentence.
+
+Reply with a JSON list. Each item: {"token": "...", "choice": "primary"|"second"|"neither", \
+"why": "under 15 words"}.
+
+Choose "primary" or "second" only when one of those exact readings is right.
+
+Choose "neither" when NEITHER reading is correct -- for example when the characters look \
+like a footnote marker, a superscript, or some other artefact next to a real word. Do not \
+try to say what the text should be. Naming the pattern is more useful than guessing the \
+words, because a wrong guess would hide a structural problem in the document.
+
+You may not supply text of your own. Your only answers are those three words."""
+
+_CHOICES = ("primary", "second", "neither")
+
+
+def pick_reading(cases: list[dict], replies: list[dict]) -> list[dict]:
+    """Validate the model's choice among readings the ARMS produced. Never its own text.
+
+    THREE WORDS, NEVER FREE TEXT. This is resolve_hyphens' contract with one addition. A
+    hyphen has exactly two possible resolutions, so "choose one of two" is total. A
+    cross-arm conflict does not: on Year 2 the primary read "wet", OCR read "we2", and the
+    truth is "we" followed by a footnote marker -- neither arm is right and no choice
+    between them is either.
+
+    So "neither" is a first-class answer that SURFACES rather than resolves. It sets
+    resolved=None and surfaced=True, and the document keeps saying exactly what it said.
+    Correcting "wet" to "we" would have produced clean text and erased the discovery that
+    this report has footnotes the pipeline does not model -- trading a visible defect for
+    an invisible one.
+
+    Anything else is dropped: a reply supplying its own reading is fabrication wearing a
+    choice's clothes.
+    """
+    if not cases:
+        return []
+    by_token = {c["token"]: c for c in cases}
+    out = []
+    for r in replies:
+        tok, choice = r.get("token"), r.get("choice")
+        if tok not in by_token or choice not in _CHOICES:
+            continue
+        case = by_token[tok]
+        out.append({
+            "token": tok,
+            "choice": choice,
+            "resolved": None if choice == "neither" else case[choice],
+            "surfaced": choice == "neither",
+            "why": str(r.get("why", ""))[:60],
+            "decided_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        })
+    return out
+
+
+def resolve_conflicts(cases: list[dict],
+                      deployment_env: str = "GRAPEVINE_DEPLOYMENT_EXTRACT") -> list[dict]:
+    """Ask the model to choose among the arms' readings for each undecided conflict."""
+    if not cases:
+        return []
+    payload = json.dumps([{"token": c["token"], "primary": c["primary"],
+                           "second": c["second"], "context": c["context"]}
+                          for c in cases], indent=1)
+    return pick_reading(cases, _ask(CONFLICT_PROMPT, payload, deployment_env))
