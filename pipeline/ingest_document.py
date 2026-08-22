@@ -341,6 +341,46 @@ def write(p: dict, md_path: Path, jurisdiction_id: int, doc_type: str,
     return doc_id, counts
 
 
+def refresh_flags(p: dict, dsn: str, dry_run: bool = False) -> list[tuple]:
+    """Update parse_flags on existing sections when flag LOGIC changed but text did not.
+
+    WHY THIS IS NOT A RE-INGEST. write() refuses when the conversion hash moved, and it is
+    right to: a span is an offset into one exact string, and re-ingesting a re-converted
+    document would leave every stored span round-tripping perfectly against text that is no
+    longer there. But a fix to how a flag is DERIVED does not touch the text. Year 2's
+    canonical hash is byte-identical before and after canonical.py learned to read the
+    document-level OCR header; only what we know about that text changed.
+
+    So sections are matched on content_hash -- the thing that did not move -- and only
+    parse_flags is written. Char ranges, ids and claims are untouched.
+
+    A SECTION WHOSE FLAGS CHANGE IS NO LONGER AUDITED. parse_confidence is reset to
+    `unaudited`, because a verdict was reached against the old flags and section_audit must
+    see it again. Leaving a `clean` grade standing on new evidence is the failure this whole
+    repair is about.
+    """
+    import psycopg
+
+    changed = []
+    with psycopg.connect(dsn) as c, c.cursor() as cur:
+        for s in p["sections"]:
+            want = s["parse_flags"]
+            cur.execute("SELECT id, parse_flags, parse_confidence FROM document_sections "
+                        "WHERE content_hash = %s", (s["content_hash"],))
+            for sid, have, conf in cur.fetchall():
+                if (have or None) == (want or None):
+                    continue
+                changed.append((sid, have, want, conf))
+                if not dry_run:
+                    cur.execute(
+                        "UPDATE document_sections SET parse_flags = %s, "
+                        "parse_confidence = 'unaudited' WHERE id = %s",
+                        (json.dumps(want) if want else None, sid))
+        if not dry_run:
+            c.commit()
+    return changed
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="write a conversion into the claim store")
     ap.add_argument("--md", required=True)
@@ -354,6 +394,9 @@ def main() -> int:
     ap.add_argument("--source-url")
     ap.add_argument("--dsn", default=None)
     ap.add_argument("--label", default="")
+    ap.add_argument("--refresh-flags", action="store_true",
+                    help="update parse_flags on existing sections matched by content_hash; "
+                         "for when flag logic changed but the conversion did not")
     ap.add_argument("--dry-run", action="store_true",
                     help="print the plan and write nothing (the intended first use)")
     a = ap.parse_args()
@@ -361,6 +404,15 @@ def main() -> int:
     opt = lambda v: Path(v) if v else None
     p = plan(Path(a.md), opt(a.links), opt(a.hyphens), opt(a.figures),
              opt(a.pictures), opt(a.periods))
+    if a.refresh_flags:
+        ch = refresh_flags(p, a.dsn or DSN, a.dry_run)
+        for sid, have, want, conf in ch:
+            print(f"  section {sid}: {sorted((have or {}).keys())} -> "
+                  f"{sorted((want or {}).keys())}   (was {conf})")
+        print(f"[flags] {len(ch)} section(s) updated and reset to unaudited"
+              + ("  (dry run — nothing written)" if a.dry_run else ""))
+        return 0
+
     print(render_plan(p, a.label or Path(a.md).stem))
     if a.dry_run:
         return 0

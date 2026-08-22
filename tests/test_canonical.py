@@ -184,3 +184,61 @@ def test_a_closing_photo_stays_with_its_own_section():
     secs = sections(build(md))
     s1 = next(s for s in secs if s["heading"] == "STRATEGY 1")
     assert any("Drilling" in u.text for u in s1["units"])
+
+
+# --- OCR provenance: the rule, not only the exceptions ----------------------------------
+
+_OCR_DOC = """# A Report
+<!-- generated 2026-01-01T00:00:00Z -- structure from Docling -->
+<!-- run: whatever -->
+<!-- 96% OCR: 150 of 157 text blocks were read by OCR (no usable text layer), not \
+extracted character-exact. Dominant source: docling_ocr. -->
+
+<!-- p.1 -->
+This paragraph carries no mark of its own.
+
+[text layer] This one was read from the text layer.
+"""
+
+
+def test_the_document_level_header_is_read():
+    from pipeline.canonical import document_provenance
+    assert document_provenance(_OCR_DOC) == ("docling_ocr", 96)
+
+
+def test_header_is_found_below_the_first_line():
+    """The first version used _TAG.finditer over a multi-line slice. _TAG is anchored
+    ^...$ WITHOUT re.M -- built to match one stripped line -- so it matched nothing and
+    silently reported every document as 0% OCR, including the one that is 96%."""
+    from pipeline.canonical import document_provenance
+    assert document_provenance(_OCR_DOC)[0] == "docling_ocr"
+    assert "96% OCR" in _OCR_DOC.splitlines()[3]      # it really is on line 4
+
+
+def test_an_unmarked_block_inherits_the_documents_dominant_source():
+    """render_blocks marks a block only when it DIFFERS from the dominant source, so an
+    unmarked block means 'text layer' in four of these reports and 'OCR' in the fifth.
+    Absence must never be the carrier of that fact."""
+    from pipeline.canonical import build
+    c = build(_OCR_DOC)
+    unmarked = next(u for u in c.units if u.text.startswith("This paragraph"))
+    assert unmarked.flags["text_source"] == "docling_ocr"
+
+
+def test_an_explicit_mark_still_wins_over_the_default():
+    from pipeline.canonical import build
+    c = build(_OCR_DOC)
+    marked = next(u for u in c.units if u.text.startswith("This one"))
+    assert marked.flags["text_source"] == "pdfplumber"
+
+
+def test_a_document_with_no_header_defaults_to_the_text_layer():
+    from pipeline.canonical import document_provenance
+    assert document_provenance("# Plain\n\nSome text.\n") == ("pdfplumber", 0)
+
+
+def test_every_prose_unit_carries_a_source():
+    """A NULL text_source is indistinguishable from 'we did not check'."""
+    from pipeline.canonical import build
+    c = build(_OCR_DOC)
+    assert all(u.flags.get("text_source") for u in c.units if u.is_prose)

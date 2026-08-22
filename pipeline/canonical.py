@@ -40,6 +40,23 @@ _FIGURE_NOTE = re.compile(r"^(ORNAMENTAL|UNEXTRACTED) FIGURE:\s*(.*)$", re.S)
 _PROVENANCE = re.compile(r"^\[(OCR|text layer)\]\s*")
 _FIGCAP = re.compile(r"^\*\*Figure \(([^,]*), page (\d+)\):\*\*\s*(.*)$")
 
+# THE DOCUMENT-LEVEL RULE, WHICH IS THE HALF THIS MODULE USED TO DROP.
+# render_blocks marks a block's provenance ONLY when it differs from the document's
+# dominant source -- marking all 133 blocks of a 96%-OCR report would bury the signal the
+# mark exists to carry -- and states the rule itself in a header comment. Reading the
+# exceptions without reading the rule inverts the meaning of an unmarked block: it means
+# "text layer" in Years 1, 3, 4 and 5 and "OCR" in Year 2, and nothing recorded which.
+#
+# The cost was not theoretical. ingest_document sets has_ocr_blocks when a unit reports
+# docling_ocr, and section_audit already demotes any section carrying that flag out of
+# `clean`. Year 2's marks all say [text layer], so no unit ever reported OCR, the flag never
+# fired, and all ten sections of the 96%-OCR document sat at the same `clean` grade as
+# Year 3's character-exact prose. The demotion logic was correct the whole time and the
+# signal never reached it.
+_OCR_HEADER = re.compile(
+    r"^(?P<pct>\d+)% OCR: (?P<n>\d+) of (?P<total>\d+) text blocks.*?"
+    r"Dominant source: (?P<dominant>\w+)\.", re.S)
+
 BLOCK_SEP = "\n\n"
 
 
@@ -65,6 +82,9 @@ class Canonical:
     text: str
     content_hash: str
     units: list[Unit]
+    # What an UNMARKED block means in this document, and how much of it was OCR.
+    dominant_text_source: str = "pdfplumber"
+    ocr_pct: int = 0
 
     def slice(self, a: int, b: int) -> str:
         return self.text[a:b]
@@ -80,7 +100,26 @@ def _clean(line: str) -> tuple[str, dict]:
     return line, flags
 
 
-def parse(md: str) -> list[Unit]:
+def document_provenance(md: str) -> tuple[str, int]:
+    """(dominant text source, OCR percentage) from the renderer's header comment.
+
+    Defaults to pdfplumber/0 when absent, which is what every pre-provenance conversion in
+    this corpus is -- but a document whose header is missing is not the same as a document
+    known to have a text layer, so callers that grade quality should prefer an explicit
+    flag over this default.
+    """
+    # LINE BY LINE, because _TAG is anchored ^...$ WITHOUT re.M -- it is built to match one
+    # already-stripped line, which is how parse() calls it. Running finditer over a
+    # multi-line slice matches nothing and returns the default, silently: the first version
+    # of this reported every document as 0% OCR, including the one that is 96%.
+    for raw in md.splitlines()[:40]:
+        m = _TAG.match(raw.strip())
+        if m and (h := _OCR_HEADER.match(m.group("body").strip())):
+            return h.group("dominant"), int(h.group("pct"))
+    return "pdfplumber", 0
+
+
+def parse(md: str, dominant: str | None = None) -> list[Unit]:
     """Markdown -> units, with the renderer's tags resolved onto them.
 
     A tag applies to the NEXT text block, which is how render_blocks emits them: the
@@ -90,6 +129,11 @@ def parse(md: str) -> list[Unit]:
     page: int | None = None
     pending: dict = {}
     in_figure = False
+    # EVERY UNIT CARRIES A SOURCE, NEVER AN ABSENCE. An unmarked block inherits the
+    # document's dominant source, so "this text came from OCR" is a fact on the row rather
+    # than something a later reader has to reconstruct from which document it is in.
+    if dominant is None:
+        dominant, _ = document_provenance(md)
 
     for raw in md.splitlines():
         line = raw.rstrip()
@@ -143,6 +187,7 @@ def parse(md: str) -> list[Unit]:
             kind, text, level = "para", s, None
 
         text, flags = _clean(text)
+        flags.setdefault("text_source", dominant)
         units.append(Unit(kind, text, page, level, flags={**pending, **flags}))
         pending = {}
 
@@ -156,7 +201,8 @@ def build(md: str) -> Canonical:
     afterwards: two identical bullets on one page would both find the first occurrence, and
     the second claim would cite the first bullet while round-tripping perfectly.
     """
-    units = parse(md)
+    dominant, ocr_pct = document_provenance(md)
+    units = parse(md, dominant)
     parts: list[str] = []
     at = 0
     for u in units:
@@ -167,7 +213,8 @@ def build(md: str) -> Canonical:
         parts.append(u.text)
         at = u.char_end + len(BLOCK_SEP)
     text = BLOCK_SEP.join(parts)
-    return Canonical(text, hashlib.sha256(text.encode()).hexdigest(), units)
+    return Canonical(text, hashlib.sha256(text.encode()).hexdigest(), units,
+                     dominant, ocr_pct)
 
 
 def sections(canon: Canonical) -> list[dict]:
