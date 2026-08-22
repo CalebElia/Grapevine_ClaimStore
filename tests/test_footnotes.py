@@ -180,3 +180,98 @@ def test_a_correction_is_scoped_to_one_block():
 def test_a_block_needing_no_change_yields_nothing():
     from pipeline.footnotes import block_correction
     assert block_correction("In Year Two, we:", "In Year Two, we2:", {2}) is None
+
+
+def test_a_marker_mangled_into_punctuation_is_still_a_marker():
+    """Footnote 1's reference reads "In Year 2, we':" in the primary -- OCR rendered the
+    superscript 1 as an apostrophe. The first version of _marker split trailing non-word
+    characters off as 'punctuation' before comparing, so the apostrophe was preserved as
+    part of the sentence and the marker survived.
+
+    It also escaped corroboration entirely: the word tokenizer strips apostrophes, so "we'"
+    and "we1" both reduce to "we" and the arms appeared to agree. Year 2 was reported clean
+    with the artifact still in it."""
+    text, refs = strip_reference("In Year 2, we':", "In Year 2, we1:", {1})
+    assert text == "In Year 2, we:"
+    assert refs == [1]
+
+
+def test_a_genuine_apostrophe_is_not_treated_as_a_marker():
+    """'year's' must keep its apostrophe. The marker rule still needs the second arm to
+    read a digit in that position."""
+    text, refs = strip_reference("last year's total", "last year's total", {1})
+    assert text == "last year's total"
+    assert refs == []
+
+
+# --- loading: which section a reference belongs to ---------------------------------------
+
+from pipeline.load_footnotes import _section_of
+
+_SECS = [(10, 0, 100), (11, 100, 250), (12, 250, 400)]
+
+
+def test_an_offset_resolves_to_the_section_containing_it():
+    assert _section_of(0, _SECS) == 10
+    assert _section_of(99, _SECS) == 10
+    assert _section_of(100, _SECS) == 11
+    assert _section_of(399, _SECS) == 12
+
+
+def test_an_offset_past_the_last_section_resolves_to_nothing():
+    """Better a NULL section than a confident wrong one."""
+    assert _section_of(400, _SECS) is None
+    assert _section_of(-1, _SECS) is None
+
+
+def test_section_boundaries_do_not_overlap():
+    """char_end is exclusive. If it were inclusive every boundary offset would match two
+    sections and the first one listed would silently win."""
+    assert _section_of(100, _SECS) == 11
+
+
+# --- the loaded corpus -------------------------------------------------------------------
+
+def _db():
+    try:
+        import psycopg
+        psycopg.connect("host=/tmp port=5433 user=grapevine dbname=grapevine").close()
+        return True
+    except Exception:
+        return False
+
+
+import pytest
+
+
+@pytest.mark.skipif(not _db(), reason="no database")
+def test_each_footnote_references_its_own_section():
+    """The bug this pins: once the markers were corrected, six of the seven lead-in lines
+    read identically ("In Year Two, we:"), so a document-wide search matched the first one
+    for every footnote and gave all six the SAME char_at. A footnote's reference lives in
+    its own section."""
+    import psycopg
+    with psycopg.connect("host=/tmp port=5433 user=grapevine dbname=grapevine") as c:
+        rows = c.execute(
+            "SELECT f.number, r.char_at, f.document_section_id, r.document_section_id "
+            "FROM footnotes f JOIN footnote_references r ON r.footnote_id=f.id "
+            "ORDER BY f.number").fetchall()
+    assert len(rows) == 7
+    assert len({r[1] for r in rows}) == 7, "every reference must have its own position"
+    for _, _, body_sec, ref_sec in rows:
+        assert body_sec == ref_sec, "the body sits in the section whose prose cites it"
+
+
+@pytest.mark.skipif(not _db(), reason="no database")
+def test_no_officer_was_duplicated_into_a_second_identity():
+    """Six of seven were already in persons from Legistar, and the seventh differs only by
+    nickname. Fresh rows would have split each officer into one who votes in council records
+    and one who answers questions about a strategy."""
+    import psycopg
+    with psycopg.connect("host=/tmp port=5433 user=grapevine dbname=grapevine") as c:
+        rows = c.execute(
+            "SELECT p.full_name, p.legistar_person_id FROM footnotes f "
+            "JOIN persons p ON p.id=f.contact_person_id").fetchall()
+    assert len(rows) == 7
+    assert all(lid is not None for _, lid in rows), \
+        "every officer resolves to an identity that predates this corpus"

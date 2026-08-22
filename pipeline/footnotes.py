@@ -94,10 +94,21 @@ def _marker(pw: str, sw: str, numbers: set[int]) -> tuple[str, int | None]:
     if digits not in numbers or not stem:
         return pw, None
 
-    # The primary either dropped the marker (p_core == stem) or mangled it into a single
-    # character (p_core == stem + one char). Anything else is a different word, not a
-    # marker, and must be left exactly as it is.
-    if p_core == stem or (len(p_core) == len(stem) + 1 and p_core.startswith(stem)):
+    # THREE WAYS THE PRIMARY CAN HAVE READ THE SUPERSCRIPT:
+    #   dropped it        p_core == stem                    "we"
+    #   mangled a letter  p_core == stem + one char          "wet"
+    #   mangled a mark    the tail carries one extra leading
+    #                     non-word character                 "we'" + ":"
+    # The third was missed at first because trailing non-word characters were split off as
+    # "punctuation" before comparing -- so an apostroph-ised marker was preserved as part of
+    # the sentence. It also escaped corroboration, whose word tokenizer strips apostrophes,
+    # making "we'" and "we1" compare equal.
+    if p_core == stem:
+        s_tail = sm.group(2)
+        if p_tail != s_tail and p_tail.endswith(s_tail) and len(p_tail) == len(s_tail) + 1:
+            return stem + s_tail, digits          # drop the mangled mark, keep the sentence
+        return stem + p_tail, digits
+    if len(p_core) == len(stem) + 1 and p_core.startswith(stem):
         return stem + p_tail, digits
     return pw, None
 

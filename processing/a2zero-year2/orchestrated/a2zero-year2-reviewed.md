@@ -20,7 +20,7 @@ More details about the initiatives outlined in these pages, as well as ways to g
 
 ## Strategy 1: Power our electric grid with 100% renewable energy
 
-In Year 2, we':
+In Year 2, we:
 
 - Installed an additional 1.7MW of new residential solar, bringing our total through the Ann Arbor Solarize program to over 3MW in two years! This represents over $1.5 million in upfront cost savings and $15 million in energy savings over the life of installed systems for our residents, and over 430 households that have now obtained solar through the program.
 
