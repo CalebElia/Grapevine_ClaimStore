@@ -94,3 +94,19 @@ def test_the_prompt_requires_one_claim_per_assertion_and_whole_sentences():
     assert "ONE CLAIM PER ASSERTION, NOT ONE PER NUMBER" in PROMPT
     assert "never share the same verbatim" in PROMPT
     assert "VERBATIM MUST BE A COMPLETE SENTENCE" in PROMPT
+
+
+# --- running twice must not silently double a section ------------------------------------
+
+def test_already_extracted_sections_are_refused_by_default():
+    """A REAL INCIDENT. Re-running extraction on section 82 as a smoke test stored a second
+    copy of all nine claims -- 18 rows over 9 distinct spans. Nothing errored.
+
+    'Claims are never deduplicated' is a schema rule, so these are not merge-able noise:
+    each is a permanent row asserting the document said something twice. The guard belongs
+    here rather than in a UNIQUE constraint, because two claims CAN legitimately share a
+    span (one actor, one moment, two different assertions) -- what must not happen is a
+    whole section being re-run by accident."""
+    from pipeline.extract_claims import already_extracted
+    assert already_extracted(9, [(1, 10, 20)]) is True
+    assert already_extracted(0, []) is False

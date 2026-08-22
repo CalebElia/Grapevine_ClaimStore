@@ -38,6 +38,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from pipeline.fiscal_direction import classify, normalise_amount
+
 DSN = os.environ.get("GRAPEVINE_DSN",
                      "host=/tmp port=5433 user=grapevine dbname=grapevine")
 
@@ -354,14 +356,22 @@ def store(res: Result, section_id: int, document_id: int, content_hash: str,
                 counts["quantities"] += 1
 
             for f in _as_list(p.get("fiscal"), p.get("fiscal_references")):
-                if f.get("amount_low") is None:
+                # A REFERENCE WITH NO AMOUNT IS STILL A FACT. "Won a planning grant from the
+                # U.S. Department of Energy" names a funder and a purpose; only the figure is
+                # missing. The earlier version dropped the whole row, and the model's habit
+                # of answering 0 in that case turned "not stated" into a $0 award that sums
+                # cleanly and reads as real.
+                amount = normalise_amount(f.get("amount_low"),
+                                          f.get("verbatim") or a.verbatim)
+                if amount is None and not (f.get("funder_name") or f.get("purpose")):
                     continue
                 cur.execute(
                     """INSERT INTO fiscal_references
                          (claim_id, amount_low, currency, purpose, funding_source,
-                          source_type, verbatim, awarding_org_id, funder_name_text)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    (claim_id, f.get("amount_low"), f.get("currency") or "USD",
+                          source_type, verbatim, awarding_org_id, funder_name_text,
+                          direction)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (claim_id, amount, f.get("currency") or "USD",
                      f.get("purpose"), f.get("funding_source"), "annual_report",
                      (f.get("verbatim") or a.verbatim)[:2000],
                      _funder_org(cur, f.get("funder_name")),
@@ -369,14 +379,29 @@ def store(res: Result, section_id: int, document_id: int, content_hash: str,
                      # join. Storing only the id threw away the document's own words every
                      # time the registry was short a row, and a discarded name becomes a
                      # research question asking who funded something the document names.
-                     (f.get("funder_name") or "").strip() or None))
+                     (f.get("funder_name") or "").strip() or None,
+                     # DETERMINISTIC, NOT ASKED OF THE MODEL. Direction is decidable from the
+                     # claim's own verbs, so it is decided the same way every time and can be
+                     # re-run when the rules improve. It abstains rather than guessing.
+                     classify(f.get("verbatim") or a.verbatim)))
                 counts["fiscal_references"] += 1
         c.commit()
     return counts
 
 
+def already_extracted(n_claims: int, rows) -> bool:
+    """Whether this section has been extracted before.
+
+    Kept as a plain predicate so the refusal is testable without a database, and separate
+    from a UNIQUE constraint because two claims may legitimately share a span -- one actor,
+    one moment, two different assertions. What must not happen is a whole section being
+    re-run by accident, which stores a second copy of everything and raises nothing.
+    """
+    return bool(n_claims) or bool(rows)
+
+
 def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
-        rejects_path: Path | None = None) -> dict:
+        rejects_path: Path | None = None, replace: bool = False) -> dict:
     import psycopg
 
     from pipeline.canonical import build
@@ -394,6 +419,26 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
                WHERE s.id = %s""", (section_id,)).fetchone()
     if not row:
         raise SystemExit(f"[extract] no section {section_id}")
+
+    with psycopg.connect(dsn) as c:
+        existing = c.execute("SELECT count(*) FROM claims WHERE document_section_id = %s",
+                             (section_id,)).fetchone()[0]
+    if already_extracted(existing, []) and not replace:
+        raise SystemExit(
+            f"[extract] section {section_id} already has {existing} claim(s). Claims are "
+            f"never deduplicated, so a second run stores a permanent second copy of every "
+            f"one of them.\n"
+            f"        Re-extract deliberately with --replace, which deletes the existing "
+            f"claims first.")
+    if replace and existing:
+        with psycopg.connect(dsn) as c, c.cursor() as cur:
+            cur.execute("DELETE FROM quantities WHERE claim_id IN "
+                        "(SELECT id FROM claims WHERE document_section_id=%s)", (section_id,))
+            cur.execute("DELETE FROM fiscal_references WHERE claim_id IN "
+                        "(SELECT id FROM claims WHERE document_section_id=%s)", (section_id,))
+            cur.execute("DELETE FROM claims WHERE document_section_id=%s", (section_id,))
+            c.commit()
+        print(f"[extract] --replace: removed {existing} existing claim(s)")
     (doc_id, a, b, heading, tier, conf, md_path, hv, hv_by, hv_note,
      hv_current, doc_hash, ps, pe, psrc) = row
 
@@ -469,11 +514,13 @@ def main() -> int:
     ap.add_argument("--section-id", type=int, required=True)
     ap.add_argument("--dsn", default=DSN)
     ap.add_argument("--rejects", default=None)
+    ap.add_argument("--replace", action="store_true",
+                    help="delete this section's existing claims first")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
     r = run(a.section_id, a.dsn, a.dry_run,
-            Path(a.rejects) if a.rejects else None)
+            Path(a.rejects) if a.rejects else None, a.replace)
     print(f"[extract] section {r['section_id']} — {r['heading'][:56]}")
     print(f"  proposed {r['proposed']} · anchored {r['anchored']} "
           f"({r['exact']} exact, {r['folded']} folded) · rejected {r['rejected']} "
