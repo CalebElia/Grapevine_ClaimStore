@@ -253,3 +253,13 @@ def test_privacy_gate_on_voiceprints_exists():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+def test_a_human_verdict_must_name_its_author_and_pin_its_text():
+    """CHECK sections_human_verdict_attributed. A verdict with no author is an anonymous
+    gate pass; one with no hash cannot lapse when the conversion moves, and a stale
+    approval lets extraction spend money on text nobody actually read."""
+    ddl = open("migrations/014_human_verdict.sql").read()
+    assert "sections_human_verdict_attributed" in ddl
+    assert "human_verdict_by IS NOT NULL" in ddl
+    assert "human_verdict_hash IS NOT NULL" in ddl

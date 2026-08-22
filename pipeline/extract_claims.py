@@ -385,18 +385,43 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
         row = c.execute(
             """SELECT s.document_id, s.char_start, s.char_end, s.heading,
                       s.extraction_tier, s.parse_confidence, d.markdown_path,
+                      s.human_verdict, s.human_verdict_by, s.human_verdict_note,
+                      (s.human_verdict_hash IS NOT DISTINCT FROM s.content_hash)
+                          AS verdict_current,
                       d.content_hash, d.covers_period_start, d.covers_period_end,
                       d.covers_period_source
                FROM document_sections s JOIN documents d ON d.id = s.document_id
                WHERE s.id = %s""", (section_id,)).fetchone()
     if not row:
         raise SystemExit(f"[extract] no section {section_id}")
-    doc_id, a, b, heading, tier, conf, md_path, doc_hash, ps, pe, psrc = row
+    (doc_id, a, b, heading, tier, conf, md_path, hv, hv_by, hv_note,
+     hv_current, doc_hash, ps, pe, psrc) = row
 
-    # FAIL CLOSED. The whole point of section_audit is that this refuses.
-    if conf != "clean":
-        raise SystemExit(f"[extract] section {section_id} is '{conf}', not 'clean'. "
-                         f"Extraction reads only audited sections.")
+    # FAIL CLOSED, BUT A PERSON CAN OPEN IT DELIBERATELY.
+    #
+    # The machine verdict is a function of parse_flags and stays what it is: Year 2 is 96%
+    # OCR and `suspect` is the correct reading of that forever. But a reviewer who compared
+    # the conversion against the rendered PDF holds evidence the flags cannot represent, and
+    # refusing it outright means a document whose text is only recoverable by OCR can never
+    # enter the store at all -- which is not caution, it is a corpus-shaped hole.
+    #
+    # THE APPROVAL MUST BE CURRENT. human_verdict_hash pins the text that was read; if the
+    # conversion moved, the approval lapses on its own rather than waiting for someone to
+    # remember it. An approval of text that is no longer there is an unearned gate pass.
+    approved = hv in ("approved", "approved_with_caveats") and hv_current
+    if conf != "clean" and not approved:
+        why = ("a human approval exists but no longer matches the section text — the "
+               "conversion changed after it was given"
+               if hv in ("approved", "approved_with_caveats") else
+               "no current human approval")
+        raise SystemExit(
+            f"[extract] section {section_id} is '{conf}', not 'clean', and {why}.\n"
+            f"        A reviewer may open it deliberately:\n"
+            f"        python -m pipeline.approve_sections --document-id {doc_id} "
+            f"--verdict approved --by NAME --note 'what you checked'")
+    if approved and conf != "clean":
+        print(f"[extract] section {section_id} is machine-'{conf}', extracted on "
+              f"{hv_by}'s approval: {(hv_note or '')[:90]}")
     if tier == "C":
         raise SystemExit(f"[extract] section {section_id} is tier C — nothing to extract.")
 
