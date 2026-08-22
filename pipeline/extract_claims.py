@@ -389,6 +389,11 @@ def store(res: Result, section_id: int, document_id: int, content_hash: str,
     return counts
 
 
+def heading_label(heading: str | None) -> str:
+    """A printable name for a section. Front matter has no heading and is not an error."""
+    return (heading or "").strip() or "(front matter)"
+
+
 def already_extracted(n_claims: int, rows) -> bool:
     """Whether this section has been extracted before.
 
@@ -521,7 +526,8 @@ def main() -> int:
 
     r = run(a.section_id, a.dsn, a.dry_run,
             Path(a.rejects) if a.rejects else None, a.replace)
-    print(f"[extract] section {r['section_id']} — {r['heading'][:56]}")
+    print(f"[extract] section {r['section_id']} — "
+          f"{heading_label(r['heading'])[:56]}")
     print(f"  proposed {r['proposed']} · anchored {r['anchored']} "
           f"({r['exact']} exact, {r['folded']} folded) · rejected {r['rejected']} "
           f"· located-rate {r['located_rate']:.0%} · {r['seconds']}s")

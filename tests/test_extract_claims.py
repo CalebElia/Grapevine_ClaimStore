@@ -110,3 +110,14 @@ def test_already_extracted_sections_are_refused_by_default():
     from pipeline.extract_claims import already_extracted
     assert already_extracted(9, [(1, 10, 20)]) is True
     assert already_extracted(0, []) is False
+
+
+def test_a_section_with_no_heading_still_reports():
+    """Front matter has a NULL heading -- it is a section with no '##' above it, which
+    canonical.sections() creates deliberately so the title, coverage period and sign-off are
+    not dropped. The CLI's summary line did r['heading'][:56] and crashed on None AFTER the
+    claims were already committed, leaving a section that looked failed and was not."""
+    from pipeline.extract_claims import heading_label
+    assert heading_label(None) == "(front matter)"
+    assert heading_label("") == "(front matter)"
+    assert heading_label("STRATEGY 1: Renewables")[:8] == "STRATEGY"
