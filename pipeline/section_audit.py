@@ -44,7 +44,19 @@ DSN = os.environ.get("GRAPEVINE_DSN",
                      "host=/tmp port=5433 user=grapevine dbname=grapevine")
 
 # Flags that make a section less certain than the document it sits in.
-_DEMOTING = ("placement_inferred", "has_ocr_blocks")
+_DEMOTING = ("placement_inferred", "has_ocr_blocks", "ocr_conflicts")
+
+# A flag that ANSWERS a demoting flag rather than merely accompanying it.
+# has_ocr_blocks says "these characters came from a model reading pixels, and no text layer
+# can check them". A second INDEPENDENT OCR engine reading the same pixels and producing the
+# same characters is exactly the check that was missing -- the corroboration rule this store
+# already applies to attestations, applied to reads. It does not make the text a text layer,
+# and has_ocr_blocks stays on the row saying so; it means the specific doubt that flag
+# raises has been met with evidence.
+#
+# ocr_conflicts is NOT answered this way and stays demoting: it is the record of where the
+# two engines disagreed, which is the opposite of corroboration.
+_ANSWERED_BY = {"has_ocr_blocks": "ocr_corroborated"}
 
 _GARBLED = re.compile(r"[a-z][A-Z]")
 
@@ -61,9 +73,17 @@ def machine_verdict(body: str, stored_hash: str, flags: dict | None) -> tuple[st
     garbled = [t for t in body.split() if len(_GARBLED.findall(t)) >= 2]
     if garbled:
         return "suspect", f"garbled token(s): {', '.join(garbled[:3])}"
-    hit = [f for f in _DEMOTING if (flags or {}).get(f)]
+    f = flags or {}
+    hit = [x for x in _DEMOTING if f.get(x) and not f.get(_ANSWERED_BY.get(x, ""))]
     if hit:
-        return "suspect", f"flagged {', '.join(hit)}"
+        why = f"flagged {', '.join(hit)}"
+        if f.get("ocr_conflicts"):
+            why += f" ({len(f['ocr_conflicts'])} item(s): " \
+                   f"{', '.join(map(str, f['ocr_conflicts'][:3]))})"
+        return "suspect", why
+    if f.get("has_ocr_blocks") and f.get("ocr_corroborated"):
+        return "clean", (f"OCR text corroborated by a second independent read "
+                         f"({f['ocr_corroborated']}); no figure or word disagreed")
     if not body.strip():
         return "suspect", "empty section"
     return "clean", "hash matches, no garbled tokens, no demoting flags"
