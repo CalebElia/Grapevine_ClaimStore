@@ -130,7 +130,7 @@ DIVE DEEPER into COMMERCIAL BENCHMARKING FOR ANN ARBOR BUILDINGS: This year, Mic
 <!-- p.8 -->
 ## Strategy 4: Reduce the miles we travel in our vehicles by at least 50%
 
-In Year Two, wet:
+In Year Two, we:
 
 - Launched a collaboration with colleagues in the Planning Department to integrate A2ZERO into the Unified Development Code.
 
@@ -193,7 +193,7 @@ DIVE DEEPER into ANN ARBOR REDUCE, REUSE, RETURN (A2R3): US-made, USDA-approved,
 <!-- p.11 -->
 ## Strategy 6: Enhance the resilience of our people and our place
 
-In Year Two, wee:
+In Year Two, we:
 
 - Installed two AQMesh air quality monitors to measure pollutants: one at the Kerrytown Farmers Market and one at the Bryant Community Center. All data collected will be publicly available on our website. Two more air quality monitors are ordered and ready for installation in Year 3.
 

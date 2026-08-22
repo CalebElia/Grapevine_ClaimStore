@@ -91,13 +91,18 @@ def test_year3_conflicts_are_decided_by_geometry_except_the_ambiguous_one():
         rows["careprogram"]["winner"] == WINNER_UNRESOLVED
 
 
-@pytest.mark.skipif(not _db(), reason="no database")
-def test_year2_conflicts_cannot_be_adjudicated_without_a_text_layer():
-    """Year 2 is 96% OCR. Nothing can be located, so everything escalates -- and that is
-    the correct answer, not a failure."""
-    from pipeline.adjudicate import adjudicate_document, WINNER_UNRESOLVED
+def test_year2_has_no_glyph_runs_to_measure():
+    """Year 2 is 96% OCR: its text layer holds 234 words across 14 pages, so nothing the
+    document plainly says can be located there. Geometry therefore adjudicates nothing in
+    that document and must return None rather than a guess.
+
+    Written against the PDF rather than against stored conflicts: the earlier version
+    asserted Year 2 HAD conflicts, and every one of them has since been fixed by the
+    footnote model, which turned a passing test into a failing one for the best possible
+    reason."""
+    from pipeline.adjudicate import find_token_gaps
     y2 = SRC / "AA_AnnualReport_2022.pdf"
-    rows = adjudicate_document(
-        9, y2, Path("processing/a2zero-year2/cu/year2-cu.md"))
-    assert rows
-    assert all(r["winner"] == WINNER_UNRESOLVED for r in rows), rows
+    # Its 234 extractable words are the section HEADINGS, which are real text; the body
+    # prose is images. So the check uses body words, which is where every claim comes from.
+    for token in ("Launched", "Installed", "collaboration", "resilience", "AQMesh"):
+        assert find_token_gaps(y2, token) is None, token

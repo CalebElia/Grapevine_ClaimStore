@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import hashlib
 import re
+
+from pipeline.footnotes import parse_footnote_body
 from dataclasses import dataclass, field
 
 # Comments the renderer writes ABOUT the document. Structure, not content.
@@ -188,6 +190,18 @@ def parse(md: str, dominant: str | None = None) -> list[Unit]:
 
         text, flags = _clean(text)
         flags.setdefault("text_source", dominant)
+
+        # A FOOTNOTE IS NOT GENERIC FURNITURE. Both are non-prose page apparatus, but a
+        # footnote carries a NUMBER that points back into the body text, and in this corpus
+        # those seven blocks name the officer responsible for each strategy. Retyping only:
+        # the characters and their offsets are untouched, because every stored claim span is
+        # an offset into this string and a reclassification that moved text would invalidate
+        # the store.
+        if kind == "furniture":
+            fn = parse_footnote_body(text)
+            if fn:
+                kind = "footnote"
+                flags["footnote_number"] = fn["number"]
         units.append(Unit(kind, text, page, level, flags={**pending, **flags}))
         pending = {}
 

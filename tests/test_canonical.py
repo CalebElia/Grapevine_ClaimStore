@@ -37,6 +37,9 @@ As A2ZERO turns three, we reflect on actions taken.
 <!-- FURNITURE: page footer, not an assertion -->
 > 1 For more information contact someone@a2gov.org
 
+<!-- FURNITURE: page number -->
+> 7
+
 <!-- CAPTION: describes a photograph on page 2 that was not retained -->
 > Solar array installed at Gallup Park.
 
@@ -86,9 +89,14 @@ def test_tags_become_fields_rather_than_characters():
     structure rather than as prose."""
     c = build(MD)
     kinds = {u.kind for u in c.units}
-    assert {"title", "heading", "para", "list_item", "caption", "furniture"} <= kinds
+    assert {"title", "heading", "para", "list_item", "caption", "furniture",
+            "footnote"} <= kinds
     furn = next(u for u in c.units if u.kind == "furniture")
     assert furn.flags["is_furniture"] and "FURNITURE" not in c.text
+    # A numbered page-foot block is a FOOTNOTE, which is furniture that knows its own
+    # number. The generic tag is still what a bare page number gets.
+    fn = next(u for u in c.units if u.kind == "footnote")
+    assert fn.flags["footnote_number"] == 1 and fn.flags["is_furniture"]
     cap = next(u for u in c.units if u.kind == "caption" and "Gallup" in u.text)
     assert cap.flags["is_caption"] and "CAPTION" not in c.text
     swept = next(u for u in c.units if "placement was inferred" in u.text)
