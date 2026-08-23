@@ -228,3 +228,32 @@ def test_the_cap_cost_notation_is_not_mis_decoded():
 def test_ordinary_prose_is_never_flagged():
     assert not looks_mis_decoded("Reduce the miles we travel in our vehicles by at least 50%")
     assert not looks_mis_decoded("")
+
+
+# --- sideways text is never prose ---------------------------------------------------------
+
+from pipeline.convert_blocks import upright_only
+
+
+def test_rotated_characters_are_not_prose():
+    """MEASURED ON THE CAP. Its chart axis labels are set vertically, and linearising them
+    by x-position reads them backwards: ")e²OCTM( laitnetoP noitcudeR snoissimE GHG", which
+    reverses to "GHG Emissions Reduction Potential (MTCO²e)". Four pages raised a truncation
+    warning for it, because the reversed run ends on a dangling "By".
+
+    866 rotated characters in the document, 842 of them inside a picture. The 24 outside are
+    a sideways sidebar label on page 13 that reaches the output nowhere, so excluding all of
+    them loses nothing. Text a reader turns their head for is design, not prose."""
+    chars = [{"text": "A", "upright": True}, {"text": "B", "upright": False},
+             {"text": "C", "upright": True}]
+    assert "".join(c["text"] for c in upright_only(chars)) == "AC"
+
+
+def test_characters_without_the_flag_are_kept():
+    """Absence of `upright` is not evidence of rotation."""
+    assert len(upright_only([{"text": "A"}, {"text": "B"}])) == 2
+
+
+def test_an_all_upright_page_is_untouched():
+    chars = [{"text": c, "upright": True} for c in "hello"]
+    assert len(upright_only(chars)) == 5

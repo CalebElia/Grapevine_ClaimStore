@@ -82,6 +82,21 @@ def find_numbers(text: str) -> set[str]:
     return {re.sub(r"\s+", " ", m.group(0)).strip() for m in _MONEY.finditer(text)}
 
 
+# LEGISLATIVE ENUMERATION. A resolution, ordinance or set of findings joins its clauses with
+# a semicolon and a conjunction, so every clause but the last ends "; and". Those clauses are
+# COMPLETE. The CAP closes with two pages of the adopting resolution and every one of them
+# tripped the truncation check.
+#
+# Only a semicolon IMMEDIATELY before the conjunction counts. "Chapter; The American
+# Institute of" also contains a semicolon and really is cut off.
+_ENUMERATED = re.compile(r";\s*(and|or)\s*$", re.I)
+
+
+def is_enumerated_clause(text: str | None) -> bool:
+    """Whether a block ends on a conjunction by legislative convention rather than by loss."""
+    return bool(_ENUMERATED.search((text or "").strip()))
+
+
 def assess(text: str, page_map: list[tuple[int, int, int]], blocks: list[dict],
            reference_words: int, reference_numbers: set[str]) -> list[Finding]:
     """Every finding for one conversion. Empty means nothing fired.
@@ -134,6 +149,8 @@ def assess(text: str, page_map: list[tuple[int, int, int]], blocks: list[dict],
         t = (b.get("text") or "").strip()
         if not t or t[-1] in ".!?:;\u2019\"')":
             continue
+        if is_enumerated_clause(t):
+            continue        # "...; and" is a complete clause, not a lost line
         if t.split()[-1].lower().strip(",") in _DANGLING:
             truncated.append(b)
     if truncated:

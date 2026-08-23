@@ -630,6 +630,43 @@ def place_swept_headings(resolved: list[dict], shapes: set[str]) -> int:
     return moved
 
 
+def continues_dangling_entry(first: str, second: str) -> bool:
+    """Whether `second` finishes a list entry that `first` left unfinished.
+
+    rejoin_open_sentences requires a continuation to begin LOWERCASE, and says why: "a
+    well-formed list item begins with a capital, so a lowercase opening is not a new item
+    under any reading". The CAP breaks that assumption, because its wrapped entries continue
+    into PROPER NOUNS -- "Regional Chamber of" + "Commerce", "The American Institute of" +
+    "Architects Huron Valley Chapter".
+
+    So the evidence is taken from the FIRST block instead: a complete list entry never ends
+    on "of", "and" or "with". That is the same _DANGLING set the truncation check uses to
+    decide something is unfinished, which means the check that RAISES the warning and the
+    rule that CLEARS it cannot disagree.
+
+    The risk this must not create is merging two real entries -- "Ann Arbor SPARK" and
+    "Public Services" are separate collaborators and joining them would invent an
+    organisation. Neither ends on a dangling word, so neither is touched.
+    """
+    from pipeline.quality_gate import _DANGLING
+
+    a, b = (first or "").strip(), (second or "").strip()
+    if not a or not b:
+        return False
+    if a[-1] in ".!?:;\u2019\"')":
+        return False                      # finished, whatever follows
+    if b[0] in _BULLETS:
+        return False                      # a new bullet is a new entry
+    # A BLOCK THAT IS ITSELF UNFINISHED CANNOT COMPLETE ANOTHER. Without this, two open
+    # bullets and one continuation collapse into one sentence and nothing records which of
+    # the two the continuation belonged to. "Commerce" completes something; "Another bullet
+    # that also ends open and" does not.
+    if b.split()[-1].lower().strip(",") in _DANGLING:
+        return False
+    last = a.split()[-1].lower().strip(",")
+    return last in _DANGLING
+
+
 def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
                           hyph: set[str] | None = None) -> int:
     """Merge a block that ends mid-sentence with the block that finishes it.
@@ -686,7 +723,14 @@ def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
                 and not a.get("is_furniture") and not b.get("is_furniture")
                 and not a.get("caption_for") and not b.get("caption_for")
                 and not _OPEN_END.search(at)
-                and re.match(r"^[a-z]", bt)):
+                # A lowercase continuation is the ordinary case. A CAPITALISED one is
+                # accepted only when the first block ends on a dangling word, because a
+                # complete list entry never ends on "of" -- which is how the CAP's wrapped
+                # entries continue into proper nouns ("Regional Chamber of" + "Commerce").
+                and (re.match(r"^[a-z]", bt)
+                     or (a["kind"] == b["kind"] == "ListItem"
+                         and a.get("page_no") == b.get("page_no")
+                         and continues_dangling_entry(at, bt)))):
             weld(a, b)
             del resolved[i + 1]
             joined += 1
@@ -991,6 +1035,23 @@ def looks_mis_decoded(text: str) -> bool:
     return bool(_DOUBLED_RUN.search(t))
 
 
+def upright_only(chars: list[dict]) -> list[dict]:
+    """Drop sideways glyphs. Text a reader turns their head for is design, not prose.
+
+    MEASURED ON THE CAP. Its chart axis labels are set vertically, and linearising them by
+    x-position reads them backwards: ")e²OCTM( laitnetoP noitcudeR snoissimE GHG" reverses to
+    "GHG Emissions Reduction Potential (MTCO²e)". Four pages raised a truncation warning for
+    it, because the reversed run ends on a dangling "By" -- a conversion bug arriving
+    disguised as a review item.
+
+    866 rotated characters document-wide, 842 of them inside a picture. The 24 outside are a
+    sideways sidebar label on page 13 which reaches the output nowhere already, so excluding
+    all of them loses nothing here. A heading printed OVER a photograph is upright and is
+    still recovered; that case is why picture regions are swept at all.
+    """
+    return [c for c in chars if c.get("upright", True)]
+
+
 def page_words(page) -> list[dict]:
     """extract_words over DEDUPED characters.
 
@@ -1001,7 +1062,8 @@ def page_words(page) -> list[dict]:
     wherever raw characters enter, not only on the first path anyone patched.
     """
     from pdfplumber.utils import extract_words
-    return extract_words(dedupe_overprint(drop_placed_underlay(page.chars)))
+    return extract_words(
+        upright_only(dedupe_overprint(drop_placed_underlay(page.chars))))
 
 
 def snap_scripts(chars: list[dict]) -> tuple[list[dict], int]:
