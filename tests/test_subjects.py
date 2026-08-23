@@ -11,7 +11,10 @@ by string matching, not by a model.
 """
 from __future__ import annotations
 
-from pipeline.subjects import strategy_number
+from pipeline.subjects import load_section_rules, strategy_number
+
+RULES = load_section_rules("ann_arbor", "annual_report")
+SEVEN = {1, 2, 3, 4, 5, 6, 7}
 
 
 def test_a_numbered_strategy_heading_yields_its_number():
@@ -44,10 +47,11 @@ def test_cross_cutting_headings_are_not_strategies():
         assert strategy_number(h) is None, h
 
 
-def test_a_strategy_number_outside_one_to_seven_is_refused():
-    """A2ZERO has exactly seven strategies. An eighth is a parse error, not a new subject."""
-    assert strategy_number("STRATEGY 8: SOMETHING NEW") is None
-    assert strategy_number("STRATEGY 0: NOTHING") is None
+def test_a_strategy_number_outside_the_seeded_set_is_refused():
+    """A2ZERO has seven, and that fact now comes from the seeded subjects rather than from a
+    constant in the code -- so another jurisdiction's plan needs no edit here."""
+    assert strategy_number("STRATEGY 8: SOMETHING NEW", valid=SEVEN) is None
+    assert strategy_number("STRATEGY 0: NOTHING", valid=SEVEN) is None
 
 
 def test_missing_and_empty_headings_are_safe():
@@ -66,25 +70,25 @@ def test_narrative_sections_belong_to_the_plan_itself():
     with no subject is invisible to every aggregate."""
     for h in ("INTRODUCTION", "Overview", "CLOSING", "Next Steps",
               "YEAR 5 PRIORITIES", "YEAR FOUR PRIORITIES", "A2ZERO Year 3 Priorities"):
-        assert cross_cutting_subject(h) == "a2zero", h
+        assert cross_cutting_subject(h, RULES) == "a2zero", h
 
 
 def test_the_emissions_summary_is_its_own_subject():
     """Every report from Year 3 on opens with a community-wide GHG inventory. It is the
     measurement the whole plan is judged against, not one strategy's business."""
-    assert cross_cutting_subject("GREENHOUSE GAS EMISSIONS SUMMARY") == "ghg_emissions"
+    assert cross_cutting_subject("GREENHOUSE GAS EMISSIONS SUMMARY", RULES) == "ghg_emissions"
 
 
 def test_navigational_sections_get_no_subject():
     """A table of contents is not about anything. Neither is a repeated cover title -- and
     inventing a subject for them would put structural furniture into topic aggregates."""
     for h in ("CONTENTS", "2021 - 2022 Annual Report", "YEAR THREE ANNUAL REPORT", None, ""):
-        assert cross_cutting_subject(h) is None, h
+        assert cross_cutting_subject(h, RULES) is None, h
 
 
 def test_a_strategy_heading_is_not_cross_cutting():
     """The two functions must not both claim the same section."""
-    assert cross_cutting_subject("STRATEGY 5: CIRCULAR ECONOMY") is None
+    assert cross_cutting_subject("STRATEGY 5: CIRCULAR ECONOMY", RULES) is None
 
 
 def test_front_matter_belongs_to_the_plan():
@@ -96,16 +100,19 @@ def test_front_matter_belongs_to_the_plan():
     Front matter that holds only a title and a sign-off produces no claims, so the rule
     costs nothing where it does not apply."""
     from pipeline.subjects import section_subject_key
-    assert section_subject_key(None, is_front_matter=True) == "a2zero"
-    assert section_subject_key("CONTENTS", is_front_matter=False) is None
+    assert section_subject_key(None, True, RULES, SEVEN) == "a2zero"
+    assert section_subject_key("CONTENTS", False, RULES, SEVEN) is None
 
 
 def test_section_subject_key_combines_both_rules():
     from pipeline.subjects import section_subject_key
-    assert section_subject_key("STRATEGY 3: ENERGY EFFICIENCY", False) == "strategy-3"
-    assert section_subject_key("INTRODUCTION", False) == "a2zero"
-    assert section_subject_key("GREENHOUSE GAS EMISSIONS SUMMARY", False) == "ghg_emissions"
-    assert section_subject_key("CONTENTS", False) is None
+    assert section_subject_key("STRATEGY 3: ENERGY EFFICIENCY", False, RULES, SEVEN) == "strategy-3"
+    assert section_subject_key("INTRODUCTION", False, RULES, SEVEN) == "a2zero"
+    assert section_subject_key("GREENHOUSE GAS EMISSIONS SUMMARY", False, RULES, SEVEN) == "ghg_emissions"
+    assert section_subject_key("CONTENTS", False, RULES, SEVEN) is None
+
+    # A doc type with no structural route maps NOTHING, which is the normal case.
+    assert section_subject_key("STRATEGY 3: ENERGY EFFICIENCY", False, None, SEVEN) is None
 
 
 # --- the assigned corpus -----------------------------------------------------------------

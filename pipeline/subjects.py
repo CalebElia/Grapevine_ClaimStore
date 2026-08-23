@@ -1,90 +1,112 @@
-"""Subjects from the reports' own structure.
+"""Subjects from a document's own structure, where the document type has one.
 
-WHY STRUCTURE AND NOT A MODEL. All five reports organise themselves into the same seven
-A2ZERO strategies and title them differently each year -- "Strategy 1: Power our electrical
-grid with 100% renewable energy", "STRATEGY ONE: POWER OUR ELECTRICAL GRID...", "STRATEGY 1:
-100% RENEWABLES". Same subject, three titles. A section's placement is the document SAYING
-what it is about, which makes this evidence rather than inference, and string matching rather
-than judgement.
+WHY THIS IS PER DOCUMENT TYPE. The seven A2ZERO strategies are formal to Ann Arbor's plan,
+and the STRATEGY heading language appears only in formal reports. Council minutes, dockets,
+news coverage and staff memos talk about the projects, policies and initiatives that SUPPORT
+a strategy and almost never name the strategy itself. So a structural route from heading to
+subject exists for annual reports and will simply not exist for most document types. A doc
+type with no rules is the NORMAL case, not a misconfiguration -- those documents will get
+their subject by matching initiative names against subject_aliases, or through a matter, and
+until that pass exists their claims carry no subject rather than a guessed one.
 
-THE SUBJECT LIVES ON THE SECTION, NOT ON EACH CLAIM. There are 59 sections and 903 claims.
-Recording the decision once per section makes it auditable and reversible; writing it 903
-times makes it 903 things to re-derive when the mapping changes. Claims inherit.
+WHAT IS AND IS NOT CORPUS-SPECIFIC. The SUBJECTS are a property of Ann Arbor's climate
+policy: a council minute about a solar millage maps to the same subject row as an annual
+report section. The MAPPING -- that a heading reading "STRATEGY 4" means Strategy 4 -- is a
+property of one document type. Only the mapping lives in a registry file; the subjects live
+in the database, seeded from the wiki.
 
-WHAT INHERITANCE CANNOT DO, SAID PLAINLY. A claim about solar inside the Resilience section
-inherits Resilience, and that is wrong for that claim. Section inheritance is a floor, not a
-ceiling: it gives every claim a defensible subject drawn from the document's own structure,
-and leaves finer attribution -- the 229 wiki initiatives -- to a later pass that can overrule
-it per claim.
+NO NUMBER IS HARDCODED. Seven is true of Ann Arbor and breaks at the first other
+jurisdiction, so the valid strategy numbers are whichever strategy subjects were actually
+seeded for that jurisdiction, read at assignment time. A plan with nine works without an
+edit.
+
+WHAT INHERITANCE CANNOT DO, said here rather than left to be discovered: a claim about solar
+inside the Resilience section inherits Resilience, and that is wrong for that claim. Section
+inheritance is a floor -- a defensible subject for every claim, drawn from the document's own
+structure -- with the 229 wiki initiatives left for a finer pass that can overrule it.
 """
 from __future__ import annotations
 
 import re
 
-# A2ZERO has exactly seven strategies. An eighth is a parse error, not a new subject.
-MAX_STRATEGY = 7
+import json
+from pathlib import Path
 
-_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7}
+REGISTRIES = Path("registries")
 
-# ANCHORED ON THE WORD "STRATEGY", never on a digit anywhere in the heading. "YEAR 5
-# PRIORITIES" contains a 5 and is not Strategy 5; so does "A2ZERO Year 3 Priorities".
-_HEAD = re.compile(r"\bstrateg(?:y|ies)\s+(\d{1,2}|" + "|".join(_WORDS) + r")\b", re.I)
+_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+          "eight": 8, "nine": 9, "ten": 10}
 
 
-def strategy_number(heading: str | None) -> int | None:
-    """The A2ZERO strategy a section heading names, or None if it names none."""
-    m = _HEAD.search(heading or "")
+def load_section_rules(jurisdiction: str, doc_type: str,
+                       root: Path = REGISTRIES) -> dict | None:
+    """Structural section rules for one jurisdiction and document type, or None.
+
+    None means this document type has no structural route to a subject, which is the normal
+    case for everything except formal reports. Callers must treat it as "no route", never as
+    an error.
+    """
+    p = root / jurisdiction / "section_subjects.json"
+    if not p.exists():
+        return None
+    return json.loads(p.read_text()).get("doc_types", {}).get(doc_type)
+
+
+def strategy_number(heading: str | None, valid: set[int] | None = None,
+                    keyword: str = r"strateg(?:y|ies)") -> int | None:
+    """The numbered series member a heading names, or None.
+
+    ANCHORED ON THE KEYWORD, never on a digit anywhere in the heading: "YEAR 5 PRIORITIES"
+    contains a 5 and is not Strategy 5.
+
+    `valid` is the set of numbers that actually exist for this jurisdiction. Passing None
+    parses without judging, which is what the pure tests want; passing a set is what callers
+    do, and is why no maximum is written into this module.
+    """
+    pat = re.compile(rf"\b{keyword}\s+(\d{{1,2}}|" + "|".join(_WORDS) + r")\b", re.I)
+    m = pat.search(heading or "")
     if not m:
         return None
     token = m.group(1).lower()
     n = _WORDS.get(token) or (int(token) if token.isdigit() else None)
-    return n if n and 1 <= n <= MAX_STRATEGY else None
-
-
-# Sections that speak about the plan as a whole rather than about one strategy. A claim with
-# no subject is invisible to every aggregate, so a narrative section gets the PARENT subject
-# rather than nothing -- which is also true to the text: an introduction really is about
-# A2ZERO.
-_A2ZERO_HEADS = re.compile(
-    r"^\s*(introduction|overview|closing|next steps|"
-    r"(a2zero\s+)?year\s+\w+\s+priorities|priorities)\s*$", re.I)
-
-# The community-wide inventory every report from Year 3 opens with. It is the measurement the
-# whole plan is judged against, not one strategy's business.
-_GHG_HEADS = re.compile(r"greenhouse gas emissions summary", re.I)
-
-
-def cross_cutting_subject(heading: str | None) -> str | None:
-    """A non-strategy section's subject key, or None when the section is navigational.
-
-    A table of contents is not about anything, and neither is a repeated cover title.
-    Inventing a subject for those would put structural furniture into topic aggregates.
-    """
-    h = (heading or "").strip()
-    if not h or strategy_number(h) is not None:
+    if not n or n < 1:
         return None
-    if _GHG_HEADS.search(h):
-        return "ghg_emissions"
-    if _A2ZERO_HEADS.match(h):
-        return "a2zero"
+    return n if valid is None or n in valid else None
+
+
+def cross_cutting_subject(heading: str | None, rules: dict | None) -> str | None:
+    """A non-strategy section's subject key from the registry's heading rules."""
+    h = (heading or "").strip()
+    if not h or not rules:
+        return None
+    for rule in rules.get("headings", []):
+        pattern = rule["match"]
+        rx = re.compile(pattern, re.I)
+        hit = rx.match(h) if rule.get("anchored") else rx.search(h)
+        if hit:
+            return rule["subject_key"]
     return None
 
 
-def section_subject_key(heading: str | None, is_front_matter: bool = False) -> str | None:
-    """The single subject key for a section: strategy-N, a2zero, ghg_emissions, or None.
+def section_subject_key(heading: str | None, is_front_matter: bool = False,
+                        rules: dict | None = None,
+                        valid: set[int] | None = None) -> str | None:
+    """The single subject key for a section, or None when the section maps to nothing.
 
-    Front matter -- everything before the first heading -- is the report's own framing of
-    A2ZERO. Year 2 carries five claims there, all of them about the plan itself, while other
-    years put the same material under INTRODUCTION. Front matter holding only a title and a
-    sign-off produces no claims, so the rule costs nothing where it does not apply.
+    Returns None for every section when `rules` is None -- a document type with no structural
+    route. That is the expected outcome for minutes, dockets and articles.
     """
-    n = strategy_number(heading)
-    if n is not None:
-        return f"strategy-{n}"
-    key = cross_cutting_subject(heading)
+    if not rules:
+        return None
+    series = rules.get("numbered_series")
+    if series:
+        n = strategy_number(heading, valid, series.get("keyword", r"strateg(?:y|ies)"))
+        if n is not None:
+            return series["subject_key"].format(n=n)
+    key = cross_cutting_subject(heading, rules)
     if key:
         return key
-    return "a2zero" if is_front_matter else None
+    return rules.get("front_matter") if is_front_matter else None
 
 
 # The seven strategies as the a2zero-wiki curates them: canonical title and slug. Read from
@@ -153,11 +175,33 @@ def seed(dsn: str, created_by: str, dry_run: bool = False) -> dict:
     return {"strategies": len(strategies), "created": made}
 
 
+def seeded_series_numbers(cur, key_template: str = "strategy-{n}") -> set[int]:
+    """Which members of the numbered series actually exist as subjects.
+
+    THIS IS WHY NO MAXIMUM IS WRITTEN ANYWHERE. Seven is true of Ann Arbor and breaks at the
+    first other jurisdiction. The answer is whatever was seeded, so a plan with nine works
+    without an edit and a plan with five refuses a spurious "Strategy 6".
+    """
+    prefix = key_template.split("{", 1)[0]
+    cur.execute("SELECT alias FROM subject_aliases WHERE alias LIKE %s", (prefix + "%",))
+    out = set()
+    for (alias,) in cur.fetchall():
+        tail = alias[len(prefix):]
+        if tail.isdigit():
+            out.add(int(tail))
+    return out
+
+
 def assign(dsn: str, dry_run: bool = False) -> dict:
-    """Point every section at its subject, then let claims inherit it."""
+    """Point every section at its subject, then let claims inherit it.
+
+    Rules are looked up per DOCUMENT TYPE. A document whose type has no rules contributes
+    nothing and is counted, not warned about: minutes and dockets are expected to have no
+    structural route to a subject.
+    """
     import psycopg
 
-    counts = {"sections": 0, "claims": 0, "no_subject": 0}
+    counts = {"sections": 0, "claims": 0, "no_subject": 0, "no_rules": 0}
     with psycopg.connect(dsn) as c, c.cursor() as cur:
         cur.execute("SELECT id, name FROM subjects")
         by_alias: dict[str, int] = {}
@@ -168,9 +212,29 @@ def assign(dsn: str, dry_run: bool = False) -> dict:
             if name == "A2ZERO":
                 by_alias["a2zero"] = sid
 
-        cur.execute("SELECT id, heading, sequence FROM document_sections ORDER BY id")
-        for sec_id, heading, seq in cur.fetchall():
-            key = section_subject_key(heading, is_front_matter=(seq == 0))
+        valid = seeded_series_numbers(cur)
+
+        cur.execute(
+            """SELECT s.id, s.heading, s.sequence, d.doc_type, j.name
+                 FROM document_sections s
+                 JOIN documents d ON d.id = s.document_id
+                 LEFT JOIN jurisdictions j ON j.id = d.jurisdiction_id
+             ORDER BY s.id""")
+        rules_cache: dict[tuple, dict | None] = {}
+        for sec_id, heading, seq, doc_type, juris in cur.fetchall():
+            # registries/ directories are named after the jurisdiction, lowercased and
+            # underscored -- "Ann Arbor" -> registries/ann_arbor. There is no slug column
+            # to read, and inventing one for this would be a schema change to save a
+            # two-line normalisation.
+            juris = re.sub(r"[^a-z0-9]+", "_", (juris or "ann arbor").lower()).strip("_")
+            ck = (juris, doc_type)
+            if ck not in rules_cache:
+                rules_cache[ck] = load_section_rules(juris, doc_type)
+            rules = rules_cache[ck]
+            if rules is None:
+                counts["no_rules"] += 1
+                continue
+            key = section_subject_key(heading, seq == 0, rules, valid)
             sid = by_alias.get(key) if key else None
             if sid is None:
                 counts["no_subject"] += 1
@@ -210,7 +274,8 @@ def main() -> int:
     if a.assign:
         r = assign(a.dsn, a.dry_run)
         print(f"[subjects] {r['sections']} section(s) · {r['claims']} claim(s) · "
-              f"{r['no_subject']} section(s) left without one"
+              f"{r['no_subject']} section(s) left without one · "
+              f"{r['no_rules']} section(s) in doc types with no structural route"
               + ("  (dry run — nothing written)" if a.dry_run else ""))
     if not (a.seed or a.assign):
         ap.error("nothing to do: pass --seed and/or --assign")

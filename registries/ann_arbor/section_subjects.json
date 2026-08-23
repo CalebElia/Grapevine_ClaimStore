@@ -1,0 +1,50 @@
+{
+  "_what": "How a document's own section structure names the subject that section is about. Keyed by document type, because the structure is a property of the document type and not of the jurisdiction's policy.",
+
+  "_why_per_doc_type": "The seven A2ZERO strategies are formal to Ann Arbor's plan, and the STRATEGY heading language appears only in formal reports. Council minutes, MPSC dockets, news coverage and staff memos talk about the projects, policies and initiatives that SUPPORT a strategy, and almost never name the strategy. So the structural route from heading to subject exists for annual_report and will simply not exist for most document types.",
+
+  "_absence_is_normal": "A document type with no entry here has no structural route to a subject. That is the expected case, not a misconfiguration. Those documents get their subject some other way -- by matching initiative and project names against subject_aliases, or through a matter -- and until that pass exists their claims carry no subject rather than a guessed one.",
+
+  "_what_is_NOT_here": "The subjects themselves. Those live in the `subjects` table, seeded from the a2zero-wiki, and are a property of Ann Arbor's climate policy rather than of any document. A council minute about a solar millage maps to the SAME subject row as an annual report section. This file only records how one document type happens to signpost them.",
+
+  "_numbers_are_not_in_the_code": "There is deliberately no maximum strategy number here or anywhere in the pipeline. The valid numbers are whichever strategy subjects were actually seeded for this jurisdiction, read from the database at assignment time. A plan with nine strategies works without an edit; a hardcoded seven breaks at the first other jurisdiction.",
+
+  "jurisdiction": "ann_arbor",
+
+  "doc_types": {
+    "annual_report": {
+      "note": "A2ZERO annual reports, FY2021-FY2025. All five organise into the same seven strategies and title them differently every year: 'Strategy 1: Power our electrical grid with 100% renewable energy', 'STRATEGY ONE: POWER OUR ELECTRICAL GRID...', 'STRATEGY 1: 100% RENEWABLES'.",
+
+      "numbered_series": {
+        "keyword": "strateg(?:y|ies)",
+        "subject_key": "strategy-{n}",
+        "allow_spelled_out": true,
+        "note": "Anchored on the keyword, NEVER on a digit anywhere in the heading. 'YEAR 5 PRIORITIES' contains a 5 and is not Strategy 5; 'A2ZERO Year 3 Priorities' contains a 3."
+      },
+
+      "headings": [
+        {
+          "match": "greenhouse gas emissions summary",
+          "subject_key": "ghg_emissions",
+          "anchored": false,
+          "note": "The community-wide inventory every report from Year 3 opens with. It is the measurement the whole plan is judged against, not one strategy's business."
+        },
+        {
+          "match": "^(introduction|overview|closing|next steps|(a2zero\\s+)?year\\s+\\w+\\s+priorities|priorities)$",
+          "subject_key": "a2zero",
+          "anchored": true,
+          "note": "Narrative sections speak about the plan as a whole. A claim with no subject is invisible to every aggregate, so these get the parent rather than nothing -- which is also true to the text."
+        }
+      ],
+
+      "front_matter": "a2zero",
+      "front_matter_note": "Everything before the first heading is the report's own framing of A2ZERO. Year 2 carries five claims there, all about the plan itself, where other years use an INTRODUCTION heading. Front matter holding only a title and a sign-off produces no claims, so the rule costs nothing where it does not apply.",
+
+      "unmapped": [
+        "contents",
+        "a repeated cover title such as '2021 - 2022 Annual Report' or 'YEAR THREE ANNUAL REPORT'"
+      ],
+      "unmapped_note": "Navigational sections get NO subject. A table of contents is not about anything, and giving it one would put structural furniture into topic aggregates. All four such sections in this corpus carry zero claims, and a test keeps those two facts consistent."
+    }
+  }
+}
