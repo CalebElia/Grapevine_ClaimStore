@@ -24,7 +24,7 @@ from pipeline.extract_figures import extract_figures, render_figure_block
 from pipeline.vision_extract import parse_relevance
 from pipeline.quality_gate import assess, find_numbers, verdict
 from pipeline.quality_gate import report as gate_report
-from pipeline.render_blocks import render_blocks
+from pipeline.render_blocks import figure_key, render_blocks
 
 
 def main() -> int:
@@ -101,9 +101,9 @@ def main() -> int:
     for f in figs:
         (decorative if parse_relevance(f.get("xml", ""))["relevance"] == "ornamental"
          else keep).append(f)
-    figure_xml = {f["page_no"]: render_figure_block(f) for f in keep}
+    figure_xml = {figure_key(f): render_figure_block(f) for f in keep}
     for f in decorative:
-        figure_xml.setdefault(f["page_no"], (
+        figure_xml.setdefault(figure_key(f), (
             f"<!-- ORNAMENTAL FIGURE: {f.get('top_label')} on page {f['page_no']} was "
             f"examined by the vision pass and carries no data about this document's "
             f"subject; no data points extracted -->"))

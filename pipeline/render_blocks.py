@@ -36,6 +36,23 @@ import re
 from pipeline.section_boundaries import _same_section
 
 
+def figure_key(rec: dict) -> tuple:
+    """Identity of one picture, agreed on by a PictureItem block and a figures.json record.
+
+    KEYING BY PAGE ALONE LOSES FIGURES, and this module used to say so in its own docstring:
+    a page with two data-bearing figures "would need a finer key, which Year 5 does not
+    exercise". The CAP exercises it -- 55 substantive figures across 38 pages, 17 of them
+    overwritten. Page 117 carried two, both classified `photograph`: the ACTION cost card
+    reading $1,000,000 and a snapshot of volunteers landscaping. The page rendered neither.
+
+    Label and confidence come from the same classification pass on both sides, so they agree
+    by construction. Confidence is rounded because it round-trips through JSON.
+    """
+    conf = rec.get("top_conf")
+    return (rec.get("page_no"), rec.get("top_label"),
+            round(float(conf), 3) if conf is not None else None)
+
+
 def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                   page_markers: bool = False,
                   heading_shapes: set[str] | None = None,
@@ -44,9 +61,9 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                   period: dict | None = None) -> str:
     """blocks in reading order + {page_no: figure XML} -> markdown.
 
-    figure_xml is keyed by page because that is what pipeline/extract_figures.py records
-    per extraction; a document with two data-bearing figures on ONE page would need a
-    finer key, which Year 5 does not exercise and which is not invented here.
+    figure_xml is keyed by figure_key() -- page, classification and confidence -- so that a
+    page carrying several data-bearing figures keeps all of them. Keying by page alone lost
+    17 of the CAP's 55 substantive figures, including the ACTION cost card on page 117.
     """
     pics = {b.get("self_ref"): b for b in blocks if b["kind"] == "PictureItem"}
     # A kept figure's caption is emitted WITH the figure, so it is not also emitted in
@@ -153,7 +170,7 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             # as two figures.
             if cap:
                 out.append(f"**Figure ({b.get('top_label')}, page {fig_page}):** {cap}")
-            xml = figure_xml.get(fig_page)
+            xml = figure_xml.get(figure_key(b))
             if xml:
                 out += ["", xml.strip()]
             else:

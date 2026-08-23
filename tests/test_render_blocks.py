@@ -18,7 +18,7 @@ Every rule here traces to a specific finding in the human review of the Year 5 o
 """
 from __future__ import annotations
 
-from pipeline.render_blocks import render_blocks
+from pipeline.render_blocks import figure_key, render_blocks
 
 
 def _blk(kind, page, text, **kw):
@@ -77,7 +77,10 @@ def test_the_caption_of_a_kept_figure_is_folded_into_its_description():
                    top_label="screenshot_from_computer", top_conf=0.543),
               _blk("TextItem", 5, "The Renewable Energy tab of the A2ZERO Dashboard.",
                    caption_for="#/pictures/9")]
-    out = render_blocks(blocks, {5: "<figure_description>x</figure_description>"}, "T")
+    out = render_blocks(blocks, {figure_key({"page_no": 5,
+                                       "top_label": "screenshot_from_computer",
+                                       "top_conf": 0.543}):
+                               "<figure_description>x</figure_description>"}, "T")
     assert "Renewable Energy tab" in out
     assert "<figure_description>" in out
     assert out.index("Renewable Energy tab") < out.index("<figure_description>")
@@ -90,7 +93,9 @@ def test_a_kept_figure_renders_its_extracted_xml_at_its_reading_order_position()
               _blk("PictureItem", 4, "", self_ref="#/pictures/3", worth_extraction=True,
                    top_label="bar_chart", top_conf=0.997),
               _blk("TextItem", 5, "After the chart.")]
-    out = render_blocks(blocks, {4: "<figure_description>chart</figure_description>"}, "T")
+    out = render_blocks(blocks, {figure_key({"page_no": 4, "top_label": "bar_chart",
+                                       "top_conf": 0.997}):
+                               "<figure_description>chart</figure_description>"}, "T")
     assert out.index("Second para.") < out.index("<figure_description>")
     assert out.index("<figure_description>") < out.index("After the chart.")
 
@@ -383,7 +388,10 @@ def test_a_kept_figures_caption_still_folds_into_its_description():
                    top_label="screenshot_from_computer", top_conf=0.5),
               _blk("TextItem", 5, "The Renewable Energy tab of the A2ZERO Dashboard.",
                    caption_for="#/pictures/9")]
-    out = render_blocks(blocks, {5: "<figure_description>x</figure_description>"}, "T")
+    out = render_blocks(blocks, {figure_key({"page_no": 5,
+                                       "top_label": "screenshot_from_computer",
+                                       "top_conf": 0.5}):
+                               "<figure_description>x</figure_description>"}, "T")
     assert out.index("Renewable Energy tab") < out.index("<figure_description>")
     assert out.count("Renewable Energy tab") == 1, "folded in, not also emitted in place"
 
