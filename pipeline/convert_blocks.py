@@ -875,38 +875,51 @@ def absorb_body_shaped_headings(blocks: list[dict], ems: dict[int, float]) -> li
 # Two glyphs at the same position, size and font are one glyph stamped twice -- how a PDF
 # fakes bold or draws fill-then-stroke. Sub-point jitter in the content stream must not
 # defeat the match, so positions are compared at 0.01pt.
-_OVERPRINT_TOL = 2
+# Two glyphs overlapping by more than this fraction of a glyph width are one
+# glyph stamped twice. Expressed as overlap rather than points so it scales
+# with the type size.
+_OVERLAP_FRAC = 0.5
 
 
 def dedupe_overprint(chars: list[dict]) -> list[dict]:
-    """Drop glyphs drawn twice at one position. Undoes a drawing instruction, not a guess.
+    """Drop glyphs stamped more than once. Undoes a drawing instruction, not a guess.
 
-    MEASURED ON THE CAP. Its ACTION pages carry infographics whose headings are overprinted,
-    so the text layer reads "CCoosstt OOvveerr 1100 YYeeaarrss" and the garbled-text gate
-    refused the whole 138-page document. 417 glyphs across 12 pages, 0.2% of the file.
+    TWO PATTERNS, BOTH MEASURED ON THE CAP.
 
-    The identity is (character, x0, top, size, font). Two DIFFERENT letters at one position
-    are both kept -- that is a layout artefact and dropping one would delete something the
-    page really draws. The same letter at a different size is kept too: a layered heading
-    repeats a glyph deliberately.
+    IDENTICAL POSITION -- how a PDF fakes bold or draws fill-then-stroke. Its ACTION page
+    headings read "CCoosstt OOvveerr 1100 YYeeaarrss"; 417 glyphs on 12 pages.
+
+    CONSTANT SMALL OFFSET -- a drop shadow. Page 117's cost figures are drawn twice 3.134pt
+    apart, so "$1,016,000" reads "$$11,,016000,,000000" and a scorer sees an eleven-trillion
+    dollar figure. Exact-position dedupe cannot see it, because the positions differ.
+
+    THE TEST IS OVERLAP, NOT DISTANCE, so it scales with the type. Two glyphs overlapping by
+    more than half a glyph width are one glyph stamped twice: at size 30 an advance is about
+    16pt and the shadow sits 3.1pt away, a fifth of a character, while the "oo" in "book" sits
+    a full glyph apart. The same 3pt offset in 9pt type is a real gap and is kept.
+
+    Different letters at one position are kept -- that is a layout artefact, and dropping one
+    would delete a character the page really draws. So is the same letter at another size: a
+    layered heading repeats a glyph deliberately.
     """
-    seen: set = set()
+    seen: dict = {}
     out: list[dict] = []
     for c in chars:
-        key = (c.get("text"), round(c.get("x0", 0), _OVERPRINT_TOL),
-               round(c.get("top", 0), _OVERPRINT_TOL),
-               round(c.get("size", 0), _OVERPRINT_TOL), c.get("fontname"))
-        if key in seen:
-            continue
-        seen.add(key)
+        key = (c.get("text"), round(c.get("top", 0), 2),
+               round(c.get("size", 0), 2), c.get("fontname"))
+        x0 = float(c.get("x0", 0) or 0)
+        width = abs(float(c.get("x1", 0) or 0) - x0) or float(c.get("size", 0) or 0) * 0.5
+        prev = seen.get(key)
+        if prev is not None and abs(x0 - prev[0]) < _OVERLAP_FRAC * max(prev[1], width):
+            continue                      # identical position, or a shadow restamp
+        seen[key] = (x0, width)
         out.append(c)
     return out
 
-
 # A picture the classifier calls a CHART holds data, and its text layer is scaffolding: axis
 # labels, and in this corpus leftover spreadsheet legends ("1st Qtr 2nd Qtr 3rd Qtr 4th Qtr")
-# that are invisible on the page. Charts are read by the vision path, so their interiors must
-# not be swept into prose.
+# invisible on the page. Charts are read by the vision path, so their interiors must not be
+# swept into prose.
 _DATA_GRAPHICS = {"bar_chart", "pie_chart", "line_chart", "flow_chart"}
 
 # Below this the classifier is guessing, and the cost of being wrong is asymmetric: a
@@ -952,6 +965,30 @@ def drop_placed_underlay(chars: list[dict]) -> list[dict]:
     rendering the page confirms the underlay appears nowhere on it.
     """
     return [c for c in chars if c.get("tag") not in _INVISIBLE_TAGS]
+
+
+_DOUBLED_RUN = re.compile(r"(?:,,|\d\d,,|,,\d\d)")
+
+
+def looks_mis_decoded(text: str) -> bool:
+    """Whether a run's characters cannot be trusted as read.
+
+    MEASURED, AND NOT FIXABLE BY GEOMETRY. CAP page 117 renders "$1,000,000" -- confirmed by
+    cropping the page -- while its glyphs decode as "$$11,,016000,,000000". The subset font's
+    ToUnicode map is wrong, so some characters are simply the WRONG characters; deduping the
+    doubled ones still leaves "$1,01600,000".
+
+    The tell is a doubled separator inside a number: ",," never occurs in a real figure. The
+    CAP's own "$$; EQU; SCALE" cost notation has no digits around it and is left alone,
+    because it is real content.
+
+    Text like this belongs to an infographic and should be read by the vision path. Emitting
+    it as prose puts an eleven-trillion-dollar figure in the store.
+    """
+    t = (text or "")
+    if "," not in t and "$" not in t:
+        return False
+    return bool(_DOUBLED_RUN.search(t))
 
 
 def page_words(page) -> list[dict]:
@@ -1805,6 +1842,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
     ambiguous: list[tuple[str, str]] = []
     term_fixes: list[tuple[str, str]] = []
     content_recovered: list[tuple[int, str]] = []
+    mis_decoded: list[dict] = []
     captioned: list[tuple[int, str]] = []
     resolved: list[dict] = []
     for i, (b, raw) in enumerate(zip(blocks, raws)):
@@ -1868,6 +1906,15 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             # Geometry proposes; the assembled text decides. See already_present().
             page_text = " ".join(b["text"] for b in resolved if b["page_no"] == pno)
             strays = [s for s in strays if not already_present(s["text"], page_text)]
+            # A RUN WHOSE CHARACTERS CANNOT BE TRUSTED IS NOT RECOVERED. The CAP's cost
+            # infographics decode "$1,000,000" as "$$11,,016000,,000000" -- a wrong ToUnicode
+            # map, not a doubled stamp -- and emitting that would put an eleven-trillion
+            # dollar figure in front of a reader. The region is a picture; the vision path is
+            # where it should be read.
+            dropped_garbled = [s for s in strays if looks_mis_decoded(s["text"])]
+            strays = [s for s in strays if not looks_mis_decoded(s["text"])]
+            mis_decoded.extend({"page_no": pno, "text": s["text"][:80]}
+                               for s in dropped_garbled)
             # A recovered region may itself be a caption (both real Year 5 cases were).
             # Associating it here, where the geometry lives, lets it follow its picture's
             # fate through the ordinary caption_for path instead of needing a second rule
@@ -1985,6 +2032,14 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
                     continue
                 if is_marker_run(run):
                     continue        # bullet glyphs whose words are already assembled
+                # THE SECOND SWEEP NEEDS THE SAME GUARD AS THE FIRST. The coverage sweep
+                # already refuses mis-decoded runs; this one recovers text present on the
+                # page but absent from every block, and the CAP's cost infographics reach it
+                # by that route. Every fix in this module has had to be applied wherever raw
+                # characters enter, never only on the first path anyone patched.
+                if looks_mis_decoded(txt):
+                    mis_decoded.append({"page_no": pno, "text": txt[:80]})
+                    continue
                 at = max((i for i, b in enumerate(resolved) if b["page_no"] <= pno),
                          default=-1) + 1
                 prev = resolved[at - 1]["_ord"] if at > 0 else -1.0
@@ -2030,4 +2085,5 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
     return conv, render_stream, {"ambiguous_hyphens": ambiguous,
                                  "captions_associated": captioned,
                                  "ocr_term_fixes": term_fixes,
-                                 "content_recovered": content_recovered}
+                                 "content_recovered": content_recovered,
+                                 "mis_decoded_runs": mis_decoded}
