@@ -872,6 +872,101 @@ def absorb_body_shaped_headings(blocks: list[dict], ems: dict[int, float]) -> li
     return out
 
 
+# Two glyphs at the same position, size and font are one glyph stamped twice -- how a PDF
+# fakes bold or draws fill-then-stroke. Sub-point jitter in the content stream must not
+# defeat the match, so positions are compared at 0.01pt.
+_OVERPRINT_TOL = 2
+
+
+def dedupe_overprint(chars: list[dict]) -> list[dict]:
+    """Drop glyphs drawn twice at one position. Undoes a drawing instruction, not a guess.
+
+    MEASURED ON THE CAP. Its ACTION pages carry infographics whose headings are overprinted,
+    so the text layer reads "CCoosstt OOvveerr 1100 YYeeaarrss" and the garbled-text gate
+    refused the whole 138-page document. 417 glyphs across 12 pages, 0.2% of the file.
+
+    The identity is (character, x0, top, size, font). Two DIFFERENT letters at one position
+    are both kept -- that is a layout artefact and dropping one would delete something the
+    page really draws. The same letter at a different size is kept too: a layered heading
+    repeats a glyph deliberately.
+    """
+    seen: set = set()
+    out: list[dict] = []
+    for c in chars:
+        key = (c.get("text"), round(c.get("x0", 0), _OVERPRINT_TOL),
+               round(c.get("top", 0), _OVERPRINT_TOL),
+               round(c.get("size", 0), _OVERPRINT_TOL), c.get("fontname"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(c)
+    return out
+
+
+# A picture the classifier calls a CHART holds data, and its text layer is scaffolding: axis
+# labels, and in this corpus leftover spreadsheet legends ("1st Qtr 2nd Qtr 3rd Qtr 4th Qtr")
+# that are invisible on the page. Charts are read by the vision path, so their interiors must
+# not be swept into prose.
+_DATA_GRAPHICS = {"bar_chart", "pie_chart", "line_chart", "flow_chart"}
+
+# Below this the classifier is guessing, and the cost of being wrong is asymmetric: a
+# suppressed heading disappears silently, while a recovered chart legend is loud and lands in
+# front of a reviewer. The CAP's lowest real chart classifies at 0.552.
+_GRAPHIC_CONF = 0.5
+
+
+def is_data_graphic(block: dict) -> bool:
+    """Whether this picture is a chart, whose internal text is scaffolding rather than prose.
+
+    A PHOTOGRAPH IS NOT ONE, deliberately. The coverage sweep skips picture regions precisely
+    so that a heading printed over a photograph is still recovered -- a real case from the
+    annual reports. Only a positive chart classification suppresses text; icons, logos, maps,
+    full-page images and unknowns all stay recoverable.
+    """
+    if block.get("kind") != "PictureItem":
+        return False
+    return (block.get("top_label") in _DATA_GRAPHICS
+            and float(block.get("top_conf") or 0) >= _GRAPHIC_CONF)
+
+
+# Marked-content tags that mean "this text is not what the page shows". PlacedPDF marks an
+# embedded, invisible underlay -- in the CAP, an earlier draft of the copy sitting beneath
+# the designed page in Calibri while the visible text is SofiaPro.
+#
+# `Artifact` is NOT here, and that is deliberate. It is the standard PDF tag for non-content,
+# so dropping it looks obviously right; but this document's 302 Artifact characters are
+# SofiaPro page furniture that really is rendered. Only the underlay is invisible.
+_INVISIBLE_TAGS = {"PlacedPDF"}
+
+
+def drop_placed_underlay(chars: list[dict]) -> list[dict]:
+    """Remove text the page carries but does not render.
+
+    MEASURED. The CAP holds 2,613 such characters across 41 of 138 pages -- an earlier draft
+    of the copy. The rendered page 14 reads "A²ZERO strives toward one unifying vision"; the
+    underlay reads "The A2Zero initiative strives toward one unifying vision". Docling's
+    block bboxes span both layers, so the crop interleaved them into
+    "AA²2ZZeEroRVOisioVnISION" and the quality gate refused all 138 pages.
+
+    This is not a heuristic about fonts. The PDF states which text is placed underlay, and
+    rendering the page confirms the underlay appears nowhere on it.
+    """
+    return [c for c in chars if c.get("tag") not in _INVISIBLE_TAGS]
+
+
+def page_words(page) -> list[dict]:
+    """extract_words over DEDUPED characters.
+
+    Both sweeps read the page directly rather than through the crop path, so a doubled stamp
+    reaches them untouched: the CAP's overprinted infographic headings arrived as
+    "CCoosstt OOvveerr 1100 YYeeaarrss", were reported as text present on the page but
+    missing from every block, and the recovery tried to put them back. The dedupe has to sit
+    wherever raw characters enter, not only on the first path anyone patched.
+    """
+    from pdfplumber.utils import extract_words
+    return extract_words(dedupe_overprint(drop_placed_underlay(page.chars)))
+
+
 def snap_scripts(chars: list[dict]) -> tuple[list[dict], int]:
     """Put super/subscript glyphs back on the line they belong to.
 
@@ -1697,7 +1792,9 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             # snap_scripts puts each script glyph on its own line's band, after which the
             # centre test asks the question it means to ask: which line is this, and does
             # that line belong to this block.
-            snapped, moved = snap_scripts(crop.chars)
+            # BEFORE anything else looks at the characters: a doubled stamp
+            # would otherwise be snapped, spaced and measured twice over.
+            snapped, moved = snap_scripts(dedupe_overprint(drop_placed_underlay(crop.chars)))
             fixed = [c for c in snapped
                      if true_box[1] <= (c["top"] + c["bottom"]) / 2 <= true_box[3]]
             n_snapped += moved
@@ -1757,12 +1854,17 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             H = page.height
             boxes = []
             for b in blocks:
-                if b["page_no"] != pno or b["kind"] == "PictureItem":
+                # A CHART COUNTS AS COVERED; a photograph does not. Skipping every
+                # picture leaves chart interiors "uncovered", so their scaffolding text is
+                # recovered into prose -- which is what refused this document.
+                if b["page_no"] != pno:
+                    continue
+                if b["kind"] == "PictureItem" and not is_data_graphic(b):
                     continue
                 l, t, r, bt = b["bbox"]
                 boxes.append((min(l, r), min(H - t, H - bt),
                               max(l, r), max(H - t, H - bt)))
-            strays = group_uncovered(uncovered_words(page.extract_words(), boxes), pno)
+            strays = group_uncovered(uncovered_words(page_words(page), boxes), pno)
             # Geometry proposes; the assembled text decides. See already_present().
             page_text = " ".join(b["text"] for b in resolved if b["page_no"] == pno)
             strays = [s for s in strays if not already_present(s["text"], page_text)]
@@ -1876,7 +1978,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             if not assembled:
                 continue
             page = pdf.pages[pno - 1]
-            words = [w["text"] for w in page.extract_words()]
+            words = [w["text"] for w in page_words(page)]
             for run in missing_runs(words, assembled):
                 txt = " ".join(run)
                 if is_page_footer({"text": txt, "page_no": pno}):
