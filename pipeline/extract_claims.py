@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from pipeline.fiscal_direction import classify, normalise_amount
+from pipeline.units import split_unit
 
 DSN = os.environ.get("GRAPEVINE_DSN",
                      "host=/tmp port=5433 user=grapevine dbname=grapevine")
@@ -66,8 +67,18 @@ For each claim return an object:
                   implies when the thing happened. Omit entirely if it does not.
   "asserted_date_text" -- the words the date came from, if any.
   "quantities" -- a LIST, empty if the claim states no measured amount. Each:
-                  {"value_low": number, "unit": "...", "measure": "...", "verbatim": "..."}
-                  "unit" is what you count IN (metric tons, households, MW, acres).
+                  {"value_low": number, "unit": "...", "unit_basis": "...",
+                   "measure": "...", "verbatim": "..."}
+                  "unit" is the DIMENSION and must be exactly one of:
+                    count · percent · MW · kW · MWh · kWh · metric_tons_co2e · metric_tons
+                    USD · miles · square_feet · acres · years · days · ratio · other
+                  Use "count" whenever the number counts THINGS, whatever the things are.
+                  "unit_basis" is WHAT was counted, or what a percentage is OF, in the
+                  document's own words: "air quality monitors", "residential roofs",
+                  "residents". Leave it out only when the unit is a real measurement unit
+                  and there is nothing further to say. Do NOT put the counted thing in
+                  "unit" -- "18 air quality monitors" is unit=count,
+                  unit_basis="air quality monitors", measure=units_deployed.
                   "measure" is what is being COUNTED, and must be one of:
                     emissions · energy · installed_capacity · savings · cost · participants
                     population · households_served · facilities_treated · units_deployed
@@ -296,6 +307,12 @@ def _funder_org(cur, name: str | None) -> int | None:
     return row[0] if row else None
 
 
+def _unit_pair(q: dict) -> tuple[str, str | None]:
+    """(unit, unit_basis) for one proposed quantity, normalised whatever the model said."""
+    unit, basis = split_unit(q.get("unit"))
+    return unit, (q.get("unit_basis") or basis or None)
+
+
 def store(res: Result, section_id: int, document_id: int, content_hash: str,
           section_char_start: int, extracted_by: str, dsn: str = DSN,
           period: tuple | None = None) -> dict:
@@ -349,9 +366,14 @@ def store(res: Result, section_id: int, document_id: int, content_hash: str,
                     continue
                 cur.execute(
                     """INSERT INTO quantities
-                         (claim_id, value_low, unit, measure, source_type, verbatim)
-                       VALUES (%s,%s,%s,%s,%s,%s)""",
-                    (claim_id, q.get("value_low"), q.get("unit"), q.get("measure"),
+                         (claim_id, value_low, unit, unit_basis, measure,
+                          source_type, verbatim)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                    # SPLIT DEFENSIVELY. The prompt now asks for a dimension and a basis,
+                    # but split_unit still runs over whatever arrives: a model that answers
+                    # "air quality monitors" for `unit` must not be able to reopen the free
+                    # text problem, and one that answers correctly passes through unchanged.
+                    (claim_id, q.get("value_low"), *_unit_pair(q), q.get("measure"),
                      "annual_report", (q.get("verbatim") or a.verbatim)[:2000]))
                 counts["quantities"] += 1
 
