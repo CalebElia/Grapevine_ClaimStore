@@ -159,9 +159,11 @@ def main() -> int:
         print(f"[blocks] coverage period: {period['text']} "
               f"({period['days']} days)"
               + ("" if 358 <= period['days'] <= 372 else "  <-- NOT A YEAR"))
-    toc = (json.loads(Path(a.toc).read_text()).get('entries')
-           if a.toc and Path(a.toc).exists() else None)
-    md = render_blocks(blocks, figure_xml, a.title, toc=toc,
+    toc_doc = (json.loads(Path(a.toc).read_text())
+               if a.toc and Path(a.toc).exists() else {})
+    toc = toc_doc.get('entries') or None
+    toc_pages = set(toc_doc.get('pages') or ())
+    md = render_blocks(blocks, figure_xml, a.title, toc=toc, toc_pages=toc_pages,
                        page_markers=a.page_markers,
                        heading_shapes=heading_shapes(blocks),
                        body_shapes=body_shapes(blocks),

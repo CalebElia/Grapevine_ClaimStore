@@ -37,6 +37,55 @@ import re
 from pipeline.section_boundaries import _same_section
 
 
+# A line that is only a date, or a date range, belongs under the title rather than in it.
+_DATE_LINE = re.compile(
+    r"^\s*(?:[A-Z][a-z]+\s+\d{1,2},?\s+)?[A-Z][a-z]+\s+\d{4}\s*$"
+    r"|^\s*[A-Z]+\s+\d{1,2},?\s*\d{4}\s*[–—-].*\d{4}\s*$", re.I)
+
+# A title is a label. Beyond this it is a strapline or a sentence.
+_TITLE_MAX_WORDS = 12
+
+
+def assemble_title(blocks: list[dict]) -> str | None:
+    """The document's title, joined from the title page's own lines.
+
+    The CAP's title page splits it across three blocks -- "ANN ARBOR'S", "LIVING CARBON
+    NEUTRALITY PLAN", "APRIL 2020" -- and taking the SectionHeaderItem alone drops the
+    possessive that begins it.
+
+    A date line ends the title rather than joining it, and a sentence is never part of one.
+    What this cannot recover is the "A2Zero:" a reader sees first: that is in the LOGO, an
+    image deliberately not read because a logo is branding. The hand-prepared standard took
+    it from hand-set metadata, which is the honest place for it.
+    """
+    return " ".join(b["text"].strip() for b in title_blocks(blocks)) or None
+
+
+def title_blocks(blocks: list[dict]) -> list[dict]:
+    """The title-page blocks the title is assembled from, so they are not emitted twice."""
+    parts: list[dict] = []
+    for b in blocks:
+        if b.get("page_no") != 1:
+            break
+        if b.get("kind") == "PictureItem":
+            continue
+        t = (b.get("text") or "").strip()
+        if not t:
+            continue
+        if _DATE_LINE.match(t) or len(t.split()) > _TITLE_MAX_WORDS or t.endswith("."):
+            break
+        # A TITLE LINE DOES NOT END ON A PREPOSITION. Year 2's cover begins with OCR of the
+        # city logo -- "City Ann Arbor of", word order scrambled -- before the real title.
+        # Joining it would title the document "City Ann Arbor of A²ZERO ANNUAL REPORT".
+        # "ANN ARBOR'S" ends on a possessive and does lead into the line beneath it.
+        from pipeline.quality_gate import _DANGLING
+        if t.split()[-1].lower().strip(",") in _DANGLING:
+            parts.clear()
+            continue
+        parts.append(b)
+    return parts
+
+
 def _deepest_toc_level(toc: list[dict]) -> int:
     """The deepest level the contents declares. Sub-headings it omits sit below it."""
     return max((e.get("level", 1) for e in toc), default=1)
@@ -63,6 +112,7 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                   page_markers: bool = False,
                   heading_shapes: set[str] | None = None,
                   toc: list[dict] | None = None,
+                  toc_pages: set[int] | None = None,
                   body_shapes: set[str] | None = None,
                   lead_ins: set[str] | None = None,
                   period: dict | None = None) -> str:
@@ -97,9 +147,8 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
     # position remains the fallback.
     p1 = [b for b in blocks if b.get("page_no") == 1 and b["kind"] != "PictureItem"
           and (b.get("text") or "").strip()]
-    title_ref = next((b for b in p1 if b["kind"] in ("SectionHeaderItem", "TitleItem")),
-                     p1[0] if p1 else None)
-    doc_title = (title_ref.get("text") or "").strip() if title_ref else ""
+    doc_title = assemble_title(blocks) or ""
+    _title_used = {id(b) for b in title_blocks(blocks)}
 
     # OCR PROVENANCE. Year 2's prose is rendered as images, so 94% of its blocks come
     # from Docling's OCR rather than a text layer; Years 4 and 5 are 0%. OCR output is a
@@ -135,6 +184,7 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                          " so treat this as unconfirmed until a human rules on it")
                       + " -->")
     last_heading = None
+    _toc_noted: set = set()
     stats = {"figures": 0, "captions_dropped": 0, "recovered": 0}
 
     page = None
@@ -152,7 +202,7 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
         if b["kind"] != "UncoveredText" and (b.get("text") or "").strip():
             in_recovered = False
 
-        if title_ref is not None and b is title_ref:
+        if id(b) in _title_used:
             continue                       # already emitted as the H1
 
         # THE MARKER FOLLOWS THE CONTENT, NOT THE BLOCK. Emitting it here printed a page
@@ -196,6 +246,19 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             continue
 
         mark_page(out)
+        # A CONTENTS PAGE IS METADATA ABOUT THE DOCUMENT, NOT CONTENT IN IT. The hierarchy
+        # those pages state is held structurally in the toc json, so their RENDERING -- the
+        # dot leaders, the page numbers, the reading order the sweep guessed at -- has
+        # nothing left to contribute. Left in, it arrived as 83 lines of blockquotes and
+        # stray plain text with the entries out of order.
+        if toc_pages and b.get("page_no") in toc_pages:
+            if b["page_no"] not in _toc_noted:
+                _toc_noted.add(b["page_no"])
+                out += ["", f"<!-- CONTENTS PAGE {b['page_no']}: its entries are recorded "
+                            f"structurally; the dot-leader lines are this page's rendering, "
+                            f"not its content -->", ""]
+            continue
+
         tag = ""
         if srcs and b.get("text_source") and b["text_source"] != dominant:
             tag = f"{mark[b['text_source']]} "
