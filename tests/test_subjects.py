@@ -170,12 +170,28 @@ def test_all_seven_strategies_are_present_in_all_five_reports():
 
 
 @pytest.mark.skipif(not _db(), reason="no database")
-def test_every_strategy_subject_hangs_under_a2zero():
-    """A subject with no parent is invisible to a roll-up that walks the hierarchy down from
-    the plan -- which is how Bryant sat unreachable until it was reparented."""
+def test_no_subject_is_unreachable_from_the_plan():
+    """REWRITTEN, because the initiative layer changed what "reachable" means.
+
+    This asserted every subject had a parent_subject_id, which was true when the only
+    subjects were the plan, seven strategies and Bryant. It is now false BY DESIGN: an
+    initiative reaches its strategies through subject_framework_categories, because it may
+    advance more than one and a tree holds one parent; and a place is not in the taxonomy at
+    all, because Bryant is where work happens rather than a kind of work.
+
+    The invariant the original test was defending still matters -- Bryant sat unreachable
+    from any roll-up until it was reparented -- so it is stated over every route: a subject
+    must hang under a parent, OR carry a framework category, OR be somewhere work happens.
+    """
     import psycopg
     with psycopg.connect(DSN) as c:
-        orphans = c.execute(
-            "SELECT name FROM subjects WHERE parent_subject_id IS NULL AND name <> 'A2ZERO'"
-        ).fetchall()
-    assert orphans == [], f"subjects with no parent: {orphans}"
+        orphans = c.execute("""
+            SELECT s.name FROM subjects s
+            WHERE s.parent_subject_id IS NULL
+              AND s.subject_kind <> 'plan'
+              AND NOT EXISTS (SELECT 1 FROM subject_framework_categories f
+                              WHERE f.subject_id = s.id)
+              AND NOT EXISTS (SELECT 1 FROM subject_places p
+                              WHERE p.place_subject_id = s.id)
+        """).fetchall()
+    assert orphans == [], f"subjects reachable by no route: {orphans[:8]}"
