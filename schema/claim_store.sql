@@ -1143,7 +1143,7 @@ CREATE TABLE coalition_members (
     person_id           INT REFERENCES persons(id),
     org_id              INT REFERENCES orgs(id),
     body_id             INT REFERENCES bodies(id),
-    role                TEXT,
+    role                TEXT,                   -- vocab: involvement_role
     claim_id            BIGINT REFERENCES claims(id),         -- provenance
     PRIMARY KEY (coalition_id, person_id, org_id, body_id)
 );

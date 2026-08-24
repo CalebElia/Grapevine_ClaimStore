@@ -79,6 +79,7 @@ INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
 -- comments without tracking string literals, so a double dash here truncates the row
 -- and test_parens_balanced fails pointing at the whole file. Use a colon or a comma.
 ('funding_instrument',     'The financial mechanism of an award: not its source, not its program', TRUE,  'other'),
+('involvement_role',       'How an actor is involved in an initiative',                             TRUE,  'participant'),
 ('funding_recurrence',     'One-time vs recurring',                                                TRUE,  'unknown'),
 ('award_status',           'Lifecycle of an award. REVERSALS ARE THE FINDING.',                    TRUE,  'unknown'),
 ('quantity_unit',          'Unit of a non-monetary quantity',                                      TRUE,  NULL),
@@ -322,6 +323,10 @@ INSERT INTO vocabulary_terms (vocabulary, term, approved_by) VALUES
 
 ('funding_source','millage','schema-v0.2'),('funding_source','federal_grant','schema-v0.2'),
 ('funding_instrument','block_grant','schema-v0.2'),('funding_instrument','competitive_grant','schema-v0.2'),
+('involvement_role','lead','schema-v0.3'),('involvement_role','co_lead','schema-v0.3'),
+('involvement_role','implementer','schema-v0.3'),('involvement_role','community_partner','schema-v0.3'),
+('involvement_role','funder','schema-v0.3'),('involvement_role','regulator','schema-v0.3'),
+('involvement_role','beneficiary','schema-v0.3'),('involvement_role','participant','schema-v0.3'),
 ('funding_instrument','formula_grant','schema-v0.2'),('funding_instrument','mini_grant','schema-v0.2'),
 ('funding_instrument','sponsorship','schema-v0.2'),('funding_instrument','rebate','schema-v0.2'),
 ('funding_instrument','loan','schema-v0.2'),('funding_instrument','revolving_loan','schema-v0.2'),
@@ -513,6 +518,8 @@ CREATE TRIGGER trg_vocab_alt_rej BEFORE INSERT OR UPDATE ON considered_alternati
     FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('rejection_class','rejection_class');
 CREATE TRIGGER trg_vocab_commitments BEFORE INSERT OR UPDATE ON commitments
     FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('commitment_status','status');
+CREATE TRIGGER trg_vocab_coalition_role BEFORE INSERT OR UPDATE ON coalition_members
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('involvement_role','role');
 CREATE TRIGGER trg_vocab_fiscal_instr BEFORE INSERT OR UPDATE ON fiscal_references
     FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('funding_instrument','funding_instrument');
 CREATE TRIGGER trg_vocab_fiscal_src BEFORE INSERT OR UPDATE ON fiscal_references
