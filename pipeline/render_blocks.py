@@ -32,8 +32,14 @@ from __future__ import annotations
 import time
 
 from pipeline.convert_blocks import _matches_heading_shape
+from pipeline.headings import heading_level
 import re
 from pipeline.section_boundaries import _same_section
+
+
+def _deepest_toc_level(toc: list[dict]) -> int:
+    """The deepest level the contents declares. Sub-headings it omits sit below it."""
+    return max((e.get("level", 1) for e in toc), default=1)
 
 
 def figure_key(rec: dict) -> tuple:
@@ -56,6 +62,7 @@ def figure_key(rec: dict) -> tuple:
 def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                   page_markers: bool = False,
                   heading_shapes: set[str] | None = None,
+                  toc: list[dict] | None = None,
                   body_shapes: set[str] | None = None,
                   lead_ins: set[str] | None = None,
                   period: dict | None = None) -> str:
@@ -243,9 +250,22 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
         if kind == "SectionHeaderItem":
             if last_heading is not None and _same_section(text, last_heading):
                 continue                        # a continuation, not a new section
-            last_heading = text
-            out += [f"## {text}", ""]
-            continue
+            # THE CONTENTS PAGE DECIDES THE DEPTH, where the document has one. Without it
+            # every heading renders at `##`, which is what this did for every document
+            # before the contents was read -- and is still right for one that declares no
+            # hierarchy.
+            if toc:
+                level = heading_level(text, toc, _deepest_toc_level(toc))
+                if level is None:
+                    kind = "TextItem"           # a salutation, a sign-off, a paragraph
+                else:
+                    last_heading = text
+                    out += [f"{'#' * min(level + 1, 6)} {text}", ""]
+                    continue
+            else:
+                last_heading = text
+                out += [f"## {text}", ""]
+                continue
 
         # FURNITURE IS DECIDED BEFORE PROVENANCE. A footer recovered by the coverage
         # sweep is still a footer; letting the UncoveredText branch claim it first marked

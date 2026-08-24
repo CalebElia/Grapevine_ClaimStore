@@ -43,6 +43,7 @@ def main() -> int:
                          "recorded in the output, so an override is never silent.")
     ap.add_argument("--override-reason", default="",
                     help="why the refusal is being overridden")
+    ap.add_argument("--toc", help="<doc>.toc.json from pipeline.toc; sets heading depth")
     ap.add_argument("--page-markers", action="store_true",
                     help="emit <!-- p.N --> at each page change, for the human review pass")
     a = ap.parse_args()
@@ -158,7 +159,10 @@ def main() -> int:
         print(f"[blocks] coverage period: {period['text']} "
               f"({period['days']} days)"
               + ("" if 358 <= period['days'] <= 372 else "  <-- NOT A YEAR"))
-    md = render_blocks(blocks, figure_xml, a.title, page_markers=a.page_markers,
+    toc = (json.loads(Path(a.toc).read_text()).get('entries')
+           if a.toc and Path(a.toc).exists() else None)
+    md = render_blocks(blocks, figure_xml, a.title, toc=toc,
+                       page_markers=a.page_markers,
                        heading_shapes=heading_shapes(blocks),
                        body_shapes=body_shapes(blocks),
                        lead_ins=recurring_lead_ins(blocks), period=period)
