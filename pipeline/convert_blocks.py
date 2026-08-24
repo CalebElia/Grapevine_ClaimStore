@@ -1975,8 +1975,8 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             # where it should be read.
             dropped_garbled = [s for s in strays if looks_mis_decoded(s["text"])]
             strays = [s for s in strays if not looks_mis_decoded(s["text"])]
-            mis_decoded.extend({"page_no": pno, "text": s["text"][:80]}
-                               for s in dropped_garbled)
+            mis_decoded.extend({"page_no": pno, "text": s["text"][:80],
+                                "bbox": s.get("bbox")} for s in dropped_garbled)
             # A recovered region may itself be a caption (both real Year 5 cases were).
             # Associating it here, where the geometry lives, lets it follow its picture's
             # fate through the ordinary caption_for path instead of needing a second rule
@@ -2100,6 +2100,8 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
                 # by that route. Every fix in this module has had to be applied wherever raw
                 # characters enter, never only on the first path anyone patched.
                 if looks_mis_decoded(txt):
+                    # No geometry on this path -- the content sweep works from words, not
+                    # regions -- so the check falls back to page level for these.
                     mis_decoded.append({"page_no": pno, "text": txt[:80]})
                     continue
                 at = max((i for i, b in enumerate(resolved) if b["page_no"] <= pno),

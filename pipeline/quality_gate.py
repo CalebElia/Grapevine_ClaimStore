@@ -92,13 +92,84 @@ def find_numbers(text: str) -> set[str]:
 _ENUMERATED = re.compile(r";\s*(and|or)\s*$", re.I)
 
 
+def unread_suppressed(runs: list[dict] | None, figure_pages: set[int]) -> list[int]:
+    """Pages whose characters were suppressed and which nothing else read.
+
+    SUPPRESSING BAD TEXT IS HALF A FIX. The other half is reading the region some other way.
+    The CAP's ACTION cost cards render "$1,000,000" and decode as "$$11,,016000,,000000" --
+    a broken ToUnicode map in a subset font -- so the conversion refuses to emit them. On the
+    first run nothing read them instead: 21 runs suppressed, seven ACTION pages silently
+    lost their entire economics, and it was caught only because a person went looking.
+
+    THE EXISTING TRIGGER CANNOT SEE THIS. has_ocr_blocks fires when a page has NO usable text
+    layer; the CAP is 0% OCR and its text layer is simply WRONG. So the question the gate
+    asks is not "was this OCR" but "did anything read what we threw away".
+
+    A page is a hole or it is not, so several suppressed runs on one page report once.
+    """
+    if not runs:
+        return []
+    return sorted({r["page_no"] for r in runs} - set(figure_pages or ()))
+
+
+def is_bottom_left(origin) -> bool:
+    """Whether a bbox is in Docling's BOTTOMLEFT space and needs its tops flipped.
+
+    Docling records this as an enum whose string form is "CoordOrigin.BOTTOMLEFT", so a
+    startswith("BOTTOM") test is False and the flip silently never happens -- which put every
+    figure box in the wrong half of the page and turned six covered regions into reported
+    holes. Docling is BOTTOMLEFT, pdfplumber is TOP-LEFT, and every comparison between them
+    has to say so out loud.
+    """
+    return "BOTTOM" in str(origin or "").upper()
+
+
+def unread_suppressed_boxes(runs: list[dict] | None,
+                            covered: dict[int, list[tuple]] | None) -> list[int]:
+    """Pages holding a suppressed region that no extracted figure overlaps.
+
+    GEOMETRIC, NOT PER PAGE. Page-level coverage cleared six of the CAP's seven lost ACTION
+    cost cards, because each of those pages ALSO carries a GHG pie chart that vision did
+    read. A figure at the top of a page says nothing about a suppressed card at the bottom,
+    and the first version of this check reported one hole where there were seven.
+
+    A run with no geometry -- an older conversion report -- falls back to page level rather
+    than crashing, and is treated as covered if anything on its page was read. That errs
+    toward silence only where the evidence to do better does not exist.
+
+    `covered` is {page: [(x0, top, x1, bottom)]} in TOP-LEFT space, the same space the
+    conversion records stray regions in.
+    """
+    if not runs:
+        return []
+    covered = covered or {}
+    holes: set[int] = set()
+    for r in runs:
+        pno = r.get("page_no")
+        boxes = covered.get(pno, [])
+        bb = r.get("bbox")
+        if not bb:
+            if not boxes:
+                holes.add(pno)
+            continue
+        x0, y0, x1, y1 = bb[0], bb[1], bb[2], bb[3]
+        overlaps = any(not (x1 < bx0 or bx1 < x0 or y1 < by0 or by1 < y0)
+                       for bx0, by0, bx1, by1 in boxes)
+        if not overlaps:
+            holes.add(pno)
+    return sorted(holes)
+
+
 def is_enumerated_clause(text: str | None) -> bool:
     """Whether a block ends on a conjunction by legislative convention rather than by loss."""
     return bool(_ENUMERATED.search((text or "").strip()))
 
 
 def assess(text: str, page_map: list[tuple[int, int, int]], blocks: list[dict],
-           reference_words: int, reference_numbers: set[str]) -> list[Finding]:
+           reference_words: int, reference_numbers: set[str],
+           suppressed_runs: list[dict] | None = None,
+           figure_pages: set[int] | None = None,
+           covered_boxes: dict[int, list[tuple]] | None = None) -> list[Finding]:
     """Every finding for one conversion. Empty means nothing fired.
 
     `reference_*` describe the best INDEPENDENT read of the same PDF -- the other
@@ -107,6 +178,18 @@ def assess(text: str, page_map: list[tuple[int, int, int]], blocks: list[dict],
     """
     out: list[Finding] = []
     words = len(text.split())
+
+    # TEXT WE REFUSED TO TRUST, THAT NOTHING ELSE READ. See unread_suppressed().
+    holes = (unread_suppressed_boxes(suppressed_runs, covered_boxes)
+             if covered_boxes is not None
+             else unread_suppressed(suppressed_runs, figure_pages or set()))
+    if holes:
+        out.append(Finding(
+            "unread_suppressed_region", "medium",
+            f"{len(holes)} page(s) had characters suppressed as untrustworthy and no figure "
+            f"covers them, so whatever they said is lost: pages "
+            f"{', '.join(str(p) for p in holes[:12])}",
+            items=[{"page_no": p} for p in holes]))
 
     if reference_words > 0:
         ratio = words / reference_words

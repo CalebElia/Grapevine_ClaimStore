@@ -22,7 +22,7 @@ from pipeline.convert_blocks import (body_shapes, convert, coverage_period,
                                      heading_shapes, recurring_lead_ins)
 from pipeline.extract_figures import extract_figures, render_figure_block
 from pipeline.vision_extract import parse_relevance
-from pipeline.quality_gate import assess, find_numbers, verdict
+from pipeline.quality_gate import is_bottom_left, assess, find_numbers, verdict
 from pipeline.quality_gate import report as gate_report
 from pipeline.render_blocks import figure_key, render_blocks
 
@@ -115,9 +115,34 @@ def main() -> int:
     # nothing is perfectly self-consistent.
     dl_text = Path(a.blocks).with_suffix("").with_suffix(".md")
     ref = dl_text.read_text() if dl_text.exists() else ""
+    # PAGES A SUBSTANTIVE FIGURE COVERS. Deliberately not counting ornamental ones: vision
+    # looking at a region and judging it decoration means no data was captured, which is the
+    # same hole as not looking. Conservative here produces a finding a reviewer can dismiss;
+    # generous produces silence about lost data.
+    figure_pages = {f["page_no"] for f in keep}
+    # THE BOXES VISION ACTUALLY READ, in top-left space. Docling records picture bboxes
+    # BOTTOMLEFT, so tops are flipped through page height -- the same conversion the
+    # coverage sweep does, and the reason a suppressed region and a figure can be compared
+    # at all.
+    read = {figure_key(f) for f in keep}
+    covered_boxes: dict[int, list[tuple]] = {}
+    for b in blocks:
+        if b.get("kind") != "PictureItem" or figure_key(b) not in read:
+            continue
+        bb, H = b.get("bbox"), float(b.get("page_h") or 0)
+        if not bb:
+            continue
+        l, t, r, bt = bb
+        if is_bottom_left(b.get("coord_origin")) and H:
+            t, bt = H - t, H - bt
+        covered_boxes.setdefault(b["page_no"], []).append(
+            (min(l, r), min(t, bt), max(l, r), max(t, bt)))
     findings = assess(conv.text, conv.page_map, blocks,
                       reference_words=len(ref.split()),
-                      reference_numbers=find_numbers(ref))
+                      reference_numbers=find_numbers(ref),
+                      suppressed_runs=conv_report.get("mis_decoded_runs"),
+                      figure_pages=figure_pages,
+                      covered_boxes=covered_boxes)
     print(gate_report(findings, Path(a.pdf).name))
     v = verdict(findings)
 
