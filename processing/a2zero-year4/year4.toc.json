@@ -1,0 +1,84 @@
+{
+ "pages": [
+  2
+ ],
+ "entries": [
+  {
+   "title": "INTRODUCTION",
+   "page_ref": 3,
+   "x0": 351,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "GREENHOUSE GAS EMISSIONS",
+   "page_ref": 4,
+   "x0": 209,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "STRATEGY 1: 100% RENEWABLES",
+   "page_ref": 5,
+   "x0": 194,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "STRATEGY 2: BENEFICIAL ELECTRIFICATION",
+   "page_ref": 8,
+   "x0": 85,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "STRATEGY 3: ENERGY EFFICIENCY",
+   "page_ref": 11,
+   "x0": 179,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "STRATEGY 4: VMT REDUCTION",
+   "page_ref": 13,
+   "x0": 213,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "STRATEGY 5: CIRCULAR ECONOMY",
+   "page_ref": 15,
+   "x0": 166,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "STRATEGY 6: RESILIENCE",
+   "page_ref": 17,
+   "x0": 265,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "STRATEGY 7: OTHER",
+   "page_ref": 19,
+   "x0": 313,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "YEAR 5 PRIORITIES",
+   "page_ref": 22,
+   "x0": 325,
+   "page_no": 2,
+   "level": 1
+  },
+  {
+   "title": "CLOSING",
+   "page_ref": 24,
+   "x0": 414,
+   "page_no": 2,
+   "level": 1
+  }
+ ]
+}
