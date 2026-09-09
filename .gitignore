@@ -32,3 +32,12 @@ snapshots/
 
 # Legistar raw response cache — immutable layer, reproducible by re-fetch
 .cache/
+
+# Point-in-time pg_dump of the local database. Generated, and generated files go stale --
+# which is the exact failure schema/DRIFT.md documents, so committing one alongside it would
+# be the problem wearing the costume of the fix. tests/test_schema_drift.py now enforces the
+# invariant the snapshot was written to diagnose: canonical schema == canonical + migrations.
+# Regenerate whenever you want to look at the real thing:
+#   "$(conda info --base)"/envs/grapevine-db/bin/pg_dump -h /tmp -p 5433 -U grapevine \
+#       -d grapevine --schema-only --no-owner --no-privileges -f schema/live-snapshot.sql
+schema/live-snapshot.sql

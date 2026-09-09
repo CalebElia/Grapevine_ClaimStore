@@ -4,6 +4,10 @@
 > two files alone is identical to the live one across tables, columns, views, triggers,
 > vocabularies and terms.
 >
+> `schema/live-snapshot.sql` is **not committed** — it is a generated dump, and a stale
+> generated file is the very thing this report is about. The command that produces it is
+> in `.gitignore` and below.
+>
 > `tests/test_schema_drift.py` now builds one database from the canonical files and another
 > from canonical-plus-migrations and fails on any difference, so this cannot recur silently.
 >
