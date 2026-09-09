@@ -1,0 +1,59 @@
+{
+  "_why": [
+    "The wiki writes actor-type in kebab-case and finer-grained than the store's org_type",
+    "vocabulary, which is snake_case and coarser. resolve_orgs passed the value straight",
+    "through, so only nonprofit / business / utility happened to match; every other value hit",
+    "the trigger, fell back to 'other', and logged a proposal. 81 of 142 orgs ended up typed",
+    "'other' and 17 terms sat pending.",
+    "",
+    "MAPPING, NOT APPROVING. Adding the 17 kebab-case spellings as terms would fragment the",
+    "vocabulary into two dialects for the same categories -- the same mistake as keying the",
+    "CAP as doc_type='cap' when 'plan' was already approved. The source's spelling is",
+    "translated at the boundary instead.",
+    "",
+    "JUDGEMENT CALLS are marked below. They live here rather than in code so they can be",
+    "changed without a patch, and so it is obvious that somebody chose them."
+  ],
+  "_unmapped_is_a_finding": [
+    "An actor-type absent from this map is NOT silently passed through to the trigger. It is",
+    "reported by resolve_orgs and left NULL, because falling back to 'other' is exactly how",
+    "the drift went unnoticed for 81 orgs."
+  ],
+  "map": {
+    "nonprofit": "nonprofit",
+    "business": "business",
+    "utility": "utility",
+    "company": "business",
+
+    "government-office": "government",
+    "government-agency": "government",
+    "government-commission": "government",
+    "government-department": "government_dept",
+    "city-department": "government_dept",
+
+    "university": "academic",
+    "university-program": "academic",
+    "educational-institution": "academic",
+    "research-institution": "academic",
+
+    "labor-union": "union",
+    "funder": "foundation",
+    "coalition": "advocacy_coalition",
+    "trade-association": "advocacy_coalition",
+    "religious-organization": "faith_group",
+
+    "state-program": "government",
+    "fellowship-program": "other"
+  },
+  "_judgement_calls": {
+    "state-program": "Michigan Green Communities. The wiki says 'state-program', so 'government' follows its own label -- but MGC is run by the Michigan Municipal League, a nonprofit association. Flip to advocacy_coalition if you read it that way.",
+    "trade-association": "Michigan Energy Innovation Business Council -- a business advocacy body, so advocacy_coalition rather than business.",
+    "fellowship-program": "ReDirect. A fellowship programme is not an organisation kind; 'other' is the honest answer rather than a guess at nonprofit.",
+    "government-commission": "Planning/Housing/Transportation Commissions. Neither an office nor a department; 'government' is the true coarse answer.",
+    "religious-organization": "Church of the Good Shepherd. Needs the new faith_group term -- see below."
+  },
+  "_new_term": {
+    "faith_group": "The only genuinely new category. 'nonprofit' would be technically true and lose the thing that matters: the CAP names Places of Worship as their own engagement channel in Strategy 3, so faith organisations are a distinct route to residents, not a funding structure."
+  },
+  "_not_an_org": ["person", "government-role"]
+}

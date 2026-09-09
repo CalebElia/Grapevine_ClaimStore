@@ -246,6 +246,45 @@ any acquisition.
 
 ---
 
+## 12. The annual reports stay on the older reader — decided
+
+**Ruled: leave Years 1–5 exactly as they are.** They are human-validated, and re-processing
+buys nothing that validation has not already established. Not an open item; recorded here so
+the asymmetry below is not mistaken for an oversight later.
+
+Fixing the CAP changed seven things in the conversion that apply to *every* document:
+
+| change | what it does differently |
+|---|---|
+| three-stage grouping in `group_uncovered` | swept words are grouped into lines, split at column boundaries, then merged into blocks — previously one tolerance did all three and interleaved two-column pages |
+| `_COLUMN_GAP_EMS` | a gap over 4 ems is a column boundary, so grid and two-column layouts no longer collapse into one line |
+| `is_display_line` guard on `rejoin_open_sentences` | an all-caps display heading is no longer welded to the sentence below it |
+| the `box_overflows_text` gate on the OCR fallback | a block whose box cannot hold its own text no longer imports the model's characters where a text layer exists |
+| `TableItem` blocks | tables Docling detects reach the output as markdown instead of being dropped and swept up as loose words |
+| `join_split_thousands` | a number the word splitter cut at a thousands separator is rejoined (`$9,440 ,000` → `$9,440,000`) |
+| captions fold into `<figure_description>` | a figure's printed caption renders as `<caption_text>` inside the block rather than as a loose line above it |
+
+**So the corpus is not converted uniformly, on purpose.** The A2ZERO annual reports were read
+by the pre-CAP converter; everything from the CAP onward is read by this one. Consequences
+worth knowing before they surprise someone:
+
+- The 903 stored claims' `char_start`/`char_end` spans are valid against the text they were
+  extracted from, and `quality_gate`'s round-trip check still passes. Provenance is by sha256
+  of the **PDF**, which has not moved, so `record_provenance --verify` is unaffected.
+- A defect **fixed** here may still be present in the annual reports' markdown — most likely
+  interleaved two-column passages and headings welded to following sentences. If one turns up
+  in a Year 1–5 review, it is a known consequence of this decision, not a new regression.
+- The comparison is still safe. Nothing above alters *which characters* a document contains;
+  they change how text is grouped, ordered and labelled. Claims are quoted `verbatim` from
+  their own document and compared as text, not as offsets into a common rendering.
+
+**If this is ever revisited**, the cost is re-running Docling per document (~10 minutes each
+at their length, against the CAP's 73) *and* redoing the section approvals and human verdicts
+that `parse_reviewed_by` and migration 014 exist to protect. The second half is the expensive
+one, and it grows with the corpus.
+
+---
+
 ## What is already settled, so you do not re-check it
 
 - **Provenance.** All five documents are bound to their source PDF by sha256.

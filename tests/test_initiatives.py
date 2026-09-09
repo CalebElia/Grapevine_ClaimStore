@@ -154,8 +154,18 @@ def test_roles_come_from_the_controlled_vocabulary():
 
 @pytest.mark.skipif(not _db(), reason="no database")
 def test_the_annual_report_claims_still_have_their_subjects():
-    """The initiative layer must not disturb what already worked."""
+    """The initiative layer must not disturb what already worked.
+
+    SCOPED TO THE ANNUAL REPORTS, which is what the name always claimed and what the query
+    did not. It counted every claim in the store, so it silently became "every document ever
+    ingested is fully subject-assigned" -- an assertion nobody made, which the CAP broke the
+    moment it landed. The invariant worth protecting is that the five reports keep theirs.
+    """
     import psycopg
     with psycopg.connect(DSN) as c:
-        missing = c.execute("SELECT count(*) FROM claims WHERE subject_id IS NULL").fetchone()[0]
+        missing = c.execute(
+            "SELECT count(*) FROM claims cl "
+            "JOIN document_sections s ON s.id = cl.document_section_id "
+            "JOIN documents d ON d.id = s.document_id "
+            "WHERE d.doc_type = 'annual_report' AND cl.subject_id IS NULL").fetchone()[0]
     assert missing == 0

@@ -88,6 +88,37 @@ def cross_cutting_subject(heading: str | None, rules: dict | None) -> str | None
     return None
 
 
+def section_topics(headings: list[tuple[int, str | None]],
+                   rules: dict | None) -> dict[int, str]:
+    """{section_id: topic} for one document's sections, in sequence order.
+
+    A RUN, NOT A PATTERN PER SECTION. The CAP's ideas appendix is 35 sections whose headings
+    are ordinary words -- "Financing", "Energy", "Water", "Response" -- that also name real
+    content sections elsewhere in the same document. Matching those words would mis-frame the
+    real ones. What identifies the appendix is CONTAINMENT: everything after its heading
+    belongs to it. document_sections is flat, so containment has to be expressed as a run
+    over `sequence`, which is exactly what the reading order already encodes.
+
+    `headings` must be (section_id, heading) in sequence order. Sections before the opening
+    heading, and any document type with no rule, get nothing -- absence is the normal case.
+    """
+    out: dict[int, str] = {}
+    for rule in ((rules or {}).get("section_topics", {}) or {}).get("runs", []):
+        rx = re.compile(rule["opens_with"], re.I)
+        topic, started = rule["topic"], False
+        for sec_id, heading in headings:
+            if not started:
+                if rx.search((heading or "").strip()):
+                    started = True
+                    if rule.get("include_opening_section"):
+                        out[sec_id] = topic
+                continue
+            out[sec_id] = topic
+        # A run that never opened is not an error: the rule describes a section this
+        # particular document may simply not have.
+    return out
+
+
 def section_subject_key(heading: str | None, is_front_matter: bool = False,
                         rules: dict | None = None,
                         valid: set[int] | None = None) -> str | None:
@@ -255,6 +286,41 @@ def assign(dsn: str, dry_run: bool = False) -> dict:
     return counts
 
 
+def apply_topics(dsn: str, dry_run: bool = False) -> dict:
+    """Write section_topic for every document whose type declares a run. Returns counts.
+
+    Separate from assign() because they answer different questions and one must not gate the
+    other: a section can have a topic and no subject (the ideas appendix), or a subject and
+    no topic (every strategy section).
+    """
+    import psycopg
+
+    counts = {"topics": 0, "documents": 0, "no_rules": 0}
+    with psycopg.connect(dsn) as c, c.cursor() as cur:
+        cur.execute("""SELECT d.id, d.doc_type, j.name FROM documents d
+                       LEFT JOIN jurisdictions j ON j.id = d.jurisdiction_id ORDER BY d.id""")
+        for doc_id, doc_type, juris in cur.fetchall():
+            juris = re.sub(r"[^a-z0-9]+", "_", (juris or "ann arbor").lower()).strip("_")
+            rules = load_section_rules(juris, doc_type)
+            if not rules or not rules.get("section_topics"):
+                counts["no_rules"] += 1
+                continue
+            cur.execute("""SELECT id, heading FROM document_sections
+                           WHERE document_id=%s ORDER BY sequence""", (doc_id,))
+            found = section_topics(cur.fetchall(), rules)
+            if not found:
+                continue
+            counts["documents"] += 1
+            counts["topics"] += len(found)
+            if not dry_run:
+                for sec_id, topic in found.items():
+                    cur.execute("UPDATE document_sections SET section_topic=%s WHERE id=%s",
+                                (topic, sec_id))
+        if not dry_run:
+            c.commit()
+    return counts
+
+
 def main() -> int:
     import argparse
     import os
@@ -265,6 +331,8 @@ def main() -> int:
     ap.add_argument("--created-by", default="caleb (from a2zero-wiki strategies)")
     ap.add_argument("--dsn", default=os.environ.get(
         "GRAPEVINE_DSN", "host=/tmp port=5433 user=grapevine dbname=grapevine"))
+    ap.add_argument("--topics", action="store_true",
+                    help="set section_topic from the doc type's declared runs")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
@@ -277,8 +345,12 @@ def main() -> int:
               f"{r['no_subject']} section(s) left without one · "
               f"{r['no_rules']} section(s) in doc types with no structural route"
               + ("  (dry run — nothing written)" if a.dry_run else ""))
-    if not (a.seed or a.assign):
-        ap.error("nothing to do: pass --seed and/or --assign")
+    if a.topics:
+        r = apply_topics(a.dsn, a.dry_run)
+        print(f"[subjects] {r['topics']} section topic(s) across {r['documents']} document(s)"
+              + ("  (dry run — nothing written)" if a.dry_run else ""))
+    if not (a.seed or a.assign or a.topics):
+        ap.error("nothing to do: pass --seed, --assign and/or --topics")
     return 0
 
 

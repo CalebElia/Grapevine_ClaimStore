@@ -17,6 +17,15 @@
       "covers_period_end": "2022-06-30",
       "source": "human_estimate",
       "note": "FY2022. Caleb, 2026-08-21. The report prints '2021 - 2022', a year pair with no dates. Resolved to Ann Arbor's fiscal year on the series convention that Years 3 and 4 state explicitly. Best estimate, not stated by the document."
+    },
+    {
+      "document": "cap-2020",
+      "published_date": "2020-04-01",
+      "covers_period_start": "2020-01-01",
+      "covers_period_end": "2030-12-31",
+      "source": "human_estimate",
+      "note": "A2ZERO CAP-2020. Published April 2020 (stated on the cover: 'APRIL 2020'); the day is not printed, so the first of the month stands for the month. The period is the PLAN'S HORIZON, not a reporting window: the document's central commitment is community-wide carbon neutrality by 2030, restated in almost every Action's Indicators of Success, and its Timeline sections run from 2020 to 2030. Recorded as human_estimate because the document states the 2030 goal and the April 2020 publication but never prints the range as a period -- the synthesis is a curator's. Caleb, 2026-08-27. Framing context for every Action timeline: a 2027 milestone is seven years into a ten-year plan, not a late date."
     }
-  ]
+  ],
+  "_published_vs_covers": "TWO DIFFERENT DATES, and documents.py warns that conflating them breaks chronology. published_date is when the document came out; covers_period_start/end is the real-world period it is ABOUT. For an annual report the second is backward-looking. For a PLAN it is forward-looking -- the horizon it plans for -- and that is not a different meaning of the column, it is the same meaning pointing the other way."
 }

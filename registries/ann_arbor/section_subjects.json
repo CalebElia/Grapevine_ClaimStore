@@ -1,27 +1,19 @@
 {
   "_what": "How a document's own section structure names the subject that section is about. Keyed by document type, because the structure is a property of the document type and not of the jurisdiction's policy.",
-
   "_why_per_doc_type": "The seven A2ZERO strategies are formal to Ann Arbor's plan, and the STRATEGY heading language appears only in formal reports. Council minutes, MPSC dockets, news coverage and staff memos talk about the projects, policies and initiatives that SUPPORT a strategy, and almost never name the strategy. So the structural route from heading to subject exists for annual_report and will simply not exist for most document types.",
-
   "_absence_is_normal": "A document type with no entry here has no structural route to a subject. That is the expected case, not a misconfiguration. Those documents get their subject some other way -- by matching initiative and project names against subject_aliases, or through a matter -- and until that pass exists their claims carry no subject rather than a guessed one.",
-
   "_what_is_NOT_here": "The subjects themselves. Those live in the `subjects` table, seeded from the a2zero-wiki, and are a property of Ann Arbor's climate policy rather than of any document. A council minute about a solar millage maps to the SAME subject row as an annual report section. This file only records how one document type happens to signpost them.",
-
   "_numbers_are_not_in_the_code": "There is deliberately no maximum strategy number here or anywhere in the pipeline. The valid numbers are whichever strategy subjects were actually seeded for this jurisdiction, read from the database at assignment time. A plan with nine strategies works without an edit; a hardcoded seven breaks at the first other jurisdiction.",
-
   "jurisdiction": "ann_arbor",
-
   "doc_types": {
     "annual_report": {
       "note": "A2ZERO annual reports, FY2021-FY2025. All five organise into the same seven strategies and title them differently every year: 'Strategy 1: Power our electrical grid with 100% renewable energy', 'STRATEGY ONE: POWER OUR ELECTRICAL GRID...', 'STRATEGY 1: 100% RENEWABLES'.",
-
       "numbered_series": {
         "keyword": "strateg(?:y|ies)",
         "subject_key": "strategy-{n}",
         "allow_spelled_out": true,
         "note": "Anchored on the keyword, NEVER on a digit anywhere in the heading. 'YEAR 5 PRIORITIES' contains a 5 and is not Strategy 5; 'A2ZERO Year 3 Priorities' contains a 3."
       },
-
       "headings": [
         {
           "match": "greenhouse gas emissions summary",
@@ -36,15 +28,59 @@
           "note": "Narrative sections speak about the plan as a whole. A claim with no subject is invisible to every aggregate, so these get the parent rather than nothing -- which is also true to the text."
         }
       ],
-
       "front_matter": "a2zero",
       "front_matter_note": "Everything before the first heading is the report's own framing of A2ZERO. Year 2 carries five claims there, all about the plan itself, where other years use an INTRODUCTION heading. Front matter holding only a title and a sign-off produces no claims, so the rule costs nothing where it does not apply.",
-
       "unmapped": [
         "contents",
         "a repeated cover title such as '2021 - 2022 Annual Report' or 'YEAR THREE ANNUAL REPORT'"
       ],
       "unmapped_note": "Navigational sections get NO subject. A table of contents is not about anything, and giving it one would put structural furniture into topic aggregates. All four such sections in this corpus carry zero claims, and a test keeps those two facts consistent."
+    },
+    "plan": {
+      "note": "KEYED 'plan', NOT 'cap', because doc_type is a controlled vocabulary and 'plan' is the approved term that describes this document exactly. Inventing 'cap' would fragment the vocabulary for no gain -- and doc_type's fallback_term is NULL, so nothing would have corrected it. A2ZERO CAP-2020, the plan the annual reports report against. Its structure is three deep -- parts, seven Strategies, 44 named Actions -- and document_sections is flat, so the Actions are sibling sections that FOLLOW their Strategy in sequence. The Strategy link is structural and lives here; the Action link is not, and cannot be: an Action names an initiative, and which initiative is a matching question against `subjects`, not a regex. See _actions_are_not_here below.",
+      "numbered_series": {
+        "keyword": "strateg(?:y|ies)",
+        "subject_key": "strategy-{n}",
+        "allow_spelled_out": true,
+        "note": "Identical in shape to the annual_report rule, because the CAP is where those seven strategies are DEFINED and the reports merely cite them. Anchored on the keyword, never on a digit: 'Appendix 1' and 'ACTION 6' both carry numbers and are not strategies."
+      },
+      "headings": [
+        {
+          "match": "^other actions$",
+          "subject_key": "strategy-7",
+          "anchored": true,
+          "note": "THE CAP'S SEVENTH STRATEGY IS TITLED 'Other', so it has no 'Strategy 7:' heading and the numbered_series rule cannot see it. Verified structurally, not guessed: the four sections under this heading -- Advance Equity Programs, Promote Sustaining Ann Arbor Together Grant Program, Establish Internal Carbon Price, Offset Greenhouse Gas Emissions -- are exactly the four rows the document's own Action Summary Table lists under STRATEGY 7. ANCHORED, and 'Other Actions' not 'Other': a bare 'Other' heading also exists at p.17 as an input-source in the planning-process section, and matching it would file the planning narrative under a strategy."
+        },
+        {
+          "match": "^(executive summary|introduction|closing|a.?zero (values|mission|strategy|planning process|five pillars of planning))$",
+          "subject_key": "a2zero",
+          "anchored": true,
+          "note": "The plan talking about itself. A claim with no subject is invisible to every aggregate, and these sections are genuinely about A2ZERO as a whole."
+        }
+      ],
+      "front_matter": "a2zero",
+      "front_matter_note": "Everything before the first heading is the plan's own framing -- on this document the title line and the welcome letter's salutation.",
+      "unmapped": [
+        "WELCOME LETTER -- a signed letter from officials, about the plan but not asserting its content",
+        "Appendix 1-5 -- event logs, committee rosters and the enabling resolution",
+        "Postponed or Delayed Events",
+        "TOPIC: ENERGY / MOBILITY / RESOURCE REDUCTION -- appendix 5's idea lists"
+      ],
+      "unmapped_note": "No subject rather than a guessed one. An appendix listing 200 public events asserts nothing about a strategy, and tagging it 'a2zero' would put attendance logs into every plan-level aggregate.",
+      "_actions_are_not_here": "The 44 Actions ('Implement Community Choice Aggregation') are NOT listed as heading rules, deliberately. Each names an initiative that already exists as a subject with subject_kind='initiative', seeded from the wiki by pipeline/initiatives.py, and the link from Action to initiative is a match against those rows -- measured at 40 of 50 on slug keywords, with 10 needing a human. Writing 44 regexes here would freeze that matching into a config file, hide the 10 failures, and duplicate an identity the subjects table already holds. The Strategy an Action advances is likewise not here: it lives in subject_framework_categories, which is many-to-many because an Action can advance two.",
+      "section_topics": {
+        "_what": "How this document type signposts a section whose claims must be read differently. section_topic is what a section IS; subject_id is what it is ABOUT. A section with neither is the normal case.",
+        "_why_a_range_and_not_patterns": "The ideas appendix is 35 sections whose headings -- 'Financing', 'Energy', 'Response', 'Water' -- are ordinary words that also appear as real content headings elsewhere in the document. 'Energy' at sequence 106 is a list of rejected ideas; 'Energy Production' at 77 is too; but matching those words anywhere would mis-frame real sections. What actually identifies them is CONTAINMENT: every section after the appendix heading belongs to it, because document_sections is flat and the appendix is the last thing in the document. So the rule names the heading that OPENS the run, and the run continues to the end.",
+        "runs": [
+          {
+            "opens_with": "^appendix 5\\b.*ideas considered",
+            "topic": "ideas_considered",
+            "through_end_of_document": true,
+            "include_opening_section": false,
+            "note": "The opening section is EXCLUDED: it is the appendix's own framing prose, and its five claims are ordinary assertions about how the Plan was made ('The Plan presented above includes the ideas evaluated to be the most impactful'). Only the lists beneath it are ideas that were not adopted."
+          }
+        ]
+      }
     }
   }
 }

@@ -36,6 +36,31 @@ WIKI = Path("../a2zero-wiki")
 # actor-type values that are not organisations. Everything else is.
 _NOT_AN_ORG = {"person", "government-role"}
 
+# The wiki's actor-type spellings translated to the store's org_type vocabulary. Kept in a
+# registry rather than here because several entries are judgement calls, and a judgement
+# should be visible to the person who has to live with it.
+_ORG_TYPES = Path(__file__).parent.parent / "registries" / "ann_arbor" / "org_types.json"
+
+
+def org_type_map(path: Path = _ORG_TYPES) -> dict[str, str]:
+    return json.loads(path.read_text())["map"] if path.exists() else {}
+
+
+def map_org_type(kind: str | None, mapping: dict[str, str]) -> tuple[str | None, str | None]:
+    """(org_type, unmapped). Exactly one is non-None; an unknown kind is a finding.
+
+    NOT A PASSTHROUGH, AND NOT A GUESS. Passing an unrecognised value on lets the vocabulary
+    trigger store the fallback 'other' and file a proposal nobody reads -- which is how 81 of
+    142 orgs came to be typed 'other'. Returning it as unmapped puts it in front of a person
+    while it is still one row rather than eighty.
+    """
+    if not kind:
+        return None, None
+    k = kind.strip().strip("'\"").lower()
+    if k in mapping:
+        return mapping[k], None
+    return None, k
+
 # An alias this short must be a standalone token, never a substring. "CAN" inside
 # "candidate" is not Community Action Network, and neither is "can" in "can be".
 _SHORT_ALIAS = 5
@@ -47,6 +72,7 @@ def _clean(v: str) -> str:
 
 def read_actors(wiki: Path = WIKI) -> list[dict]:
     """The wiki's actor files -> org records. One-way; the wiki is never written to."""
+    mapping = org_type_map()
     out = []
     for f in sorted(glob.glob(str(wiki / "wiki/actors/*.md"))):
         head = open(f).read()[:1200]
@@ -54,7 +80,8 @@ def read_actors(wiki: Path = WIKI) -> list[dict]:
         kind, title = get("actor-type"), get("title")
         if not title or kind in _NOT_AN_ORG:
             continue
-        out.append({"name": title, "org_type": kind or None,
+        org_type, unmapped = map_org_type(kind, mapping)
+        out.append({"name": title, "org_type": org_type, "unmapped_type": unmapped,
                     "slug": os.path.basename(f)[:-3]})
     return out
 
@@ -150,6 +177,39 @@ def seed(dsn: str = DSN, wiki: Path = WIKI, jurisdiction_id: int = 1) -> int:
     return n
 
 
+def backfill_types(dsn: str = DSN, wiki: Path = WIKI, dry_run: bool = False) -> dict:
+    """Retype orgs already seeded, from the wiki via the mapping registry.
+
+    SEPARATE FROM seed(), which skips a row that already exists -- correct for names, wrong
+    for a column whose translation has since been fixed. Matching is on the wiki SLUG kept in
+    `notes`, not the name: a name can be edited in the store, the provenance string is what
+    says which file the row came from.
+    """
+    import psycopg
+
+    actors = {a["slug"]: a for a in read_actors(wiki)}
+    changed, unchanged, no_source = [], 0, []
+    with psycopg.connect(dsn) as c, c.cursor() as cur:
+        cur.execute("SELECT id, name, org_type, notes FROM orgs ORDER BY id")
+        for oid, name, current, notes in cur.fetchall():
+            slug = None
+            if notes and "wiki/actors/" in notes:
+                slug = notes.rsplit("wiki/actors/", 1)[1].removesuffix(".md")
+            a = actors.get(slug or "")
+            if not a:
+                no_source.append((oid, name))
+                continue
+            if a["org_type"] == current:
+                unchanged += 1
+                continue
+            changed.append((oid, name, current, a["org_type"]))
+            if not dry_run:
+                cur.execute("UPDATE orgs SET org_type=%s WHERE id=%s", (a["org_type"], oid))
+        if not dry_run:
+            c.commit()
+    return {"changed": changed, "unchanged": unchanged, "no_wiki_source": no_source}
+
+
 def resolve(section_id: int | None, dsn: str = DSN, wiki: Path = WIKI,
             dry_run: bool = False) -> list[dict]:
     """Attach org_id where a claim's own verbatim names exactly one organisation.
@@ -170,9 +230,19 @@ def resolve(section_id: int | None, dsn: str = DSN, wiki: Path = WIKI,
         # substring instead fans out catastrophically: "city-of-ann-arbor" is a substring
         # of six department names, so any claim mentioning the City named all six and was
         # reported ambiguous. A containment test between two identifiers is not a lookup.
-        cur.execute("SELECT id, name, notes FROM orgs")
+        # live_orgs, not orgs: a merged duplicate keeps its row so the wiki seeder can still
+        # resolve the file that made it (migrations/026), but attaching a claim to a tombstone
+        # would put the claim somewhere nothing else points.
+        cur.execute("SELECT id, name, notes FROM live_orgs")
         rows_ = cur.fetchall()
         orgs = [(oid, name) for oid, name, _ in rows_]
+        # A MERGE MUST NOT COST A NAME. `SPARK Ann Arbor` and `United States Department of
+        # Energy` are names documents actually print; they survive as aliases of the survivor,
+        # and matching reads them alongside the canonical name. Without this the merge would
+        # quietly reduce what the resolver can find.
+        cur.execute("""SELECT a.org_id, a.alias FROM org_aliases a
+                         JOIN live_orgs o ON o.id = a.org_id""")
+        alias_rows = cur.fetchall()
         by_slug = {}
         for oid, _name, notes in rows_:
             m = re.search(r"wiki/actors/([\w.-]+)\.md", notes or "")
@@ -184,6 +254,10 @@ def resolve(section_id: int | None, dsn: str = DSN, wiki: Path = WIKI,
         cur.execute(q, (section_id,) if section_id else ())
         for cid, verbatim in cur.fetchall():
             hits = {oid: name for oid, name in orgs if mentions(verbatim, name)}
+            names = dict(orgs)
+            for oid, alias in alias_rows:
+                if oid not in hits and mentions(verbatim, alias):
+                    hits[oid] = names[oid]
             for alias, slug in aliases.items():
                 if slug in by_slug and mentions(verbatim, alias):
                     oid = by_slug[slug]

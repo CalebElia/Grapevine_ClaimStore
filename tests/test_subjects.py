@@ -132,25 +132,66 @@ DSN = "host=/tmp port=5433 user=grapevine dbname=grapevine"
 
 
 @pytest.mark.skipif(not _db(), reason="no database")
-def test_every_claim_has_a_subject():
+def test_every_annual_report_claim_has_a_subject():
+    """SCOPED, because the assertion only ever held for the corpus it was written against.
+
+    Unscoped this read "every claim in the store", which made it a claim about documents not
+    yet ingested. The CAP's Action sections legitimately have no subject: an Action names an
+    initiative, and which initiative is a match against `subjects`, not a heading regex. That
+    gap is asserted separately below so it stays visible rather than disappearing here.
+    """
     import psycopg
     with psycopg.connect(DSN) as c:
         missing, total = c.execute(
-            "SELECT count(*) FILTER (WHERE subject_id IS NULL), count(*) FROM claims"
-        ).fetchone()
-    assert missing == 0, f"{missing} of {total} claims have no subject"
+            "SELECT count(*) FILTER (WHERE cl.subject_id IS NULL), count(*) FROM claims cl "
+            "JOIN document_sections s ON s.id = cl.document_section_id "
+            "JOIN documents d ON d.id = s.document_id "
+            "WHERE d.doc_type = 'annual_report'").fetchone()
+    assert missing == 0, f"{missing} of {total} annual-report claims have no subject"
 
 
 @pytest.mark.skipif(not _db(), reason="no database")
-def test_sections_without_a_subject_carry_no_claims():
+def test_the_plan_claims_without_a_subject_are_a_known_gap():
+    """A GAP THAT IS MEASURED IS NOT A SILENT ONE.
+
+    The CAP's Strategy sections resolve through the registry; its 44 Action sections do not,
+    by design. This records the size of that gap so the resolver's arrival is visible as a
+    number going down, and so a REGRESSION -- claims losing subjects they had -- fails here
+    rather than looking like more of the same.
+    """
+    import psycopg
+    with psycopg.connect(DSN) as c:
+        rows = c.execute(
+            "SELECT count(*) FILTER (WHERE cl.subject_id IS NULL), count(*) FROM claims cl "
+            "JOIN document_sections s ON s.id = cl.document_section_id "
+            "JOIN documents d ON d.id = s.document_id WHERE d.doc_type = 'plan'").fetchone()
+    missing, total = rows
+    if total == 0:
+        pytest.skip("no plan ingested")
+    assert missing < total, "every plan claim lacks a subject — the registry is not applying"
+    assert missing / total < 0.95, f"{missing} of {total} — worse than when measured"
+
+
+@pytest.mark.skipif(not _db(), reason="no database")
+def test_navigational_sections_of_a_report_carry_no_claims():
     """Navigational sections get no subject on purpose. If one ever holds a claim, the claim
-    is invisible to every topic aggregate -- so the two facts must stay consistent."""
+    is invisible to every topic aggregate -- so the two facts must stay consistent.
+
+    SCOPED TO ANNUAL REPORTS. Unscoped, this said "a section with no subject is navigational",
+    which was true of a corpus where every non-navigational section resolved through a heading
+    rule. The CAP breaks the premise rather than the invariant: its Action sections are full of
+    claims and have no subject because an Action names an INITIATIVE, and which initiative is a
+    match against `subjects` rather than a regex. That gap is measured in
+    test_the_plan_claims_without_a_subject_are_a_known_gap, not hidden here.
+    """
     import psycopg
     with psycopg.connect(DSN) as c:
         rows = c.execute(
             "SELECT s.id, count(cl.*) FROM document_sections s "
+            "JOIN documents d ON d.id = s.document_id "
             "LEFT JOIN claims cl ON cl.document_section_id = s.id "
-            "WHERE s.subject_id IS NULL GROUP BY s.id HAVING count(cl.*) > 0").fetchall()
+            "WHERE s.subject_id IS NULL AND d.doc_type = 'annual_report' "
+            "GROUP BY s.id HAVING count(cl.*) > 0").fetchall()
     assert rows == [], f"sections with claims but no subject: {rows}"
 
 
@@ -164,8 +205,10 @@ def test_all_seven_strategies_are_present_in_all_five_reports():
             "SELECT d.id, count(DISTINCT s.subject_id) FROM documents d "
             "JOIN document_sections s ON s.document_id = d.id "
             "JOIN subjects sub ON sub.id = s.subject_id "
-            "WHERE sub.name LIKE 'Strategy %' GROUP BY d.id ORDER BY d.id").fetchall()
-    assert len(rows) == 5
+            "WHERE sub.name LIKE 'Strategy %' AND d.doc_type = 'annual_report' "
+            "GROUP BY d.id ORDER BY d.id").fetchall()
+    assert len(rows) == 5, ("expected the five annual reports; a sixth document here means "
+                            "the query is no longer scoped to the corpus it describes")
     assert all(n == 7 for _, n in rows), rows
 
 
@@ -182,11 +225,17 @@ def test_no_subject_is_unreachable_from_the_plan():
     The invariant the original test was defending still matters -- Bryant sat unreachable
     from any roll-up until it was reparented -- so it is stated over every route: a subject
     must hang under a parent, OR carry a framework category, OR be somewhere work happens.
+
+    MERGED DUPLICATES ARE EXEMPT, and their unreachability is the point. A tombstone has had
+    every link repointed to its survivor; it exists only so pipeline/initiatives.py can
+    resolve the wiki page that created it instead of recreating the duplicate. Requiring it
+    to stay reachable would mean leaving it attached to the taxonomy, which is exactly the
+    double-counting a merge removes. Hence `live_subjects`, not `subjects`.
     """
     import psycopg
     with psycopg.connect(DSN) as c:
         orphans = c.execute("""
-            SELECT s.name FROM subjects s
+            SELECT s.name FROM live_subjects s
             WHERE s.parent_subject_id IS NULL
               AND s.subject_kind <> 'plan'
               AND NOT EXISTS (SELECT 1 FROM subject_framework_categories f
@@ -195,3 +244,100 @@ def test_no_subject_is_unreachable_from_the_plan():
                               WHERE p.place_subject_id = s.id)
         """).fetchall()
     assert orphans == [], f"subjects reachable by no route: {orphans[:8]}"
+
+
+@pytest.mark.skipif(not _db(), reason="no database")
+def test_every_tombstone_points_at_a_live_survivor():
+    """The exemption above is only safe if a tombstone always leads somewhere. A merged
+    subject whose survivor was itself merged would strand every row that followed it."""
+    import psycopg
+    with psycopg.connect(DSN) as c:
+        bad = c.execute("""
+            SELECT d.id, d.name FROM subjects d
+             WHERE d.merged_into_id IS NOT NULL
+               AND NOT EXISTS (SELECT 1 FROM live_subjects s WHERE s.id = d.merged_into_id)
+        """).fetchall()
+    assert bad == [], f"tombstones pointing at a non-live subject: {bad}"
+
+
+@pytest.mark.skipif(not _db(), reason="no database")
+def test_nothing_still_points_at_a_tombstone():
+    """A merge that missed a foreign key leaves rows attached to a dead subject, and nothing
+    errors. merge_subjects generates its sweep from pg_constraint precisely so this holds."""
+    import psycopg
+    with psycopg.connect(DSN) as c:
+        cols = c.execute("""
+            SELECT c.conrelid::regclass::text, a.attname
+              FROM pg_constraint c
+              JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=ANY(c.conkey)
+             WHERE c.confrelid='subjects'::regclass AND c.contype='f'
+        """).fetchall()
+        stranded = []
+        for table, col in cols:
+            if table == "subjects" and col == "merged_into_id":
+                continue
+            n = c.execute(f"""SELECT count(*) FROM {table} t
+                               JOIN subjects s ON s.id = t.{col}
+                              WHERE s.merged_into_id IS NOT NULL""").fetchone()[0]
+            if n:
+                stranded.append((f"{table}.{col}", n))
+    assert stranded == [], f"rows still pointing at merged subjects: {stranded}"
+
+
+# ── stored mentions: invariants that only hold against real data ──────────────────────────
+
+@pytest.mark.skipif(not _db(), reason="no database")
+def test_every_stored_span_slices_back_to_its_matched_text():
+    """The whole discipline in one query. test_detect_mentions asserts this of the matcher's
+    output; this asserts it of what actually landed, including every human ruling."""
+    import psycopg
+    with psycopg.connect(DSN) as c:
+        bad = c.execute("""
+            SELECT m.id, m.matched_text
+              FROM claim_subject_mentions m JOIN claims cl ON cl.id = m.claim_id
+             WHERE substring(cl.verbatim from m.span_start + 1
+                             for m.span_end - m.span_start) <> m.matched_text
+        """).fetchall()
+    assert bad == [], f"spans that do not slice back: {bad[:5]}"
+
+
+@pytest.mark.skipif(not _db(), reason="no database")
+def test_no_two_mentions_of_one_subject_overlap_in_one_claim():
+    """Two annotations of the SAME occurrence double-count it.
+
+    The unique key is (claim_id, subject_id, span_start), which permits a sentence to name an
+    initiative twice at two positions -- deliberately, because a second occurrence is also
+    evidence. It cannot see two spans that OVERLAP, and merging two subjects is exactly what
+    produces them: claim 1209 held `campaign entitled "The Future is Electric"` under 141 and
+    a longer span of the same words under 106, which became one subject.
+    """
+    import psycopg
+    with psycopg.connect(DSN) as c:
+        overlaps = c.execute("""
+            SELECT a.claim_id, a.subject_id, a.span_start, b.span_start
+              FROM claim_subject_mentions a
+              JOIN claim_subject_mentions b
+                ON b.claim_id = a.claim_id AND b.subject_id = a.subject_id
+               AND b.span_start > a.span_start AND b.span_start < a.span_end
+        """).fetchall()
+    assert overlaps == [], f"overlapping spans on one (claim, subject): {overlaps[:5]}"
+
+
+@pytest.mark.skipif(not _db(), reason="no database")
+def test_no_stored_span_starts_or_ends_mid_word():
+    """Occurring in the text is necessary, not sufficient. A review session stored
+    `oint campaign entitled ...` -- provable, and a slicing artifact of "joint".
+    review_mentions.store now refuses these; this asserts none survive in the data."""
+    import psycopg
+    with psycopg.connect(DSN) as c:
+        bad = c.execute("""
+            SELECT m.id, m.matched_text
+              FROM claim_subject_mentions m JOIN claims cl ON cl.id = m.claim_id
+             WHERE (m.span_start > 0
+                    AND substring(cl.verbatim from m.span_start for 1) ~ '[[:alnum:]]'
+                    AND left(m.matched_text, 1) ~ '[[:alnum:]]')
+                OR (m.span_end < length(cl.verbatim)
+                    AND substring(cl.verbatim from m.span_end + 1 for 1) ~ '[[:alnum:]]'
+                    AND right(m.matched_text, 1) ~ '[[:alnum:]]')
+        """).fetchall()
+    assert bad == [], f"spans starting or ending mid-word: {bad[:5]}"

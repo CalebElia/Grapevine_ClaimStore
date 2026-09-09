@@ -71,10 +71,18 @@ def parse_initiative(text: str, slug: str) -> dict | None:
     for a in _list(fm, "partners"):
         actors.append((a, ROLE_BY_FIELD["partners"]))
 
+    # A PILOT IS NOT A DUPLICATE. `community-solar-pilot` declares
+    # `part-of: [[initiatives/community-solar-program]]`, which is the wiki telling us these
+    # are one programme at two scales. Unread, the pair looks like a duplicate to any name
+    # matcher and gets proposed for merging -- destroying a distinction the curator recorded.
+    part_of = _scalar(fm, "part-of")
+    part_of_slug = (_LINK.search(part_of).group(1) if _LINK.search(part_of) else None)
+
     return {
         "title": title,
         "wiki_slug": f"initiatives/{slug}",
         "parent_strategy": parent_slug,
+        "part_of": part_of_slug,
         "related_strategies": _list(fm, "related-strategies"),
         "places": _list(fm, "locations"),
         "actors": actors,
@@ -124,6 +132,7 @@ def load(dsn: str = DSN, wiki: str = WIKI, created_by: str = "caleb (a2zero-wiki
     import psycopg
 
     counts = {"initiatives": 0, "strategy_links": 0, "places": 0, "actors": 0,
+              "parents": 0, "unresolved_parents": 0,
               "unresolved_actors": 0}
     with psycopg.connect(dsn) as c, c.cursor() as cur:
         # THE FRAMEWORK. The schema names this example itself: 'A2Zero CAP-2020 strategies',
@@ -160,8 +169,11 @@ def load(dsn: str = DSN, wiki: str = WIKI, created_by: str = "caleb (a2zero-wiki
                 cats[code] = cur.fetchone()[0]
 
         def subject(name: str, kind: str, slug: str | None) -> int:
-            cur.execute("SELECT id FROM subjects WHERE wiki_slug=%s OR lower(name)=lower(%s)",
-                        (slug, name))
+            # FOLLOW THE TOMBSTONE. A subject merged into another still matches its own wiki
+            # slug -- that is the whole point of keeping the row (migrations/024). Returning
+            # it would send fresh rows to a dead subject, so resolve one hop to the survivor.
+            cur.execute("""SELECT COALESCE(merged_into_id, id) FROM subjects
+                            WHERE wiki_slug=%s OR lower(name)=lower(%s)""", (slug, name))
             r = cur.fetchone()
             if r:
                 return r[0]
@@ -171,12 +183,15 @@ def load(dsn: str = DSN, wiki: str = WIKI, created_by: str = "caleb (a2zero-wiki
                         (name, slug, kind, created_by))
             return cur.fetchone()[0]
 
+        parents: dict[int, str | None] = {}
         for f in sorted(glob.glob(os.path.join(wiki, "initiatives", "*.md"))):
             rec = parse_initiative(open(f).read(), os.path.basename(f)[:-3])
             if not rec or dry_run:
                 continue
             sid = subject(rec["title"], "initiative", rec["wiki_slug"])
             counts["initiatives"] += 1
+
+            parents[sid] = rec["part_of"]
 
             for code in strategy_codes(rec):
                 if code not in cats:
@@ -221,6 +236,27 @@ def load(dsn: str = DSN, wiki: str = WIKI, created_by: str = "caleb (a2zero-wiki
                                    VALUES (%s,%s,%s) ON CONFLICT DO NOTHING""",
                                 (coid, hit[0][0], role))
                     counts["actors"] += cur.rowcount
+
+        # SECOND PASS, because a parent can appear later in the alphabet than its child --
+        # `community-solar-pilot` sorts before `community-solar-program`. Resolving parents
+        # inside the first loop would silently drop every link that points forwards.
+        for child_id, parent_slug in parents.items():
+            if not parent_slug:
+                continue
+            cur.execute("""SELECT COALESCE(merged_into_id, id) FROM subjects
+                            WHERE wiki_slug=%s""", (parent_slug,))
+            r = cur.fetchone()
+            if not r:
+                counts["unresolved_parents"] += 1
+                continue
+            # NEVER OVERWRITE, and never point a subject at itself -- a merge can collapse a
+            # child and its parent onto the same id, and the CHECK constraint would abort the
+            # whole seed over what is really just a link that no longer means anything.
+            if r[0] == child_id:
+                continue
+            cur.execute("""UPDATE subjects SET parent_subject_id=%s
+                            WHERE id=%s AND parent_subject_id IS NULL""", (r[0], child_id))
+            counts["parents"] += cur.rowcount
         if not dry_run:
             c.commit()
     return counts

@@ -13,7 +13,8 @@ that jurisdiction, so a plan with nine strategies works without an edit.
 """
 from __future__ import annotations
 
-from pipeline.subjects import load_section_rules, strategy_number
+from pipeline.subjects import (load_section_rules, section_subject_key,
+                               strategy_number)
 
 
 def test_the_rules_load_for_a_known_jurisdiction_and_doc_type():
@@ -95,3 +96,62 @@ def test_no_maximum_is_written_anywhere_in_the_registry():
     from pathlib import Path
     text = Path("registries/ann_arbor/section_subjects.json").read_text().lower()
     assert '"max"' not in text and "max_strategy" not in text
+
+
+# ── the CAP: the document that DEFINES the strategies the reports cite ────────────────────
+
+# Keyed "plan": doc_type is a controlled vocabulary and "plan" is the approved
+# term for this document. "cap" would fragment it.
+CAP = load_section_rules("ann_arbor", "plan")
+VALID = set(range(1, 8))
+
+
+def test_the_cap_has_a_structural_route_to_its_strategies():
+    """The CAP is where the seven strategies are defined; the reports merely cite them."""
+    assert CAP is not None
+    assert section_subject_key("Strategy 1: Power Our Electrical Grid with 100% Renewable "
+                               "Energy", rules=CAP, valid=VALID) == "strategy-1"
+    assert section_subject_key("Strategy 6: Enhance the Resilience of Our People and Our "
+                               "Place", rules=CAP, valid=VALID) == "strategy-6"
+
+
+def test_a_numbered_heading_that_is_not_a_strategy_is_not_one():
+    """'Appendix 1' and 'ACTION 6' both carry numbers. The rule anchors on the keyword."""
+    for h in ("Appendix 1 – List of Public Events", "TOPIC: ENERGY",
+              "Appendix 4 - Council Resolution in Support of Creating a Plan"):
+        assert section_subject_key(h, rules=CAP, valid=VALID) is None
+
+
+def test_the_plan_talking_about_itself_maps_to_a2zero():
+    for h in ("Executive Summary", "Introduction", "Closing", "A²ZERO Values",
+              "A²ZERO Five Pillars of Planning"):
+        assert section_subject_key(h, rules=CAP, valid=VALID) == "a2zero"
+
+
+def test_front_matter_is_the_plan_itself():
+    assert section_subject_key(None, is_front_matter=True, rules=CAP, valid=VALID) == "a2zero"
+
+
+def test_an_action_gets_no_subject_from_the_registry():
+    """DELIBERATE. An Action names an initiative that already exists as a subject; which
+    initiative is a matching question against `subjects`, not a regex. Writing 44 patterns
+    here would freeze that matching into config and hide the ones that fail."""
+    for h in ("Implement Community Choice Aggregation", "Electrify City Fleet",
+              "Launch Landfill Solar Project", "Update Building Codes"):
+        assert section_subject_key(h, rules=CAP, valid=VALID) is None
+
+
+def test_the_cap_and_annual_report_agree_about_strategy_numbering():
+    """Both must resolve the same strategy to the same key, or cross-year aggregates split."""
+    ar = load_section_rules("ann_arbor", "annual_report")
+    for n in VALID:
+        h = f"Strategy {n}: Something"
+        assert (section_subject_key(h, rules=CAP, valid=VALID)
+                == section_subject_key(h, rules=ar, valid=VALID) == f"strategy-{n}")
+
+
+def test_no_strategy_number_is_hardcoded_for_the_cap_either():
+    """The registry's own _numbers_are_not_in_the_code rule. A ninth strategy must work."""
+    assert section_subject_key("Strategy 9: A new one", rules=CAP,
+                               valid=set(range(1, 10))) == "strategy-9"
+    assert section_subject_key("Strategy 9: A new one", rules=CAP, valid=VALID) is None
