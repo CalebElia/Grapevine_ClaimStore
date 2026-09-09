@@ -319,7 +319,19 @@ CREATE TABLE orgs (
     org_type            TEXT NOT NULL,          -- vocab: org_type
     ein                 TEXT,                   -- IRS BMF join
     jurisdiction_id     INT REFERENCES jurisdictions(id),
-    notes               TEXT
+    notes               TEXT,
+    -- SAME PROGRAMME OR BODY, RECORDED TWICE. The wiki's actor files hold both `Ann Arbor
+    -- SPARK` and `SPARK Ann Arbor`. Rows are repointed to the survivor and this one is kept
+    -- as a TOMBSTONE, never deleted: resolve_orgs seeds from ../a2zero-wiki (read-only), so a
+    -- deleted duplicate is recreated on the next re-seed. See migrations/026.
+    merged_into_id      INT REFERENCES orgs(id),
+    merged_by           TEXT,                   -- human; merging is an identity decision
+    merged_at           TIMESTAMPTZ,
+    merge_note          TEXT,
+    CONSTRAINT orgs_merge_not_self
+        CHECK (merged_into_id IS NULL OR merged_into_id <> id),
+    CONSTRAINT orgs_merge_attributed
+        CHECK (merged_into_id IS NULL OR (merged_by IS NOT NULL AND merged_at IS NOT NULL))
 );
 
 -- Affiliation is a time-bounded CLAIM with a confidence, not a label.
@@ -565,6 +577,9 @@ CREATE TABLE subjects (
     parent_subject_id   INT REFERENCES subjects(id),
     topic_id            INT REFERENCES topics(id),
     wiki_slug           TEXT,                   -- join key to the a2zero-wiki export
+    -- What sort of thing this is. Without it, telling a strategy from an initiative from a
+    -- neighbourhood needs a walk up parent_subject_id or a guess from wiki_slug.
+    subject_kind        TEXT,                   -- vocab: subject_kind
     -- Cross-case classification. NOT BINARY — Boulder failed its formal objective
     -- while extracting major concessions. A single success/failure field erases that.
     formal_objective_achieved TEXT,             -- vocab: objective_outcome
@@ -572,11 +587,86 @@ CREATE TABLE subjects (
     outcome_notes       TEXT,
     created_by          TEXT NOT NULL,          -- human; a cluster id is never a key
     created_at          TIMESTAMPTZ DEFAULT now(),
-    CHECK (parent_subject_id IS NULL OR parent_subject_id <> id)
+    -- SAME PROGRAMME, RECORDED TWICE. The wiki holds separate pages for 'Electrify City
+    -- Fleet', 'City Fleet Electrification' and 'City EV Fleet'. Rows are repointed to the
+    -- survivor and this one is kept as a TOMBSTONE, never deleted: initiatives.py resolves a
+    -- wiki page by slug or name, ../a2zero-wiki is read-only and still holds every page, so a
+    -- deleted duplicate is silently recreated on the next re-seed. See migrations/024.
+    merged_into_id      INT REFERENCES subjects(id),
+    merged_by           TEXT,                   -- human; merging is an identity decision
+    merged_at           TIMESTAMPTZ,
+    merge_note          TEXT,
+    CHECK (parent_subject_id IS NULL OR parent_subject_id <> id),
+    CONSTRAINT subjects_merge_not_self
+        CHECK (merged_into_id IS NULL OR merged_into_id <> id),
+    CONSTRAINT subjects_merge_attributed
+        CHECK (merged_into_id IS NULL OR (merged_by IS NOT NULL AND merged_at IS NOT NULL))
 );
 
 CREATE INDEX idx_subjects_parent ON subjects(parent_subject_id);
 CREATE INDEX idx_subjects_topic  ON subjects(topic_id);
+CREATE INDEX idx_subjects_merged_into ON subjects(merged_into_id)
+    WHERE merged_into_id IS NOT NULL;
+
+-- ONE HOP, ALWAYS. If A merges into B and B into C, a reader following one hop lands on a
+-- tombstone. Refusing chains means no consumer needs a recursive CTE to resolve a subject.
+-- ONE HOP, ALWAYS, and one definition for both tables. Generic over TG_TABLE_NAME so
+-- subjects and orgs cannot drift into two different ideas of what a legal merge is.
+CREATE OR REPLACE FUNCTION enforce_merge_target() RETURNS TRIGGER AS $$
+DECLARE
+    target_is_merged BOOLEAN;
+    is_a_survivor    BOOLEAN;
+BEGIN
+    IF NEW.merged_into_id IS NULL THEN
+        RETURN NEW;
+    END IF;
+    EXECUTE format(
+        'SELECT EXISTS (SELECT 1 FROM %I WHERE id = $1 AND merged_into_id IS NOT NULL)',
+        TG_TABLE_NAME) INTO target_is_merged USING NEW.merged_into_id;
+    IF target_is_merged THEN
+        RAISE EXCEPTION '% % is itself merged; point the merge at its survivor instead',
+            TG_TABLE_NAME, NEW.merged_into_id;
+    END IF;
+    EXECUTE format('SELECT EXISTS (SELECT 1 FROM %I WHERE merged_into_id = $1)',
+        TG_TABLE_NAME) INTO is_a_survivor USING NEW.id;
+    IF is_a_survivor THEN
+        RAISE EXCEPTION '% % is the survivor of another merge and cannot itself be merged',
+            TG_TABLE_NAME, NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_subject_merge_target
+    BEFORE INSERT OR UPDATE OF merged_into_id ON subjects
+    FOR EACH ROW EXECUTE FUNCTION enforce_merge_target();
+
+-- What every candidate list should read. Selecting from `subjects` puts tombstones back into
+-- review queues, which is the problem this was built to end.
+CREATE OR REPLACE VIEW live_subjects AS
+    SELECT * FROM subjects WHERE merged_into_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_orgs_merged_into ON orgs(merged_into_id)
+    WHERE merged_into_id IS NOT NULL;
+
+CREATE OR REPLACE TRIGGER trg_org_merge_target
+    BEFORE INSERT OR UPDATE OF merged_into_id ON orgs
+    FOR EACH ROW EXECUTE FUNCTION enforce_merge_target();
+
+CREATE OR REPLACE VIEW live_orgs AS
+    SELECT * FROM orgs WHERE merged_into_id IS NULL;
+
+-- Other names an org is published under, including the name of any org merged into it.
+-- resolve_orgs matches claim text against these as well as the canonical name, so a merge
+-- never costs the store a name that documents actually print.
+CREATE TABLE org_aliases (
+    id          SERIAL PRIMARY KEY,
+    org_id      INT NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+    alias       TEXT NOT NULL,
+    alias_type  TEXT,                        -- vocab: alias_type
+    UNIQUE (org_id, alias)
+);
+CREATE INDEX idx_org_aliases_org ON org_aliases(org_id);
 
 CREATE TABLE subject_aliases (
     id                  SERIAL PRIMARY KEY,
@@ -1588,3 +1678,863 @@ COMMENT ON VIEW v_person_dossier IS
   'legislative record from Legistar, and cross-source claim presence. Feeds '
   'page_type = ''person''. Derived — never write to it.';
 
+-- ── what a claim NAMES (see migrations/023) ───────────────────────────────────────────
+CREATE TABLE claim_subject_mentions (
+    id                  BIGSERIAL PRIMARY KEY,
+    claim_id            BIGINT NOT NULL REFERENCES claims(id) ON DELETE CASCADE,
+    subject_id          INT NOT NULL REFERENCES subjects(id),
+
+    -- Offsets into claims.verbatim, not into the canonical text: a mention is a property of
+    -- the quoted sentence, and stays valid however the document is later re-rendered.
+    span_start          INT NOT NULL,
+    span_end            INT NOT NULL,
+    -- What actually appeared, in the document's own casing. "community choice aggregation"
+    -- and "Community Choice Aggregation" are the same subject and different text, and which
+    -- one the page printed is worth keeping.
+    matched_text        TEXT NOT NULL,
+
+    method              TEXT NOT NULL,          -- vocab: mention_method
+    detected_by         TEXT NOT NULL,
+    detected_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- A human ruling on a machine's proposal. NULL means nobody has looked, which is not the
+    -- same as nobody agreeing.
+    confirmed_by        TEXT,
+    confirmed_at        TIMESTAMPTZ,
+
+    -- One row per (claim, subject, position). A sentence naming an initiative twice records
+    -- both, because the second occurrence is also evidence.
+    UNIQUE (claim_id, subject_id, span_start),
+    CHECK (span_end > span_start),
+    CHECK (confirmed_by IS NULL OR confirmed_at IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS claim_mentions_claim_idx   ON claim_subject_mentions (claim_id);
+CREATE INDEX IF NOT EXISTS claim_mentions_subject_idx ON claim_subject_mentions (subject_id);
+
+
+-- ══════════════════════════════════════════════════════════════════════════════════════
+-- FOLDED-IN MIGRATIONS
+--
+-- `scripts/db.sh reset` applies THIS FILE and vocabularies.sql, and never replays
+-- migrations/. Everything below therefore has to live here, or a rebuilt database silently
+-- lacks it -- which it did: seventeen migrations were unfolded and nine tables existed only
+-- in migrations/, `document_sections` among them, the table every claim joins through.
+--
+-- Kept as the migrations' own text rather than woven into the CREATE TABLE statements above,
+-- because each carries the reasoning for the change it makes and that reasoning is the most
+-- valuable part of it. tests/test_schema_drift.py builds one database from the canonical
+-- files and another from canonical-plus-migrations and fails on any difference, so this
+-- section cannot silently fall behind again.
+--
+-- DATA STATEMENTS ARE DELIBERATELY NOT HERE. A few migrations seed rows -- 012 inserts an
+-- A2ZERO alias -- which need referents a freshly-built schema has none of. A canonical schema
+-- describes shape; contents come from the pipeline. Those statements stay in migrations/ and
+-- are listed at the end of this section.
+-- ══════════════════════════════════════════════════════════════════════════════════════
+
+-- ─── 004_media_linkage.sql ───
+-- 004 — media linkage: fix two defects, and remove the class they belong to.
+--
+-- Both were found while selecting a starting corpus, and both would have corrupted the
+-- transcript layer at ingest — the layer every later claim rests on.
+--
+-- ────────────────────────────────────────────────────────────────────────────────────
+-- DEFECT 1 — a video linked to the wrong meeting, by the STRONGER evidence chain.
+--
+-- IkZ4APPWNgY was attached to the 2026-05-12 Sustainability Commission meeting by
+-- `legistar_calendar` — the city asserted the link by publishing it. Ground truth from
+-- the host says otherwise:
+--
+--     IkZ4APPWNgY   7,426s   uploaded 2026-04-24   "…Sustainability Commission Meeting 4/14/26"
+--
+-- It is the April 14 meeting, and it was ALSO correctly attached to 2026-04-14 by
+-- `host_channel` — the weaker chain, the one we inferred ourselves. Ingested naively,
+-- every claim from that meeting is misdated by four weeks, and chronology is the join key
+-- across every source in this store.
+--
+-- The real 2026-05-12 recording exists and was never ingested:
+--
+--     bc7m_xHhLSo   4,860s   uploaded 2026-05-13   "…Sustainability Commission Meeting - May 12, 2026"
+--
+-- ROOT CAUSE, and the reason this is not a one-off: the host_channel matcher recognises
+-- titles in `M/D/YY` form. CTN publishes some meetings as `- Month D, YYYY` instead, and
+-- those are invisible to it. The 2026-05-12 recording sat unlinked for that reason alone
+-- while a wrong video occupied its row. Any future discovery pass must accept both forms.
+-- (Checked: 2025-08-12 has genuinely no published recording — a real absence, not this bug.)
+--
+-- ────────────────────────────────────────────────────────────────────────────────────
+-- DEFECT 2 — four videos on one event, three of them seconds long.
+--
+-- 2026-01-13 carries four YouTube ids with IDENTICAL titles, all uploaded 2026-01-14:
+--
+--     2sc4VfsrS8g   6,398s   the meeting
+--     BM-w9MgRNik      59s   aborted stream
+--     bLpyad0up9o      42s   aborted stream
+--     PHet5NGdPG0       1s   aborted stream
+--
+-- Not a multi-part recording — CTN restarted the stream three times. This is live and
+-- dangerous: a `string_agg`-based pick of "the video for this event" selected the
+-- 42-SECOND CLIP for the recommended starting set.
+--
+-- The stubs are NOT deleted. They exist, they are real uploads, and a row silently
+-- removed is a fact nobody can re-check later. Instead durations are recorded and
+-- `v_meeting_recordings` picks the longest recording per event, so every consumer gets
+-- the meeting without needing to know this happened.
+--
+-- Deliberately NO minimum-duration threshold in that view: a threshold is a magic number
+-- that fails the first time a commission adjourns in six minutes. Longest-per-event needs
+-- no such constant and cannot be wrong for the reason a threshold would be.
+--
+-- Idempotent: keyed on external_id and event_date, never on serial ids. Safe to re-run.
+
+BEGIN;
+
+-- ── The structural fix ──────────────────────────────────────────────────────────────
+-- One row per event: the longest recording. Everything downstream — transcription,
+-- span selection, review-budget estimates — should read this, never media_assets
+-- directly, so that a duplicate or a stub upload can never again be mistaken for a
+-- meeting. `others` is exposed rather than hidden: a non-zero value is a linkage
+-- question worth someone's attention, not noise to be suppressed.
+CREATE OR REPLACE VIEW v_meeting_recordings AS
+SELECT DISTINCT ON (m.event_id)
+       m.event_id,
+       e.event_date,
+       b.name              AS body_name,
+       m.id                AS media_asset_id,
+       m.host,
+       m.external_id,
+       m.url,
+       m.duration_seconds,
+       m.host_title,
+       m.host_upload_date,
+       m.title_stated_date,
+       m.date_verification,
+       m.discovered_via,
+       m.asr_model,
+       m.asr_completed_at,
+       count(*) OVER (PARTITION BY m.event_id) - 1 AS others
+  FROM media_assets m
+  JOIN events e ON e.id = m.event_id
+  JOIN bodies b ON b.id = e.body_id
+ ORDER BY m.event_id, m.duration_seconds DESC NULLS LAST, m.id;
+
+COMMENT ON VIEW v_meeting_recordings IS
+  'One recording per event: the longest. Guards against duplicate and aborted-stream '
+  'uploads (2026-01-13 has four, three of them under a minute). Read this, not '
+  'media_assets, when you need "the video for this meeting". `others` counts the '
+  'additional assets on the same event.';
+
+COMMIT;
+
+-- ─── 005_document_figures.sql ───
+-- 005 — Figure extractions and harvested links.
+--
+-- ANSWERS A QUESTION THAT HAD NOT BEEN ANSWERED. The vision pass reads real numbers off
+-- charts (31 cross-validated data points from the Year 5 dashboard alone), but nothing
+-- said where they LAND. Saying only "model output stays out of the citation spine" left
+-- the implication that the extraction was wasted. It is not — it lands here.
+--
+-- WHY FIGURE DATA IS NOT A `claims` ROW.
+-- The load-bearing guarantee on `claims` is that `verbatim` can be located
+-- character-for-character in the source conversion; a claim that fails that check is
+-- discarded rather than stored. A chart value has no such source text. "2.33M" was never
+-- in the PDF's text layer — it is a model's transcription of pixels. Writing it into
+-- `claims` would mean either a NULL span (a claim exempt from the one check that makes
+-- claims trustworthy) or a fabricated one. Both defeat the guard.
+--
+-- So chart readings are typed EVIDENCE, not claims. They reach the timeline the same way
+-- any other source does — by attesting to an `asserted_event` — but with their own
+-- attestation_type, so corroboration logic can tell "the report SAID this in prose" from
+-- "a model READ this off a chart."
+--
+-- AND THAT DISTINCTION IS AN ASSET, NOT A CONCESSION. Year 5's GHG prose says emissions
+-- must fall "from over 2.1 million metric tons"; the chart on the same page reads 2.33M
+-- for 2015 and 1.97M for 2023. Those are independent extraction paths over the same
+-- underlying fact — exactly the independence `event_attestations` exists to measure, and
+-- exactly the input a numeric-drift check needs. Collapsing them into one claim would
+-- destroy the disagreement that makes them useful.
+
+BEGIN;
+
+-- ── figures ────────────────────────────────────────────────────────────────────────────
+CREATE TABLE document_figures (
+    id                  SERIAL PRIMARY KEY,
+    document_id         INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    page_no             INT NOT NULL,
+    -- Docling's own bbox, PDF points, BOTTOMLEFT origin. Kept so a crop is reproducible
+    -- from the source rather than trusted from a PNG that may drift out of sync.
+    bbox                JSONB NOT NULL,
+    -- What made this image worth a paid vision call in the first place.
+    classifier_label    TEXT NOT NULL,
+    classifier_conf     NUMERIC(4,3),
+    caption             TEXT,                   -- the document's own caption, when linked
+    crop_path           TEXT,
+    crop_dpi            INT,
+    -- 600dpi cropping is what moved this model from "correctly declines to guess" to 31
+    -- real data points, so the resolution is provenance, not a tuning detail.
+    extracted_by        TEXT NOT NULL,          -- deployment id, e.g. 'gpt-5.6-sol'
+    prompt_version      TEXT NOT NULL,          -- which prompt produced this reading
+    raw_xml             TEXT NOT NULL,          -- the model's full response, unedited
+    extracted_at        TIMESTAMPTZ NOT NULL,
+    -- Ties the figure to the exact conversion whose page numbering it refers to.
+    source_content_hash TEXT,
+    CHECK (length(trim(raw_xml)) > 0)
+);
+CREATE INDEX idx_figures_document ON document_figures(document_id);
+
+-- ── one row per <point> ────────────────────────────────────────────────────────────────
+CREATE TABLE figure_data_points (
+    id                  BIGSERIAL PRIMARY KEY,
+    figure_id           INT NOT NULL REFERENCES document_figures(id) ON DELETE CASCADE,
+    label               TEXT NOT NULL,
+    value_text          TEXT NOT NULL,          -- as printed/read: '2.33M', '711'
+    value_numeric       NUMERIC,                -- parsed when unambiguous, else NULL
+    unit                TEXT,
+    -- MODEL SELF-REPORT, NEVER A PROPERTY OF THE DATUM. Flagged in review: a
+    -- confidence="high" attribute sitting beside a value invites a reader (or a later
+    -- extraction step) to treat it as something the chart asserted. The chart asserts a
+    -- number; the model asserts how well it could read it. Separate column, separate
+    -- meaning, and it can never travel inside a value.
+    model_confidence    TEXT,                   -- vocab: model_confidence (high|medium|low)
+    -- A CHART AXIS IS A TIME INTERVAL, AND A PARTIAL YEAR IS NOT A FULL ONE. Raised in
+    -- review: Year 5 reports 20 solar installations for 2025 against 250 for 2024 —
+    -- because the report was written mid-2025. Without an explicit interval that reads
+    -- as a 92% collapse. Per CLAUDE.md, timeline queries compare intervals, never a
+    -- start alone.
+    period_start        DATE,
+    period_end          DATE,
+    period_is_partial   BOOLEAN NOT NULL DEFAULT FALSE,
+    CHECK (length(trim(value_text)) > 0)
+);
+CREATE INDEX idx_figpoints_figure ON figure_data_points(figure_id);
+
+-- Chart readings attest to events like any other source; only the TYPE differs.
+ALTER TABLE event_attestations
+    ADD COLUMN figure_data_point_id BIGINT REFERENCES figure_data_points(id);
+
+-- ── harvested links: the source-discovery queue ────────────────────────────────────────
+-- The corpus names its own next sources. Year 5 carries 81 links across 23 hosts, 77 of
+-- them anchored to the exact character span of the sentence citing them. Storing the
+-- anchor and its sentence is what keeps this answerable a year later: "which claim relied
+-- on this URL, in which reading of which document."
+CREATE TABLE document_links (
+    id                  BIGSERIAL PRIMARY KEY,
+    document_id         INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    uri                 TEXT NOT NULL,
+    anchor_text         TEXT NOT NULL,
+    context_sentence    TEXT,
+    page_no             INT,
+    char_start          INT,
+    char_end            INT,
+    -- FALSE means the anchor could not be tied to a text span (4 of 81 on Year 5, all
+    -- from link rects spanning a column gutter). Recorded rather than dropped, and never
+    -- guessed: a wrong span would attribute a URL to a sentence that never cited it.
+    located             BOOLEAN NOT NULL DEFAULT FALSE,
+    source_content_hash TEXT,
+    harvested_at        TIMESTAMPTZ NOT NULL,
+    -- HARVESTED IS NOT VISITED. Whether this URL was ever retrieved, and what it said, is
+    -- a separate decision with separate provenance. Dark matter is a lead queue, never a
+    -- finding.
+    fetched_at          TIMESTAMPTZ,
+    CHECK (length(trim(uri)) > 0),
+    CHECK (length(trim(anchor_text)) > 0)
+);
+CREATE INDEX idx_doclinks_document ON document_links(document_id);
+CREATE INDEX idx_doclinks_uri      ON document_links(uri);
+
+COMMIT;
+
+-- ─── 006_document_sections.sql ───
+-- 006 — document_sections, and the columns that pin a span to the conversion it came from.
+--
+-- 005 built document_figures and document_links. document_sections was designed in PLAN.md
+-- and never created, so there is currently nowhere to record WHERE in a document a claim
+-- came from, only which document. This is that table, plus four columns on `documents`
+-- that exist for one reason: a conversion is a moving target, and a span is only meaningful
+-- against the exact text it was measured in.
+--
+-- ────────────────────────────────────────────────────────────────────────────────────
+-- WHY document_sections IS A NEW TABLE AND NOT A GENERALISED `segments`.
+--
+-- `segments` is event_id NOT NULL with start_ms/end_ms NOT NULL. Making four columns
+-- nullable to admit documents would weaken the video path's constraints to serve the text
+-- path -- the two share a shape, not a set of guarantees. What earns its place is mirrored
+-- (sequence, section_topic, extraction_tier, summary) on char offsets plus a page range.
+--
+-- ────────────────────────────────────────────────────────────────────────────────────
+-- WHY parse_confidence DEFAULTS TO 'unaudited' AND NOT 'clean'.
+--
+-- Every failure this corpus produced was silent. pdfplumber returned 234 words for Year 2
+-- and exited cleanly. Two sentences shipped woven together through a gate whose every check
+-- was quantitative. A section that has not been checked must not behave like one that has,
+-- so the default is the value that BLOCKS extraction, and something has to actively earn
+-- 'clean'. Silence is never evidence of a clean parse.
+--
+-- It is TEXT against the vocabulary system rather than a CHECK constraint, per Rule 1: a
+-- new severity should be an INSERT, not a migration.
+--
+-- ────────────────────────────────────────────────────────────────────────────────────
+-- WHY documents GAINS converter, converter_version AND content_hash SEMANTICS.
+--
+-- claims.span_start/span_end are offsets into a string. Which string is not currently
+-- recorded anywhere, and the answer changes: this pipeline altered its output on nine
+-- separate commits in one working session. Without naming the conversion, a converter
+-- upgrade does not invalidate old spans -- it silently repoints them at different words,
+-- and every one still round-trips against the text it was written from.
+--
+-- documents.content_hash already exists. What 006 adds is the ability to say WHICH
+-- CONVERTER produced the text that hash covers, so an upgrade is detectable rather than
+-- merely survivable.
+--
+-- ────────────────────────────────────────────────────────────────────────────────────
+-- WHY parse_verdict IS STORED ON THE DOCUMENT.
+--
+-- quality_gate returns PASS, REVIEW or REFUSE, and REFUSE means the conversion is not
+-- readable enough to anchor claims against. Today that verdict lives only in a comment in
+-- the markdown, so nothing downstream can act on it. Stored here, extraction can refuse a
+-- document the gate refused, and an override has to be recorded rather than implied.
+
+BEGIN;
+
+CREATE TABLE document_sections (
+    id                  SERIAL PRIMARY KEY,
+    document_id         INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    sequence            INT NOT NULL,           -- 0-based, in reading order
+    heading             TEXT,                   -- the ## text; NULL for front matter
+    section_topic       TEXT,                   -- vocab: section_topic
+    char_start          INT NOT NULL,           -- into the CANONICAL text (see below)
+    char_end            INT NOT NULL,
+    page_start          INT,
+    page_end            INT,
+    extraction_tier     CHAR(1) NOT NULL DEFAULT 'C'
+                        CHECK (extraction_tier IN ('A', 'B', 'C')),
+    tier_assigned_by    TEXT,
+    summary             TEXT,
+
+    -- Hash of THIS section's canonical text. A document-level hash cannot tell you that
+    -- section 7 changed while the rest did not, which is what a re-conversion needs.
+    content_hash        TEXT NOT NULL,
+
+    -- Fail-closed. Extraction refuses anything that is not 'clean'.
+    parse_confidence    TEXT NOT NULL DEFAULT 'unaudited',   -- vocab: parse_confidence
+    parse_flags         JSONB,                  -- every check that fired, with its evidence
+    parse_reviewed_by   TEXT,
+    parse_reviewed_at   TIMESTAMPTZ,
+
+    UNIQUE (document_id, sequence),
+    CHECK (char_end > char_start)
+);
+
+CREATE INDEX document_sections_document_idx ON document_sections (document_id, sequence);
+CREATE INDEX document_sections_tier_idx     ON document_sections (extraction_tier)
+    WHERE extraction_tier IN ('A', 'B');
+
+-- Which section a claim came from. Nullable, because a claim from the video path has none.
+ALTER TABLE claims ADD COLUMN document_section_id INT REFERENCES document_sections(id);
+CREATE INDEX claims_document_section_idx ON claims (document_section_id)
+    WHERE document_section_id IS NOT NULL;
+
+-- THE SPAN'S COORDINATE SPACE, NAMED. Without these a span is an integer with no frame of
+-- reference, and the failure mode is not an error -- it is a citation that points at the
+-- wrong words while round-tripping perfectly against the text it was written from.
+ALTER TABLE documents ADD COLUMN converter             TEXT;   -- 'docling+pdfplumber'
+ALTER TABLE documents ADD COLUMN converter_version     TEXT;   -- git sha of the pipeline
+ALTER TABLE documents ADD COLUMN parse_verdict         TEXT;   -- PASS | REVIEW | REFUSE
+ALTER TABLE documents ADD COLUMN parse_override_reason TEXT;   -- required if REFUSE
+
+-- A refused conversion may only be stored with a reason on the record. This is the schema
+-- half of orchestrate_blocks' --allow-refused: the override survives into the store rather
+-- than living in one operator's shell history.
+ALTER TABLE documents ADD CONSTRAINT documents_refusal_needs_a_reason
+    CHECK (parse_verdict IS DISTINCT FROM 'REFUSE' OR parse_override_reason IS NOT NULL);
+
+COMMIT;
+
+-- ─── 007_period_provenance.sql ───
+-- 007 — where a document's coverage period came from.
+--
+-- documents.covers_period_start/end exist because the wiki lost a report's period and
+-- dated every claim in it by publication instead. What was missing is how the value was
+-- ARRIVED AT, and on this corpus that varies more than expected across five documents of
+-- one series by one publisher:
+--
+--   Year 3, 4   the document prints a range           -> 'stated'
+--   Year 5      the document prints a range           -> 'stated'
+--   Year 2      the document prints "2021 - 2022"     -> a year pair, not two dates
+--   Year 1      the document prints nothing at all
+--
+-- Years 1 and 2 were resolved by a human to FY2021 and FY2022 -- Ann Arbor's fiscal year
+-- is July 1 to June 30 per the City Charter, and A2ZERO was adopted in June 2020, so the
+-- first report covers 2020-07-01 to 2021-06-30. That is a good inference and it is still
+-- an inference, so it must not be queryable as though the report said it.
+--
+-- A period that a human supplied is evidence of a DIFFERENT KIND from one the document
+-- printed, and the store's whole argument is that the difference is recorded rather than
+-- averaged away. Without this column, a timeline query cannot tell a date the City
+-- published from a date we decided was probably right.
+--
+-- Years 3 and 4 stay 'stated' even though both print "June 3" where the page means
+-- June 30. That is the source's typo, faithfully carried; correcting it would be a third
+-- provenance ('corrected'), and nobody has made that ruling.
+
+BEGIN;
+
+ALTER TABLE documents ADD COLUMN covers_period_source TEXT;  -- vocab: covers_period_source
+ALTER TABLE documents ADD COLUMN covers_period_note   TEXT;  -- who decided, and why
+
+-- A human estimate must say who made it. A stated period needs no such defence.
+ALTER TABLE documents ADD CONSTRAINT documents_estimate_needs_a_note
+    CHECK (covers_period_source IS DISTINCT FROM 'human_estimate'
+           OR covers_period_note IS NOT NULL);
+
+COMMIT;
+
+-- ─── 009_measure_vocab_and_dates.sql ───
+-- 009 — make `measure` mean something, let a claim be dated, and fix coalition_members.
+--
+-- ────────────────────────────────────────────────────────────────────────────────────
+-- quantity_measure HAD NO TERMS AT ALL.
+--
+-- quantities.measure is declared `vocab: quantity_measure` and that vocabulary was never
+-- created, so the first extraction run wrote 'other' five times against a term that does
+-- not exist. unit and measure answer different questions and the difference is what makes
+-- numbers comparable:
+--
+--     unit     what you count IN        metric tons · households · MW · USD
+--     measure  what is being COUNTED    emissions_reduced · households_served
+--
+-- "113 metric tons of carbon emissions reduced" and "2.1 million metric tons of
+-- community-wide emissions" share a unit and must never be summed, because one is a
+-- reduction and the other is a total. Only `measure` can say so.
+--
+-- Open, because this list will not survive contact with a docket or a minutes corpus and
+-- the trigger should propose rather than reject.
+--
+-- ────────────────────────────────────────────────────────────────────────────────────
+-- A CLAIM WITH NO DATE IS INVISIBLE FOREVER.
+--
+-- All 17 claims from Year 3 section 5 carried asserted_start IS NULL, because no sentence
+-- states when it happened -- and the report covers July 2022 to June 2023, so every one of
+-- them IS dated, at the document's precision. Chronology is the join key across every
+-- source in this store and timeline queries compare INTERVALS, so a NULL start cannot
+-- participate in any of them: not wrong, simply absent.
+--
+-- `reporting_period` is added to date_precision to say exactly what such a date is. It is
+-- not `year` (Year 5 runs June to May) and not `fiscal_year` (only Years 1-4 do), and
+-- pretending otherwise would make a claim look more precisely dated than it is.
+--
+-- ────────────────────────────────────────────────────────────────────────────────────
+-- coalition_members COULD NAME A PERSON AND AN ORG AT ONCE.
+--
+-- Flagged in Collin's review and deferred. A membership row is one member: a person, an
+-- org or a body. Permitting two makes "who was in this coalition" ambiguous per row, and
+-- this table is about to matter -- it is how a claim naming both the City and the Ann
+-- Arbor Housing Commission records the second actor.
+
+BEGIN;
+ALTER TABLE coalition_members ADD CONSTRAINT coalition_members_one_member
+    CHECK (num_nonnulls(person_id, org_id, body_id) = 1);
+
+COMMIT;
+
+-- ─── 011_funder_name_text.sql ───
+-- 011: keep the funder's name as the document wrote it, whether or not it resolves.
+--
+-- WHAT WAS LOST. The extraction asked the model for `funder_name` -- "U.S Department of
+-- Energy", "MI-HOPE", exactly as the text names them -- passed it to a registry lookup, and
+-- kept only the resulting org id. When the registry had no such org the NAME WENT WITH IT.
+-- The store then held a $500,000 award with no funder, from a sentence that names one.
+--
+-- WHY THAT IS WORSE THAN IT SOUNDS. research_questions asks "who funded this?" for money
+-- with no source. Discarding an unresolved name turns a registry gap into a fabricated
+-- research question: a human gets sent hunting for a fact printed in the document they
+-- already have. Dark matter is supposed to be what the corpus cannot answer.
+--
+-- WHY A TEXT COLUMN AND NOT ONLY A FOREIGN KEY. They answer different questions.
+-- awarding_org_id is the join -- "every award SEMCOG made" -- and must stay exact, because
+-- a funder attributed to the wrong body says something false about who paid. This column
+-- is EVIDENCE: what the document actually said, unresolved, still true if the registry is
+-- wrong and still there if the registry later grows. A name here with a NULL id is a
+-- registry gap, and now a findable one.
+ALTER TABLE fiscal_references ADD COLUMN IF NOT EXISTS funder_name_text text;
+
+COMMENT ON COLUMN fiscal_references.funder_name_text IS
+  'The funder as the document names it, verbatim. Never normalised. Populated even when '
+  'awarding_org_id could not be resolved -- a name here with a NULL id is a registry gap, '
+  'not an unfunded award.';
+
+-- ─── 012_funding_programs_and_a2zero_alias.sql ───
+-- 012: the named program between a funder and what it funded; and A2ZER0 as A2ZERO.
+--
+-- ============================================================================
+-- PART 1 -- THE MISSING MIDDLE
+-- ============================================================================
+-- Caleb: "how can we capture this relationship where the Organization (DOE) has a program
+-- (EECBG) that's funded a subject (Bryant decarbonization)?"
+--
+-- Two of the three already have homes: fiscal_references.awarding_org_id is the body, and
+-- fiscal_references.subject_id is what the money went to. The PROGRAM has none.
+--
+-- funding_instrument IS NOT ITS HOME, AND THAT MISTAKE HAS ALREADY BEEN MADE ONCE THIS
+-- WEEK. funding_instrument is a category slot -- block grant, formula grant, revolving loan
+-- -- exactly parallel to funding_source, which is a category of money. Putting "Energy
+-- Efficiency and Conservation Block Grant" in it repeats the bug migration 011 fixed: the
+-- store read funding_source, a KIND, as though it named the giver, and asked a human to go
+-- find a funder the document had printed. A named thing stuffed into a category field is
+-- unqueryable as either.
+--
+-- So three questions, three columns:
+--     awarding_org_id     WHO           U.S. Department of Energy
+--     program_id          UNDER WHAT    Energy Efficiency and Conservation Block Grant
+--     funding_instrument  WHAT KIND     block_grant
+--     subject_id          FOR WHAT      Bryant Neighborhood Decarbonization
+--
+-- THIS IS NOT ONLY ABOUT EECBG. Four references already in the store name a program and
+-- resolve to the administering body, losing the program on the way: "SEMCOG Carbon
+-- Reduction Program", "Urban Sustainability Directors Network Emergent Learning Fund",
+-- "USDN Mini-Grant", "MI-HOPE". registries/ann_arbor/funder_aliases.json maps each to its
+-- org, which answers "who paid" and silently discards "under which program" -- and the
+-- program is what a researcher tracks across years and cities.
+CREATE TABLE IF NOT EXISTS funding_programs (
+    id                  SERIAL PRIMARY KEY,
+    name                TEXT NOT NULL,
+    -- THE BODY THAT RUNS IT. Nullable because a document can name a program whose
+    -- administering agency it never states -- which is a research question, not a reason
+    -- to refuse the row. The whole point of 011 was to stop discarding what we do know.
+    administering_org_id INT REFERENCES orgs(id),
+    -- A program is often a vehicle of a larger one: EECBG money reaches a city through the
+    -- state energy office. Self-referencing rather than a second table.
+    parent_program_id   INT REFERENCES funding_programs(id),
+    abbreviation        TEXT,
+    description         TEXT,
+    -- Human, always. A program is a referent; a cluster id never becomes a canonical key.
+    created_by          TEXT NOT NULL,
+    created_at          TIMESTAMPTZ DEFAULT now(),
+    CHECK (parent_program_id IS NULL OR parent_program_id <> id)
+);
+CREATE INDEX IF NOT EXISTS idx_funding_programs_org ON funding_programs(administering_org_id);
+
+CREATE TABLE IF NOT EXISTS funding_program_aliases (
+    id                  SERIAL PRIMARY KEY,
+    program_id          INT NOT NULL REFERENCES funding_programs(id),
+    alias               TEXT NOT NULL,
+    alias_type          TEXT,                   -- vocab: alias_type
+    UNIQUE (program_id, alias)
+);
+
+ALTER TABLE fiscal_references
+  ADD COLUMN IF NOT EXISTS program_id INT REFERENCES funding_programs(id);
+
+COMMENT ON COLUMN fiscal_references.program_id IS
+  'The named program the money came under -- EECBG, SEMCOG Carbon Reduction Program. NOT '
+  'the same as awarding_org_id (the body) or funding_instrument (the category). A program '
+  'with a NULL administering_org_id is a research question, not a bad row.';
+
+-- ─── 013_snapshot_provenance.sql ───
+-- 013: say where the bytes came from, and how much we actually know about that.
+--
+-- THE HOLE. All five documents carried source_url, snapshot_path, snapshot_hash and
+-- retrieved_at NULL. Every claim in the store cites a character offset into a markdown
+-- file, converted from a PDF the store could not identify. Two copies of each PDF exist on
+-- this machine -- Coding_Projects/docling-test/source_pdfs and a "docling-test copy" inside
+-- Shared Repo_Cloan -- and they are byte-identical today. Nothing in the store would have
+-- said so if they were not, and nothing would say so tomorrow.
+--
+-- A hash is what makes "this is the document we read" checkable instead of asserted.
+--
+-- WHY A SOURCE AND A NOTE, NOT JUST THE FIELDS. Migration 007 set the precedent for
+-- covers_period: a value that was inferred must say it was inferred, or a later reader
+-- cannot tell a recorded fact from a good guess. The same applies harder here. We know the
+-- file we hashed. We do NOT know when it was downloaded -- the filesystem mtime is when it
+-- was COPIED to this machine -- and we do not know the URL it came from. Writing an mtime
+-- into retrieved_at unlabelled would manufacture a retrieval date out of a copy operation.
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS snapshot_source TEXT;   -- vocab: provenance_source
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS snapshot_note   TEXT;
+
+COMMENT ON COLUMN documents.snapshot_source IS
+  'How snapshot_path/snapshot_hash/retrieved_at were established. local_file means the '
+  'bytes were hashed from a file already on disk with no retrieval record -- the hash is '
+  'trustworthy, the provenance before it is not.';
+
+-- A snapshot hash with no path cannot be re-checked, and a path with no hash proves
+-- nothing. They travel together or not at all.
+ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_snapshot_pair;
+ALTER TABLE documents ADD CONSTRAINT documents_snapshot_pair
+  CHECK ((snapshot_path IS NULL) = (snapshot_hash IS NULL));
+
+-- ─── 014_human_verdict.sql ───
+-- 014: a human's judgement, kept separately from the machine's, and made to lapse.
+--
+-- WHAT BROKE. document_sections had ONE review slot -- parse_reviewed_by -- and both a
+-- human review and a machine re-audit wrote into it. Running section_audit during the OCR
+-- provenance repair replaced 'caleb' with 'machine (OCR provenance repair)' on all ten
+-- Year 2 sections. A human's review of a document was destroyed by a maintenance run, and
+-- nothing objected, because the column cannot tell the two apart.
+--
+-- WHY IT CANNOT JUST BE A BETTER STRING. The machine verdict and the human verdict answer
+-- different questions and disagree ON PURPOSE:
+--     parse_confidence   what the FLAGS say   Year 2 is 96% OCR, so: suspect
+--     human_verdict      what a PERSON checked  "I read it against the PDF": approved
+-- Collapsing them means either the machine silently overrides a person, or a person's
+-- approval hides a real flag from every later reader. Both are worse than a disagreement
+-- you can see.
+--
+-- APPROVAL LAPSES WHEN THE TEXT MOVES. human_verdict_hash records the content_hash the
+-- person actually read. section_audit already refuses to audit a document whose conversion
+-- moved, with the reason "a review of text that moved is not a review of the text in the
+-- store" -- and that applies with more force to an approval, which is the thing that lets
+-- extraction proceed. A stale approval is an unearned gate pass.
+ALTER TABLE document_sections ADD COLUMN IF NOT EXISTS human_verdict      TEXT;  -- vocab: human_verdict
+ALTER TABLE document_sections ADD COLUMN IF NOT EXISTS human_verdict_by   TEXT;
+ALTER TABLE document_sections ADD COLUMN IF NOT EXISTS human_verdict_at   TIMESTAMPTZ;
+ALTER TABLE document_sections ADD COLUMN IF NOT EXISTS human_verdict_note TEXT;
+ALTER TABLE document_sections ADD COLUMN IF NOT EXISTS human_verdict_hash TEXT;
+
+COMMENT ON COLUMN document_sections.human_verdict IS
+  'A person''s judgement, independent of parse_confidence. Only valid while '
+  'human_verdict_hash equals content_hash -- an approval of text that has since changed is '
+  'not an approval of the text in the store.';
+
+-- A verdict with nobody behind it is an anonymous gate pass. Same rule subjects.created_by
+-- and asserted_events.named_by already enforce: a judgement names its author.
+ALTER TABLE document_sections DROP CONSTRAINT IF EXISTS sections_human_verdict_attributed;
+ALTER TABLE document_sections ADD CONSTRAINT sections_human_verdict_attributed
+  CHECK (human_verdict IS NULL
+         OR human_verdict = 'not_reviewed'
+         OR (human_verdict_by IS NOT NULL AND human_verdict_hash IS NOT NULL));
+
+-- ─── 015_footnotes.sql ───
+-- 015: footnotes as structure -- a numbered body, and the prose that points at it.
+--
+-- WHAT THIS REPLACES. All seven Year 2 footnote bodies were captured and tagged FURNITURE,
+-- which kept them out of claim-bearing prose and was right as far as it went. FURNITURE is
+-- a catch-all: it cannot say that a block is a footnote, which number it carries, or which
+-- section's prose refers to it. These seven name the City officer responsible for each
+-- A2ZERO strategy, with an email address, so the link is the whole value.
+--
+-- WHY A REFERENCE TABLE AND NOT A COLUMN. A footnote body sits at the foot of one page; the
+-- marker pointing at it sits in the prose above, and in general a single footnote can be
+-- cited from more than one place. Recording the reference separately also lets it carry its
+-- own provenance, which matters here because the markers were not READ -- they were
+-- RECOVERED. Docling's OCR rendered the superscripts as a letter ("wet"), as an apostrophe
+-- ("we'"), or dropped them entirely; the digit came from a second independent read. A
+-- reference the store cannot explain is a reference nobody should trust.
+CREATE TABLE IF NOT EXISTS footnotes (
+    id                  SERIAL PRIMARY KEY,
+    document_id         INT NOT NULL REFERENCES documents(id),
+    number              INT NOT NULL,
+    body_text           TEXT NOT NULL,
+    page_no             INT,
+    -- The body's own span in the canonical text, so it is quotable like anything else.
+    char_start          INT NOT NULL,
+    char_end            INT NOT NULL,
+    document_section_id INT REFERENCES document_sections(id),
+    UNIQUE (document_id, number)
+);
+CREATE INDEX IF NOT EXISTS idx_footnotes_document ON footnotes(document_id);
+
+CREATE TABLE IF NOT EXISTS footnote_references (
+    id                  SERIAL PRIMARY KEY,
+    footnote_id         INT NOT NULL REFERENCES footnotes(id),
+    document_section_id INT NOT NULL REFERENCES document_sections(id),
+    -- Where the marker stood before it was removed from the prose. The character is gone --
+    -- it was OCR noise, not a word -- but the position is where the citation was made.
+    char_at             INT,
+    marker_evidence     TEXT,                   -- vocab: marker_evidence
+    UNIQUE (footnote_id, document_section_id)
+);
+
+COMMENT ON COLUMN footnote_references.marker_evidence IS
+  'How the marker was established. On an OCR-only document it is never simply READ: the '
+  'superscript arrives as a letter, an apostrophe, or nothing, and the digit comes from a '
+  'second independent read.';
+
+-- ─── 016_footnote_contact.sql ───
+-- 016: the person a footnote names, resolved to the person registry.
+--
+-- These seven footnotes each name the City officer responsible for one A2ZERO strategy.
+-- Resolving the name to a persons row is what turns "a string in a page-foot block" into a
+-- fact you can join: every strategy Missy Stults is accountable for, across every document
+-- that says so.
+--
+-- SIX OF THE SEVEN WERE ALREADY IN THE STORE, imported from Legistar. Creating fresh rows
+-- for them would have split each officer into two identities -- one that votes in council
+-- records and one that answers questions about a strategy -- which is precisely the harm
+-- `persons` exists to prevent. The seventh is the interesting one: the report writes "Missy
+-- Stults" where Legistar holds "Melissa Stults". That is a nickname, and person_aliases is
+-- where nicknames go; it is not a reason for a second row.
+ALTER TABLE footnotes ADD COLUMN IF NOT EXISTS contact_person_id INT REFERENCES persons(id);
+
+COMMENT ON COLUMN footnotes.contact_person_id IS
+  'The person this footnote names as a contact, resolved to the person registry. NULL when '
+  'the name could not be resolved to exactly one person -- a footnote attributed to the '
+  'wrong officer is worse than one attributed to nobody.';
+
+-- ─── 017_fiscal_direction.sql ───
+-- 017: which way the money moved. Without it, SUM(amount_low) is not a number about anything.
+--
+-- MEASURED, NOT HYPOTHETICAL. After extracting 21 sections the largest fiscal_reference in
+-- the store is $1,000,000,000 -- "the City has saved rate payers more than $1,000,000,000
+-- through testimony and advocacy". It is not an award. Summed with grants received it turns
+-- a $110M funding picture into a $1.1B one, and nothing errors, because the table had no way
+-- to say that awards, savings, disbursements and authorisations are different facts.
+--
+-- WHAT THIS DOES NOT SOLVE, STATED PLAINLY. Direction is relative to somebody, and this
+-- table has no recipient. "OSI supported TheRide in their successful grant application for
+-- $25 MILLION" is money RECEIVED -- by TheRide, not by the City. Direction stops savings
+-- being added to awards; it does not yet say whose award it was. A recipient_org_id is the
+-- next honest step and is deliberately not smuggled in here.
+ALTER TABLE fiscal_references ADD COLUMN IF NOT EXISTS direction TEXT;  -- vocab: fiscal_direction
+
+COMMENT ON COLUMN fiscal_references.direction IS
+  'Which way the money moved, from the claim''s own words. NEVER sum across directions. '
+  '`unknown` means the text did not say and is not a synonym for `received`.';
+
+-- A VIEW THAT CANNOT BE SUMMED WRONG. Any total anyone reaches for should be grouped, so
+-- the grouping is provided rather than left as a thing to remember.
+CREATE OR REPLACE VIEW v_money_by_direction AS
+SELECT coalesce(f.direction, 'unknown') AS direction,
+       count(*)        AS refs,
+       sum(f.amount_low) AS total_low,
+       min(f.amount_low) AS smallest,
+       max(f.amount_low) AS largest
+FROM fiscal_references f
+GROUP BY 1;
+
+-- ─── 018_section_subject.sql ───
+-- 018: the subject a section is about, so 903 claims stop being untopiced.
+--
+-- THE GAP. Every claim carried a date and none carried a subject. The store could say what
+-- was asserted and when, and could not group it by WHAT IT IS ABOUT -- which is the join the
+-- corpus exists for. "How has Ann Arbor's solar programme progressed across five years" had
+-- no answer.
+--
+-- ON THE SECTION, NOT ON EACH CLAIM. There are 59 sections and 903 claims. Recording the
+-- decision once per section makes it auditable and reversible in 59 places; writing it 903
+-- times makes it 903 things to re-derive when the mapping changes. Claims inherit, and a
+-- later pass may overrule any individual one.
+--
+-- WHY THIS IS NOT A MODEL'S JOB. All five reports organise themselves into the same seven
+-- A2ZERO strategies and title them differently every year -- "Strategy 1: Power our
+-- electrical grid with 100% renewable energy", "STRATEGY ONE: POWER OUR ELECTRICAL GRID...",
+-- "STRATEGY 1: 100% RENEWABLES". A section's placement is the document SAYING what it is
+-- about. That is evidence, so it is decided by string matching anchored on the word
+-- "STRATEGY" -- never on a digit anywhere in the heading, because "YEAR 5 PRIORITIES"
+-- contains a 5 and is not Strategy 5.
+ALTER TABLE document_sections ADD COLUMN IF NOT EXISTS subject_id INT REFERENCES subjects(id);
+
+COMMENT ON COLUMN document_sections.subject_id IS
+  'What this section is about, from the report''s own structure. Claims inherit it. NULL on '
+  'navigational sections -- a table of contents is not about anything, and giving it a '
+  'subject would put structural furniture into topic aggregates.';
+
+CREATE INDEX IF NOT EXISTS idx_sections_subject ON document_sections(subject_id);
+
+-- ─── 019_quantity_unit_vocabulary.sql ───
+
+COMMENT ON COLUMN quantities.unit IS
+  'The DIMENSION of the measurement, from a closed vocabulary. This is what you GROUP BY. '
+  'It must never assert more than the text: bare tons stay metric_tons, because "tons of '
+  'material" diverted from landfill is not CO2e.';
+COMMENT ON COLUMN quantities.unit_basis IS
+  'WHAT WAS COUNTED or what a percentage is OF, verbatim and never normalised: "air quality '
+  'monitors", "Direct Current Fast Chargers (DCFCs)". This is the detail that makes a row '
+  'worth reading; `unit` is the part that makes rows comparable.';
+
+-- ─── 020_initiative_layer.sql ───
+-- 020: the initiative layer -- kind, place, many-to-many strategy, and actors with roles.
+--
+-- WHAT THE SCHEMA ALREADY DECIDED, AND I NEARLY RE-DECIDED WRONGLY. I built the seven A2ZERO
+-- strategies as SUBJECTS with parent_subject_id, which is a strict tree. The schema had
+-- already rejected that in a comment on subject_framework_categories: "a Subject can sit in
+-- A2Zero Strategy 2 AND the Comprehensive Plan's Land Use chapter AND the FY26 budget's
+-- capital line simultaneously -- which a strict tree forbade." frameworks even names the
+-- example: 'A2Zero CAP-2020 strategies', with code 'strategy-1'.
+--
+-- Caleb's framing is the same one: an initiative "pushes forward a Strategy or sometimes
+-- two". A tree cannot hold that. A framework tag can.
+--
+-- So the division is:
+--   SUBJECT             a thing in the world -- an initiative, a place, the plan itself
+--   FRAMEWORK CATEGORY  one document's way of organising things -- the CAP's 7 strategies
+--   subject_framework_categories   many-to-many, which is the two-strategy link
+--
+-- The seven strategy SUBJECTS created earlier stay for now: 903 claims point at them and
+-- they are the working cross-year aggregate. They carry kind='strategy' and their alias
+-- 'strategy-N' matches framework_categories.code, so the two layers join. Re-pointing claims
+-- at initiatives is a later pass and needs alias matching that does not exist yet.
+
+-- ---------------------------------------------------------------- what a subject IS
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS subject_kind TEXT;  -- vocab: subject_kind
+
+COMMENT ON COLUMN subjects.subject_kind IS
+  'What sort of thing this is. Without it, telling a strategy from an initiative from a '
+  'neighbourhood needs a walk up parent_subject_id or a guess from wiki_slug.';
+
+-- ---------------------------------------------------------------- where it happens
+-- WHY NOT parent_subject_id. Bryant is where the decarbonization project HAPPENS, not what
+-- it is a kind of. Putting a place in the hierarchy would make "every initiative under
+-- A2ZERO" and "every initiative in Bryant" the same query shape, and they are different
+-- questions -- one taxonomic, one geographic. A project can also span two places.
+CREATE TABLE IF NOT EXISTS subject_places (
+    subject_id          INT NOT NULL REFERENCES subjects(id),
+    place_subject_id    INT NOT NULL REFERENCES subjects(id),
+    -- Which claim says so, when a document rather than a registry is the source.
+    claim_id            BIGINT REFERENCES claims(id),
+    assigned_by         TEXT NOT NULL,
+    assigned_at         TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (subject_id, place_subject_id),
+    CHECK (subject_id <> place_subject_id)
+);
+CREATE INDEX IF NOT EXISTS idx_subject_places_place ON subject_places(place_subject_id);
+
+COMMENT ON COLUMN coalition_members.role IS
+  'How this actor is involved -- lead, community_partner, funder. Controlled, because an '
+  'uncontrolled role field cannot answer "who leads this" across a corpus.';
+
+-- ─── 021_coalition_members_unusable.sql ───
+-- 021: coalition_members could never accept a row.
+--
+-- THE CONTRADICTION. Its primary key is (coalition_id, person_id, org_id, body_id), and a
+-- primary key forces NOT NULL on every column in it. Its CHECK requires
+-- num_nonnulls(person_id, org_id, body_id) = 1 -- exactly one actor, the other two NULL.
+-- Both cannot hold. Every insert fails, whichever actor you name.
+--
+-- The table has 0 rows, which is why nobody found it: it is the first table in this schema
+-- that nothing had yet tried to write. The CHECK is the correct intent -- a member is a
+-- person OR an org OR a body, never two -- so the primary key is what changes.
+--
+-- A surrogate key, and uniqueness expressed where NULLs are allowed. NULLS NOT DISTINCT
+-- keeps the original guarantee: the same org cannot join one coalition twice, and under the
+-- default NULLS DISTINCT it could, because (1, NULL, 91, NULL) never equals itself.
+ALTER TABLE coalition_members DROP CONSTRAINT IF EXISTS coalition_members_pkey;
+
+ALTER TABLE coalition_members ALTER COLUMN person_id DROP NOT NULL;
+ALTER TABLE coalition_members ALTER COLUMN org_id    DROP NOT NULL;
+ALTER TABLE coalition_members ALTER COLUMN body_id   DROP NOT NULL;
+
+ALTER TABLE coalition_members ADD COLUMN IF NOT EXISTS id BIGSERIAL PRIMARY KEY;
+
+ALTER TABLE coalition_members DROP CONSTRAINT IF EXISTS coalition_members_unique_member;
+ALTER TABLE coalition_members ADD CONSTRAINT coalition_members_unique_member
+  UNIQUE NULLS NOT DISTINCT (coalition_id, person_id, org_id, body_id);
+
+-- ─── 022_section_topic.sql ───
+
+CREATE INDEX IF NOT EXISTS document_sections_topic_idx
+    ON document_sections (section_topic) WHERE section_topic IS NOT NULL;
+
+
+-- Data statements left in migrations/ rather than folded in:
+--   004_media_linkage.sql: UPDATE media_assets m
+--   004_media_linkage.sql: UPDATE media_assets m
+--   004_media_linkage.sql: UPDATE media_assets SET duration_seconds = v.dur,
+--   009_measure_vocab_and_dates.sql: DELETE FROM coalition_members
+--   012_funding_programs_and_a2zero_alias.sql: INSERT INTO subjects (name, description, jurisdiction_id, create
+--   012_funding_programs_and_a2zero_alias.sql: INSERT INTO subject_aliases (subject_id, alias, alias_type)
+--   014_human_verdict.sql: UPDATE document_sections SET parse_reviewed_by = 'caleb'
+--   019_quantity_unit_vocabulary.sql: UPDATE vocabularies SET fallback_term = 'other' WHERE name = 'qu
+--   019_quantity_unit_vocabulary.sql: UPDATE vocabulary_terms SET deprecated_by_term = 'percent'
+--   019_quantity_unit_vocabulary.sql: UPDATE vocabulary_terms SET deprecated_by_term = 'metric_tons_co
+--   019_quantity_unit_vocabulary.sql: UPDATE vocabulary_terms SET deprecated_by_term = 'metric_tons'
+--   019_quantity_unit_vocabulary.sql: UPDATE vocabulary_terms SET deprecated_by_term = 'count'

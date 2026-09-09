@@ -48,6 +48,7 @@ CREATE OR REPLACE TRIGGER trg_vocab_sections_human BEFORE INSERT OR UPDATE ON do
 -- A verdict with nobody behind it is an anonymous gate pass. Same rule subjects.created_by
 -- and asserted_events.named_by already enforce: a judgement names its author.
 ALTER TABLE document_sections DROP CONSTRAINT IF EXISTS sections_human_verdict_attributed;
+ALTER TABLE document_sections DROP CONSTRAINT IF EXISTS sections_human_verdict_attributed;
 ALTER TABLE document_sections ADD CONSTRAINT sections_human_verdict_attributed
   CHECK (human_verdict IS NULL
          OR human_verdict = 'not_reviewed'

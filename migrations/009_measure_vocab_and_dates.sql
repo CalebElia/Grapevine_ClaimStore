@@ -77,6 +77,7 @@ ON CONFLICT DO NOTHING;
 -- One membership row names exactly one member.
 DELETE FROM coalition_members
  WHERE num_nonnulls(person_id, org_id, body_id) <> 1;
+ALTER TABLE coalition_members DROP CONSTRAINT IF EXISTS coalition_members_one_member;
 ALTER TABLE coalition_members ADD CONSTRAINT coalition_members_one_member
     CHECK (num_nonnulls(person_id, org_id, body_id) = 1);
 

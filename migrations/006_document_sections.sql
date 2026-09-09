@@ -49,7 +49,7 @@
 
 BEGIN;
 
-CREATE TABLE document_sections (
+CREATE TABLE IF NOT EXISTS document_sections (
     id                  SERIAL PRIMARY KEY,
     document_id         INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     sequence            INT NOT NULL,           -- 0-based, in reading order
@@ -78,26 +78,27 @@ CREATE TABLE document_sections (
     CHECK (char_end > char_start)
 );
 
-CREATE INDEX document_sections_document_idx ON document_sections (document_id, sequence);
-CREATE INDEX document_sections_tier_idx     ON document_sections (extraction_tier)
+CREATE INDEX IF NOT EXISTS document_sections_document_idx ON document_sections (document_id, sequence);
+CREATE INDEX IF NOT EXISTS document_sections_tier_idx     ON document_sections (extraction_tier)
     WHERE extraction_tier IN ('A', 'B');
 
 -- Which section a claim came from. Nullable, because a claim from the video path has none.
-ALTER TABLE claims ADD COLUMN document_section_id INT REFERENCES document_sections(id);
-CREATE INDEX claims_document_section_idx ON claims (document_section_id)
+ALTER TABLE claims ADD COLUMN IF NOT EXISTS document_section_id INT REFERENCES document_sections(id);
+CREATE INDEX IF NOT EXISTS claims_document_section_idx ON claims (document_section_id)
     WHERE document_section_id IS NOT NULL;
 
 -- THE SPAN'S COORDINATE SPACE, NAMED. Without these a span is an integer with no frame of
 -- reference, and the failure mode is not an error -- it is a citation that points at the
 -- wrong words while round-tripping perfectly against the text it was written from.
-ALTER TABLE documents ADD COLUMN converter             TEXT;   -- 'docling+pdfplumber'
-ALTER TABLE documents ADD COLUMN converter_version     TEXT;   -- git sha of the pipeline
-ALTER TABLE documents ADD COLUMN parse_verdict         TEXT;   -- PASS | REVIEW | REFUSE
-ALTER TABLE documents ADD COLUMN parse_override_reason TEXT;   -- required if REFUSE
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS converter             TEXT;   -- 'docling+pdfplumber'
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS converter_version     TEXT;   -- git sha of the pipeline
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS parse_verdict         TEXT;   -- PASS | REVIEW | REFUSE
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS parse_override_reason TEXT;   -- required if REFUSE
 
 -- A refused conversion may only be stored with a reason on the record. This is the schema
 -- half of orchestrate_blocks' --allow-refused: the override survives into the store rather
 -- than living in one operator's shell history.
+ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_refusal_needs_a_reason;
 ALTER TABLE documents ADD CONSTRAINT documents_refusal_needs_a_reason
     CHECK (parse_verdict IS DISTINCT FROM 'REFUSE' OR parse_override_reason IS NOT NULL);
 

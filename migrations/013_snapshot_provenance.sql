@@ -40,5 +40,6 @@ CREATE OR REPLACE TRIGGER trg_vocab_documents_snapshot BEFORE INSERT OR UPDATE O
 -- A snapshot hash with no path cannot be re-checked, and a path with no hash proves
 -- nothing. They travel together or not at all.
 ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_snapshot_pair;
+ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_snapshot_pair;
 ALTER TABLE documents ADD CONSTRAINT documents_snapshot_pair
   CHECK ((snapshot_path IS NULL) = (snapshot_hash IS NULL));

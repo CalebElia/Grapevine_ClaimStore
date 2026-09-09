@@ -52,6 +52,20 @@ INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
 ('speaker_id_method',      'How a speaker was identified. Also used for voiceprint enrollment.',   TRUE,  'manual'),
 -- Layer 4 — claims
 ('curation_state',         'How far a claim has progressed through Subject assignment',            FALSE, 'unassigned'),
+-- How a claim-to-subject MENTION was found. Open, and with no fallback on purpose: an
+-- unrecognised method must stay visible rather than be silently rewritten to a weaker one.
+('mention_method',         'How a mention of a subject inside a claim was detected',              TRUE,  NULL),
+-- Folded in from migrations 005-022. Declared here, not in the folded section below,
+-- because tests/test_schema_structure.py reads only the first VALUES block.
+('parse_confidence',      'How far a section''s parse has been audited',                          FALSE, 'unaudited'),
+('section_topic',         'What a section IS, when that is not derivable from its heading',       TRUE,  NULL),
+('human_verdict',         'A person''s sign-off on a parsed section',                             TRUE,  'not_reviewed'),
+('covers_period_source',  'How a document''s reporting period was determined',                    FALSE, 'unknown'),
+('provenance_source',     'Where a stored artefact came from',                                    TRUE,  'unknown'),
+('marker_evidence',       'What evidence placed a page marker',                                   TRUE,  'unknown'),
+('fiscal_direction',      'Which way money moved: authorized, spent, received, saved',            TRUE,  'unknown'),
+('model_confidence',      'A model''s confidence reading a value off a figure',                   TRUE,  'unknown'),
+('subject_kind',          'What sort of thing a subject is: plan, strategy, initiative, place', TRUE,  'other'),
 ('polarity',               'Direction of a claim',                                                 FALSE, 'informational'),
 ('contested_dimension',    'What is actually in dispute. "Not now" is not "no".',                  TRUE,  NULL),
 ('modality',               'Epistemic stance of the assertion',                                    FALSE, 'asserted'),
@@ -130,6 +144,18 @@ INSERT INTO vocabulary_terms (vocabulary, term, approved_by) VALUES
 ('org_type','government','schema-v0.2'),('org_type','government_dept','schema-v0.2'),
 ('org_type','nonprofit','schema-v0.2'),('org_type','neighborhood_group','schema-v0.2'),
 ('org_type','business','schema-v0.2'),('org_type','utility','schema-v0.2'),
+-- faith_group: the CAP names Places of Worship as their own engagement channel in
+-- Strategy 3, so a faith organisation is a distinct route to residents. 'nonprofit'
+-- would be technically true and lose exactly that.
+('org_type','faith_group','schema-v0.5'),
+('parse_confidence','clean','schema-v0.5'),('parse_confidence','known_incomplete','schema-v0.5'),('parse_confidence','suspect','schema-v0.5'),('parse_confidence','unaudited','schema-v0.5'),
+('section_topic','assumptions','schema-v0.5'),('section_topic','engagement_log','schema-v0.5'),('section_topic','ideas_considered','schema-v0.5'),('section_topic','roster','schema-v0.5'),('section_topic','timeline','schema-v0.5'),
+('human_verdict','approved','schema-v0.5'),('human_verdict','approved_with_caveats','schema-v0.5'),('human_verdict','not_reviewed','schema-v0.5'),('human_verdict','rejected','schema-v0.5'),
+('covers_period_source','human_estimate','schema-v0.5'),('covers_period_source','stated','schema-v0.5'),('covers_period_source','unknown','schema-v0.5'),
+('provenance_source','human_supplied','schema-v0.5'),('provenance_source','local_file','schema-v0.5'),('provenance_source','retrieved','schema-v0.5'),('provenance_source','unknown','schema-v0.5'),
+('marker_evidence','human','schema-v0.5'),('marker_evidence','printed','schema-v0.5'),('marker_evidence','second_read','schema-v0.5'),('marker_evidence','text_layer','schema-v0.5'),('marker_evidence','unknown','schema-v0.5'),
+('fiscal_direction','authorized','schema-v0.5'),('fiscal_direction','disbursed','schema-v0.5'),('fiscal_direction','received','schema-v0.5'),('fiscal_direction','saved','schema-v0.5'),('fiscal_direction','spent','schema-v0.5'),('fiscal_direction','unknown','schema-v0.5'),
+('model_confidence','high','schema-v0.5'),('model_confidence','medium','schema-v0.5'),('model_confidence','low','schema-v0.5'),('model_confidence','unknown','schema-v0.5'),
 ('org_type','union','schema-v0.2'),('org_type','consultant','schema-v0.2'),
 ('org_type','academic','schema-v0.2'),('org_type','foundation','schema-v0.2'),
 ('org_type','advocacy_coalition','schema-v0.2'),('org_type','other','schema-v0.2'),
@@ -218,6 +244,13 @@ INSERT INTO vocabulary_terms (vocabulary, term, approved_by) VALUES
 -- Layer 4
 ('curation_state','unassigned','schema-v0.2'),('curation_state','proposed','schema-v0.2'),
 ('curation_state','confirmed','schema-v0.2'),
+-- Only a LITERAL occurrence is strong enough to store; proximity is queued, never written.
+('mention_method','literal_name','schema-v0.4'),('mention_method','literal_alias','schema-v0.4'),
+('mention_method','human','schema-v0.4'),
+('mention_method','core_phrase_verified','schema-v0.4'),
+('subject_kind','plan','schema-v0.3'),('subject_kind','strategy','schema-v0.3'),
+('subject_kind','initiative','schema-v0.3'),('subject_kind','place','schema-v0.3'),
+('subject_kind','topic','schema-v0.3'),('subject_kind','other','schema-v0.3'),
 
 ('polarity','support','schema-v0.2'),('polarity','oppose','schema-v0.2'),
 ('polarity','mixed','schema-v0.2'),('polarity','procedural','schema-v0.2'),
@@ -556,3 +589,346 @@ CREATE TRIGGER trg_vocab_ssl_doc BEFORE INSERT OR UPDATE ON source_search_log
     FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('doc_type','doc_type');
 CREATE TRIGGER trg_vocab_ssl_out BEFORE INSERT OR UPDATE ON source_search_log
     FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('search_outcome','outcome');
+CREATE TRIGGER trg_vocab_covers_period_source BEFORE INSERT OR UPDATE ON documents
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('covers_period_source','covers_period_source');
+
+CREATE TRIGGER trg_vocab_parse_confidence BEFORE INSERT OR UPDATE ON document_sections
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('parse_confidence','parse_confidence');
+
+CREATE TRIGGER trg_vocab_funding_alias_type BEFORE INSERT OR UPDATE ON funding_program_aliases
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('alias_type','alias_type');
+
+CREATE TRIGGER trg_vocab_model_confidence BEFORE INSERT OR UPDATE ON figure_data_points
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('model_confidence','model_confidence');
+
+CREATE TRIGGER trg_vocab_org_alias_type BEFORE INSERT OR UPDATE ON org_aliases
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('alias_type','alias_type');
+
+CREATE TRIGGER trg_vocab_subject_kind BEFORE INSERT OR UPDATE ON subjects
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('subject_kind','subject_kind');
+
+CREATE TRIGGER trg_vocab_mention_method BEFORE INSERT OR UPDATE ON claim_subject_mentions
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('mention_method','method');
+
+
+-- ══════════════════════════════════════════════════════════════════════════════════════
+-- FOLDED-IN MIGRATIONS — vocabularies, terms and their triggers
+-- See the matching section in claim_store.sql for why this is here.
+-- ══════════════════════════════════════════════════════════════════════════════════════
+
+-- ─── 006_document_sections.sql ───
+
+-- Vocabulary seeds. Semi-open per Rule 1: the trigger proposes rather than rejects, so
+-- these are a starting set and not a closed list.
+--
+-- The VOCABULARY has to be registered before its terms: vocabulary_terms.vocabulary is a
+-- foreign key into vocabularies, and inserting terms alone fails with a constraint error
+-- rather than quietly creating the vocabulary. is_open FALSE because a parse verdict is a
+-- gate -- a new severity should be a deliberate decision, not something extraction invents
+-- and the trigger accepts. fallback_term is the value that BLOCKS, so an unrecognised
+-- verdict fails closed like every other unknown in this pipeline.
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+    ('parse_confidence',
+     'Whether a document section has been checked well enough to extract claims from. '
+     'Extraction accepts only ''clean''.',
+     FALSE, 'unaudited')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+    ('parse_confidence', 'unaudited',
+     'Default. Nothing has checked this section; extraction refuses it.', 'migration-006'),
+    ('parse_confidence', 'clean',
+     'Checked and readable. The only value extraction accepts.', 'migration-006'),
+    ('parse_confidence', 'suspect',
+     'A check fired. May be staged but cannot publish.', 'migration-006'),
+    ('parse_confidence', 'known_incomplete',
+     'Content is provably missing and is not machine-recoverable -- Year 2''s grant table. '
+     'Marked permanently so a partial list is never presented as a whole one.',
+     'migration-006')
+ON CONFLICT DO NOTHING;
+
+-- ─── 007_period_provenance.sql ───
+
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+    ('covers_period_source',
+     'How a document''s coverage period was arrived at. A period a human inferred is '
+     'evidence of a different kind from one the document printed.',
+     FALSE, 'unknown')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+    ('covers_period_source', 'stated',
+     'The document prints the range. Carried verbatim, typos included.', 'migration-007'),
+    ('covers_period_source', 'human_estimate',
+     'A person inferred it from context. Requires covers_period_note.', 'migration-007'),
+    ('covers_period_source', 'unknown',
+     'Default. Nothing has established where the period came from.', 'migration-007')
+ON CONFLICT DO NOTHING;
+
+-- ─── 009_measure_vocab_and_dates.sql ───
+
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+    ('quantity_measure',
+     'What a quantity counts, as distinct from the unit it counts in. Two numbers sharing '
+     'a unit but not a measure must never be summed.',
+     TRUE, 'unspecified')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+    ('quantity_measure', 'emissions_reduced',    'GHG avoided or cut',        'migration-009'),
+    ('quantity_measure', 'emissions_total',      'GHG emitted in a period',   'migration-009'),
+    ('quantity_measure', 'energy_saved',         'Energy not consumed',       'migration-009'),
+    ('quantity_measure', 'capacity_installed',   'Generation or storage built','migration-009'),
+    ('quantity_measure', 'people_served',        'Individuals reached',       'migration-009'),
+    ('quantity_measure', 'households_served',    'Households reached',        'migration-009'),
+    ('quantity_measure', 'facilities_treated',   'Buildings or sites acted on','migration-009'),
+    ('quantity_measure', 'units_deployed',       'Devices, vehicles, trees',  'migration-009'),
+    ('quantity_measure', 'participants',         'Attendees or enrollees',    'migration-009'),
+    ('quantity_measure', 'cost_saved',           'Money not spent',           'migration-009'),
+    ('quantity_measure', 'area_protected',       'Land conserved',            'migration-009'),
+    ('quantity_measure', 'organizations_engaged','Partner bodies involved',   'migration-009'),
+    ('quantity_measure', 'unspecified',
+     'Default. The document states a number whose measure is not determinable.',
+     'migration-009')
+ON CONFLICT DO NOTHING;
+
+-- The precision of a date a claim INHERITED from its document rather than stated itself.
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+    ('date_precision', 'reporting_period',
+     'The claim states no date; it is dated to the coverage period of the document that '
+     'carries it. Not year and not fiscal_year -- reports in this corpus use both and '
+     'neither.', 'migration-009')
+ON CONFLICT DO NOTHING;
+
+-- ─── 012_funding_programs_and_a2zero_alias.sql ───
+
+-- funding_instrument was declared TEXT with no vocabulary and no terms, so nothing has
+-- ever constrained or proposed a value for it. Declared and seeded now that the column
+-- next to it means something different.
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+  ('funding_instrument', 'The financial mechanism of an award, not its source or program',
+   TRUE, 'other')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, approved_by) VALUES
+  ('funding_instrument','block_grant','schema-v0.2'),
+  ('funding_instrument','competitive_grant','schema-v0.2'),
+  ('funding_instrument','formula_grant','schema-v0.2'),
+  ('funding_instrument','mini_grant','schema-v0.2'),
+  ('funding_instrument','sponsorship','schema-v0.2'),
+  ('funding_instrument','rebate','schema-v0.2'),
+  ('funding_instrument','loan','schema-v0.2'),
+  ('funding_instrument','revolving_loan','schema-v0.2'),
+  ('funding_instrument','appropriation','schema-v0.2'),
+  ('funding_instrument','millage_revenue','schema-v0.2'),
+  ('funding_instrument','other','schema-v0.2')
+ON CONFLICT DO NOTHING;
+
+-- ─── 013_snapshot_provenance.sql ───
+
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+  ('provenance_source', 'How a provenance value was established', TRUE, 'unknown')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+  ('provenance_source','retrieved','downloaded by the pipeline; URL and timestamp are recorded','schema-v0.2'),
+  ('provenance_source','local_file','hashed from a file on disk with no retrieval record','schema-v0.2'),
+  ('provenance_source','human_supplied','a person stated it','schema-v0.2'),
+  ('provenance_source','unknown','not established','schema-v0.2')
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE TRIGGER trg_vocab_documents_snapshot BEFORE INSERT OR UPDATE ON documents
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('provenance_source','snapshot_source');
+
+-- ─── 014_human_verdict.sql ───
+
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+  ('human_verdict', 'A person''s judgement on whether a section may be extracted',
+   TRUE, 'not_reviewed')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+  ('human_verdict','approved','a person read this against the source and vouches for it','schema-v0.2'),
+  ('human_verdict','approved_with_caveats','usable, but the note states a known limit','schema-v0.2'),
+  ('human_verdict','rejected','a person read it and it is not usable','schema-v0.2'),
+  ('human_verdict','not_reviewed','no person has looked','schema-v0.2')
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE TRIGGER trg_vocab_sections_human BEFORE INSERT OR UPDATE ON document_sections
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('human_verdict','human_verdict');
+
+-- ─── 015_footnotes.sql ───
+
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+  ('marker_evidence', 'How a footnote marker was established', TRUE, 'unknown')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+  ('marker_evidence','printed','the marker survived the conversion as a legible numeral','schema-v0.2'),
+  ('marker_evidence','second_read','recovered from a second independent read of the pixels','schema-v0.2'),
+  ('marker_evidence','text_layer','recovered from the PDF text layer','schema-v0.2'),
+  ('marker_evidence','human','a person read the page and said so','schema-v0.2'),
+  ('marker_evidence','unknown','not established','schema-v0.2')
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE TRIGGER trg_vocab_footnote_ref BEFORE INSERT OR UPDATE ON footnote_references
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('marker_evidence','marker_evidence');
+
+-- ─── 017_fiscal_direction.sql ───
+
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+  ('fiscal_direction', 'Which way money moved relative to the actor making the claim',
+   TRUE, 'unknown')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+  ('fiscal_direction','received','money awarded to or won by the actor','schema-v0.2'),
+  ('fiscal_direction','disbursed','money the actor granted or paid out to others','schema-v0.2'),
+  ('fiscal_direction','saved','costs avoided or savings claimed; no money changed hands','schema-v0.2'),
+  ('fiscal_direction','spent','money the actor spent on its own activity','schema-v0.2'),
+  ('fiscal_direction','authorized','committed or appropriated, not yet moved','schema-v0.2'),
+  ('fiscal_direction','unknown','the text does not say','schema-v0.2')
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE TRIGGER trg_vocab_fiscal_direction BEFORE INSERT OR UPDATE ON fiscal_references
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('fiscal_direction','direction');
+
+-- ─── 019_quantity_unit_vocabulary.sql ───
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+  ('quantity_unit','percent','a proportion; unit_basis says of what','schema-v0.3'),
+  ('quantity_unit','metric_tons_co2e','mass of CO2 equivalent','schema-v0.3'),
+  ('quantity_unit','metric_tons','mass, NOT asserted to be carbon','schema-v0.3'),
+  ('quantity_unit','miles','distance','schema-v0.3'),
+  ('quantity_unit','square_feet','floor or land area','schema-v0.3'),
+  ('quantity_unit','years','duration in years','schema-v0.3'),
+  ('quantity_unit','days','duration in days or weeks','schema-v0.3'),
+  ('quantity_unit','ratio','a dimensionless ratio','schema-v0.3'),
+  ('quantity_unit','other','the text gave no usable unit','schema-v0.3'),
+  ('quantity_unit','kWh','energy','schema-v0.3')
+ON CONFLICT DO NOTHING;
+
+-- ─── 020_initiative_layer.sql ───
+
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+  ('subject_kind', 'What sort of thing a subject is', TRUE, 'other')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+  ('subject_kind','plan','a whole plan or programme, e.g. A2ZERO','schema-v0.3'),
+  ('subject_kind','strategy','a top-level division of a plan','schema-v0.3'),
+  ('subject_kind','initiative','a named project or programme that delivers work','schema-v0.3'),
+  ('subject_kind','place','a geography: a neighbourhood, corridor, facility','schema-v0.3'),
+  ('subject_kind','topic','a subject of discussion that is not a project','schema-v0.3'),
+  ('subject_kind','other','none of the above','schema-v0.3')
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE TRIGGER trg_vocab_subject_kind BEFORE INSERT OR UPDATE ON subjects
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('subject_kind','subject_kind');
+
+-- ---------------------------------------------------------------- who does what
+-- coalition_members already carries person/org/body, a role and a claim_id for provenance,
+-- and coalitions already hangs off a subject. That is the actors-with-roles requirement
+-- entire; what was missing is a controlled vocabulary for `role`, without which it becomes
+-- the free-text field quantity_unit was.
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+  ('involvement_role', 'How an actor is involved in an initiative', TRUE, 'participant')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+  ('involvement_role','lead','accountable for delivery','schema-v0.3'),
+  ('involvement_role','co_lead','shares accountability','schema-v0.3'),
+  ('involvement_role','implementer','does the work without owning it','schema-v0.3'),
+  ('involvement_role','community_partner','a community organisation collaborating','schema-v0.3'),
+  ('involvement_role','funder','supplies money','schema-v0.3'),
+  ('involvement_role','regulator','holds approval or oversight authority','schema-v0.3'),
+  ('involvement_role','beneficiary','the work is done for them','schema-v0.3'),
+  ('involvement_role','participant','involved, role unstated','schema-v0.3')
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE TRIGGER trg_vocab_coalition_role BEFORE INSERT OR UPDATE ON coalition_members
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('involvement_role','role');
+
+-- ─── 022_section_topic.sql ───
+-- 022: give section_topic a vocabulary, and a first member that the CAP needs.
+--
+-- WHY NOW. document_sections.section_topic has existed since migration 006, carries the
+-- comment "vocab: section_topic", and had NO vocabulary and ZERO populated rows. It was a
+-- column waiting for a purpose, and the CAP supplies one.
+--
+-- THE PROBLEM IT SOLVES, MEASURED. Appendix 5, "List of Ideas Considered for A2ZERO", is 35
+-- sections of ideas the City received and did NOT adopt as Actions -- among them "Geothermal
+-- districts", which later became a central municipal venture. Extraction treated them
+-- arbitrarily: 29 sections produced nothing at all, 7 produced 69 claims, from identical
+-- content. Worse, the 69 came out `hypothetical`, which is the same modality an Action's
+-- Vision block carries. So "It is 2030, and we have reached carbon neutrality" -- a
+-- commitment the Plan makes -- and "Create carbon tax" -- an idea the Plan declined -- are
+-- indistinguishable in the store.
+--
+-- MODALITY IS THE WRONG PLACE TO FIX IT. modality is assertion STRENGTH: asserted, hedged,
+-- hypothetical, attributed_to_other. Whether an idea was adopted is not a property of how
+-- strongly the City said it; adding a `considered` modality would conflate two axes and
+-- corrupt every query that already groups by it. The frame belongs to the SECTION, which is
+-- what section_topic is for.
+--
+-- The document says this about itself, and the claim is already stored on the appendix's
+-- own intro section: "The Plan presented above includes the ideas evaluated to be the most
+-- impactful ... The list of ideas below serves to document the full list of ideas received,
+-- and to be turned to should adjustments to the Plan be required."
+
+INSERT INTO vocabularies (name, description, is_open, fallback_term) VALUES
+  ('section_topic',
+   'What a section IS, where that changes how its claims should be read. Not what the '
+   'section is ABOUT -- that is subject_id. A section with no topic is the normal case.',
+   TRUE, NULL)
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by) VALUES
+  ('section_topic', 'ideas_considered',
+   'Options the author received and recorded but did not adopt. The claims inside are real '
+   'assertions that these ideas were RAISED -- never that they were planned or funded. '
+   'CAP-2020 Appendix 5 is the founding case: 35 sections, including the district geothermal '
+   'idea that was not made an Action in 2020.',
+   'schema-v0.4'),
+  ('section_topic', 'timeline',
+   'A dated sequence of steps. Its claims are commitments with a year attached, and the year '
+   'is the claim''s world time rather than the document''s.',
+   'schema-v0.4'),
+  ('section_topic', 'assumptions',
+   'What a projection depends on. Its claims are conditions, not outcomes -- which is why '
+   'they extract as hypothetical and must not be read as commitments.',
+   'schema-v0.4'),
+  ('section_topic', 'roster',
+   'A list of people, bodies or organisations. Names to resolve, not assertions about the '
+   'world; the annual reports'' staff footers are the existing example.',
+   'schema-v0.4'),
+  ('section_topic', 'engagement_log',
+   'A dated record of meetings, events or outreach. Each entry asserts that a thing happened '
+   'on a date, which is exactly a claim, but none of them asserts a policy.',
+   'schema-v0.4')
+ON CONFLICT DO NOTHING;
+
+-- NEVER REJECTS, like every other vocabulary here. fallback_term is NULL deliberately: an
+-- unrecognised topic is stored as given and raises a proposal, because guessing a frame is
+-- worse than recording an unknown one.
+CREATE OR REPLACE TRIGGER trg_vocab_section_topic
+    BEFORE INSERT OR UPDATE ON document_sections
+    FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary('section_topic', 'section_topic');
+
+-- ─── 010_undo_duplicate_measures.sql ───
+--
+-- NOT DATA, ONTOLOGY MAINTENANCE. Folding the migrations in classified INSERT/UPDATE/DELETE
+-- as data and left them behind -- right for a seeded alias row, wrong for this: migration 009
+-- introduced nine quantity_measure terms that duplicated established ones
+-- (`capacity_installed` beside `installed_capacity`, `emissions_reduced` and
+-- `emissions_total` beside `emissions`), and 010 exists to remove them. Without it a rebuilt
+-- database carries eight dead terms the live one does not, and an extractor could pick either
+-- spelling.
+--
+-- Placed at the end so it applies after every INSERT above, whatever order they arrived in.
+DELETE FROM vocabulary_terms
+ WHERE vocabulary = 'quantity_measure'
+   AND approved_by = 'migration-009'
+   AND term IN ('capacity_installed', 'cost_saved', 'participants', 'people_served',
+                'energy_saved', 'emissions_reduced', 'emissions_total',
+                'organizations_engaged', 'unspecified');

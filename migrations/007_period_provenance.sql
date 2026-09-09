@@ -26,10 +26,11 @@
 
 BEGIN;
 
-ALTER TABLE documents ADD COLUMN covers_period_source TEXT;  -- vocab
-ALTER TABLE documents ADD COLUMN covers_period_note   TEXT;  -- who decided, and why
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS covers_period_source TEXT;  -- vocab: covers_period_source
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS covers_period_note   TEXT;  -- who decided, and why
 
 -- A human estimate must say who made it. A stated period needs no such defence.
+ALTER TABLE documents DROP CONSTRAINT IF EXISTS documents_estimate_needs_a_note;
 ALTER TABLE documents ADD CONSTRAINT documents_estimate_needs_a_note
     CHECK (covers_period_source IS DISTINCT FROM 'human_estimate'
            OR covers_period_note IS NOT NULL);

@@ -21,5 +21,6 @@ ALTER TABLE coalition_members ALTER COLUMN body_id   DROP NOT NULL;
 ALTER TABLE coalition_members ADD COLUMN IF NOT EXISTS id BIGSERIAL PRIMARY KEY;
 
 ALTER TABLE coalition_members DROP CONSTRAINT IF EXISTS coalition_members_unique_member;
+ALTER TABLE coalition_members DROP CONSTRAINT IF EXISTS coalition_members_unique_member;
 ALTER TABLE coalition_members ADD CONSTRAINT coalition_members_unique_member
   UNIQUE NULLS NOT DISTINCT (coalition_id, person_id, org_id, body_id);

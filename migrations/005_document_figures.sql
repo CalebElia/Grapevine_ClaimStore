@@ -28,7 +28,7 @@
 BEGIN;
 
 -- ── figures ────────────────────────────────────────────────────────────────────────────
-CREATE TABLE document_figures (
+CREATE TABLE IF NOT EXISTS document_figures (
     id                  SERIAL PRIMARY KEY,
     document_id         INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     page_no             INT NOT NULL,
@@ -51,10 +51,10 @@ CREATE TABLE document_figures (
     source_content_hash TEXT,
     CHECK (length(trim(raw_xml)) > 0)
 );
-CREATE INDEX idx_figures_document ON document_figures(document_id);
+CREATE INDEX IF NOT EXISTS idx_figures_document ON document_figures(document_id);
 
 -- ── one row per <point> ────────────────────────────────────────────────────────────────
-CREATE TABLE figure_data_points (
+CREATE TABLE IF NOT EXISTS figure_data_points (
     id                  BIGSERIAL PRIMARY KEY,
     figure_id           INT NOT NULL REFERENCES document_figures(id) ON DELETE CASCADE,
     label               TEXT NOT NULL,
@@ -77,18 +77,18 @@ CREATE TABLE figure_data_points (
     period_is_partial   BOOLEAN NOT NULL DEFAULT FALSE,
     CHECK (length(trim(value_text)) > 0)
 );
-CREATE INDEX idx_figpoints_figure ON figure_data_points(figure_id);
+CREATE INDEX IF NOT EXISTS idx_figpoints_figure ON figure_data_points(figure_id);
 
 -- Chart readings attest to events like any other source; only the TYPE differs.
 ALTER TABLE event_attestations
-    ADD COLUMN figure_data_point_id BIGINT REFERENCES figure_data_points(id);
+    ADD COLUMN IF NOT EXISTS figure_data_point_id BIGINT REFERENCES figure_data_points(id);
 
 -- ── harvested links: the source-discovery queue ────────────────────────────────────────
 -- The corpus names its own next sources. Year 5 carries 81 links across 23 hosts, 77 of
 -- them anchored to the exact character span of the sentence citing them. Storing the
 -- anchor and its sentence is what keeps this answerable a year later: "which claim relied
 -- on this URL, in which reading of which document."
-CREATE TABLE document_links (
+CREATE TABLE IF NOT EXISTS document_links (
     id                  BIGSERIAL PRIMARY KEY,
     document_id         INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     uri                 TEXT NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE document_links (
     CHECK (length(trim(uri)) > 0),
     CHECK (length(trim(anchor_text)) > 0)
 );
-CREATE INDEX idx_doclinks_document ON document_links(document_id);
-CREATE INDEX idx_doclinks_uri      ON document_links(uri);
+CREATE INDEX IF NOT EXISTS idx_doclinks_document ON document_links(document_id);
+CREATE INDEX IF NOT EXISTS idx_doclinks_uri      ON document_links(uri);
 
 COMMIT;

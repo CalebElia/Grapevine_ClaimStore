@@ -37,7 +37,10 @@ def strip_line_comments(sql: str) -> str:
 def parse_tables(ddl: str) -> dict[str, str]:
     """Return {table_name: raw body between the outermost parens}."""
     tables: dict[str, str] = {}
-    for m in re.finditer(r"CREATE TABLE (\w+)\s*\(", ddl):
+    # `IF NOT EXISTS` is required of anything re-declared by a replayed migration, and the
+    # folded-migrations section of claim_store.sql uses it throughout. Missing it here meant
+    # nine real tables read as absent.
+    for m in re.finditer(r"CREATE TABLE (?:IF NOT EXISTS )?(\w+)\s*\(", ddl):
         name = m.group(1)
         depth, i = 1, m.end()
         while depth and i < len(ddl):
@@ -67,6 +70,23 @@ def parse_columns(body: str) -> list[str]:
 TABLES = parse_tables(DDL)
 COLUMNS = {t: parse_columns(b) for t, b in TABLES.items()}
 
+# COLUMNS ADDED BY ALTER ARE STILL COLUMNS. The folded-migrations section adds many that way
+# rather than editing the CREATE TABLE above it, so that each migration's reasoning stays with
+# its change. Reading only CREATE TABLE bodies made `documents.snapshot_source`,
+# `document_sections.human_verdict` and `fiscal_references.direction` look nonexistent.
+_ALTER_ADD = re.compile(
+    # To END OF LINE, not to the semicolon: the `-- vocab:` annotation is a trailing comment
+    # and therefore sits after it.
+    r"ALTER TABLE (?:ONLY )?(\w+)[^;]*?\bADD COLUMN (?:IF NOT EXISTS )?(\w+)([^\n]*)",
+    re.I)
+for _m in _ALTER_ADD.finditer(DDL):
+    _t, _c = _m.group(1), _m.group(2)
+    if _t in COLUMNS:
+        if _c not in COLUMNS[_t]:
+            COLUMNS[_t].append(_c)
+    else:
+        COLUMNS.setdefault(_t, []).append(_c)
+
 # {(table, column): vocabulary} from trailing `-- vocab: name` comments
 COLUMN_VOCABS: dict[tuple[str, str], str] = {}
 for _table, _body in TABLES.items():
@@ -74,6 +94,13 @@ for _table, _body in TABLES.items():
         m = re.match(r"\s*(\w+)\s+[A-Za-z].*?--\s*vocab:\s*(\w+)", _line)
         if m:
             COLUMN_VOCABS[(_table, m.group(1))] = m.group(2)
+
+# The same annotation on an ALTER-added column. `documents.covers_period_source` carries one,
+# and reading only CREATE TABLE bodies made its vocabulary look seeded-but-unused.
+for _m in _ALTER_ADD.finditer(DDL):
+    _vm = re.search(r"--\s*vocab:\s*(\w+)", _m.group(3) or "")
+    if _vm:
+        COLUMN_VOCABS[(_m.group(1), _m.group(2))] = _vm.group(1)
 
 SEEDED_VOCABS: dict[str, str | None] = {}
 # Terminate on `);` at end of line — only the final VALUES row has that. Matching to
@@ -93,9 +120,14 @@ SEEDED_TERMS: set[tuple[str, str]] = set(
     re.findall(r"\('([a-z_]+)','([A-Za-z0-9_]+)','[^']*'\)", VOCAB)
 )
 
+# `CREATE OR REPLACE TRIGGER` is the same statement and is required wherever a trigger is
+# declared twice — the folded-migrations section re-declares several. Matching only the plain
+# form read those as "no trigger", which is the failure this test exists to catch.
 TRIGGERS = re.findall(
-    r"CREATE TRIGGER \w+\s+BEFORE INSERT OR UPDATE ON (\w+)\s+"
-    r"FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary\('([a-z_]+)','(\w+)'",
+    r"CREATE (?:OR REPLACE )?TRIGGER \w+\s+BEFORE INSERT OR UPDATE ON (\w+)\s+"
+    # Optional space after the comma: a trigger written `enforce_vocabulary('x', 'x')` is the
+    # same trigger, and reading it as absent is exactly the false negative this test guards.
+    r"FOR EACH ROW EXECUTE FUNCTION enforce_vocabulary\('([a-z_]+)',\s*'(\w+)'",
     VOCAB,
 )
 
