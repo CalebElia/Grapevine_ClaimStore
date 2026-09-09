@@ -41,3 +41,13 @@ snapshots/
 #   "$(conda info --base)"/envs/grapevine-db/bin/pg_dump -h /tmp -p 5433 -U grapevine \
 #       -d grapevine --schema-only --no-owner --no-privileges -f schema/live-snapshot.sql
 schema/live-snapshot.sql
+
+# Sync-client conflict copies. Something syncing this directory (iCloud Desktop, Dropbox)
+# restores files as "name 2.ext", and 196 of them -- dated weeks earlier -- reappeared in the
+# working tree mid-session. None were tracked, so nothing reached the remote, but pytest
+# collects tests/*.py by glob: the suite silently grew from 1280 tests to 2395, half of them
+# running stale copies of the code. A green run on the wrong file is worse than a red one.
+*\ 2.*
+*\ [0-9].*
+*\ copy.*
+*\ copy\ [0-9].*
