@@ -235,6 +235,39 @@ def _block_record(kind: str, page_no: int, bbox: tuple[float, float, float, floa
     }
 
 
+def _table_cells(item) -> list[dict]:
+    """A table's cells as plain dicts: grid position, span, text, and the cell's own box.
+
+    WHY A TABLE CANNOT RIDE THE TEXT BRANCH. The block pass keys on `item.text`, and a
+    TableItem has none -- its content lives in `data.table_cells`. So every table Docling
+    found fell through both branches and was dropped before blocks.json was written. The CAP
+    has 536 rows of detected table and carried zero TableItem blocks; the Action Summary
+    Table on page 10 reached the renderer only as loose words swept off the page, with its
+    columns interleaved into unreadable prose.
+
+    THE BBOX IS THE POINT. Each cell brings its own box, so a table is not a special case for
+    this pipeline at all -- it is a grid of small crops, and the same rule applies inside it
+    as everywhere else: Docling proposes the cell boundaries and the reading order of the
+    grid, pdfplumber supplies the characters within each one. Docling's own cell text is
+    carried alongside for the same reason a block's is, so disagreement stays detectable.
+    """
+    data = getattr(item, "data", None)
+    cells = []
+    for c in (getattr(data, "table_cells", None) or []):
+        bb = getattr(c, "bbox", None)
+        cells.append({
+            "row": int(getattr(c, "start_row_offset_idx", 0)),
+            "col": int(getattr(c, "start_col_offset_idx", 0)),
+            "row_span": int(getattr(c, "row_span", 1) or 1),
+            "col_span": int(getattr(c, "col_span", 1) or 1),
+            "is_header": bool(getattr(c, "column_header", False)),
+            "docling_text": getattr(c, "text", "") or "",
+            "bbox": [bb.l, bb.t, bb.r, bb.b] if bb is not None else None,
+            "coord_origin": str(getattr(bb, "coord_origin", "")) if bb is not None else None,
+        })
+    return cells
+
+
 def build_converter(chart_extraction: bool = True, classification: bool = True,
                     ocr_engine: str | None = None):
     from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -298,7 +331,7 @@ def run(pdf: Path, out: Path, chart_extraction: bool = True,
     # fire WHEN a chart exists, so "0 charts" on years 2 and 4 was real while year 5
     # actually found one and took the counter down with it. Extract the cells rather
     # than measuring the container.
-    from docling_core.types.doc.document import PictureItem
+    from docling_core.types.doc.document import PictureItem, TableItem
 
     # (page_no -> (width, height)) so a picture's bbox can be turned into an area
     # fraction of the page it actually sits on, not some document-wide average.
@@ -344,6 +377,16 @@ def run(pdf: Path, out: Path, chart_extraction: bool = True,
                            "top_label": rec["top_label"], "top_conf": rec["top_conf"],
                            "area_frac": rec["area_frac"],
                            "worth_extraction": rec["worth_extraction"]})
+        elif isinstance(item, TableItem) and prov:
+            pw, ph = pages.get(prov.page_no, (None, None))
+            b = prov.bbox
+            cells = _table_cells(item)
+            blocks.append({**_block_record(kind, prov.page_no, (b.l, b.t, b.r, b.b),
+                                           str(b.coord_origin), pw, ph, "",
+                                           item.self_ref, caption_refs),
+                           "n_rows": (max((c["row"] for c in cells), default=-1) + 1),
+                           "n_cols": (max((c["col"] for c in cells), default=-1) + 1),
+                           "cells": cells})
         elif prov and getattr(item, "text", ""):
             pw, ph = pages.get(prov.page_no, (None, None))
             b = prov.bbox
@@ -412,7 +455,10 @@ def main() -> int:
     for p in worth:
         print(f"[docling]   page {p['page_no']}: {p['top_label']} "
               f"(conf {p['top_conf']}, {p['area_frac']:.1%} of page)")
-    print(f"[docling] {len(r['blocks'])} text/picture blocks -> {r['blocks_out']}")
+    n_tab = sum(1 for b in r["blocks"] if b.get("cells") is not None)
+    n_cell = sum(len(b.get("cells") or []) for b in r["blocks"])
+    print(f"[docling] {len(r['blocks'])} text/picture/table blocks "
+          f"({n_tab} table(s), {n_cell} cell(s)) -> {r['blocks_out']}")
     print(f"[docling] wrote {r['out']}")
     return 0
 

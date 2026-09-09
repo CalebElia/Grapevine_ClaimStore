@@ -18,7 +18,7 @@ Every rule here traces to a specific finding in the human review of the Year 5 o
 """
 from __future__ import annotations
 
-from pipeline.render_blocks import figure_key, render_blocks
+from pipeline.render_blocks import fold_caption, figure_key, render_blocks
 
 
 def _blk(kind, page, text, **kw):
@@ -81,9 +81,12 @@ def test_the_caption_of_a_kept_figure_is_folded_into_its_description():
                                        "top_label": "screenshot_from_computer",
                                        "top_conf": 0.543}):
                                "<figure_description>x</figure_description>"}, "T")
-    assert "Renewable Energy tab" in out
-    assert "<figure_description>" in out
-    assert out.index("Renewable Energy tab") < out.index("<figure_description>")
+    # INSIDE the description, not above it. The caption is the one part of a figure block
+    # the document itself printed, and keeping it in there is what stops a later stage --
+    # or a reader -- from separating it from the figure it describes.
+    assert "<caption_text>The Renewable Energy tab of the A2ZERO Dashboard.</caption_text>" in out
+    assert out.index("<figure_description>") < out.index("Renewable Energy tab")
+    assert out.index("Renewable Energy tab") < out.index("</figure_description>")
 
 
 def test_a_kept_figure_renders_its_extracted_xml_at_its_reading_order_position():
@@ -392,7 +395,8 @@ def test_a_kept_figures_caption_still_folds_into_its_description():
                                        "top_label": "screenshot_from_computer",
                                        "top_conf": 0.5}):
                                "<figure_description>x</figure_description>"}, "T")
-    assert out.index("Renewable Energy tab") < out.index("<figure_description>")
+    assert out.index("<figure_description>") < out.index("Renewable Energy tab") \
+        < out.index("</figure_description>")
     assert out.count("Renewable Energy tab") == 1, "folded in, not also emitted in place"
 
 
@@ -473,3 +477,41 @@ def test_a_page_marker_still_appears_for_a_page_with_content():
               {"kind": "ListItem", "text": "On page five.", "page_no": 5}]
     md = render_blocks(blocks, {}, "t", page_markers=True)
     assert "<!-- p.4 -->" in md and "<!-- p.5 -->" in md
+
+
+def test_a_figure_with_no_extraction_keeps_its_caption_visible():
+    """With no description to fold into, the caption is still text the document printed."""
+    blocks = [_blk("PictureItem", 5, "", self_ref="#/pictures/9", worth_extraction=True,
+                   top_label="bar_chart", top_conf=0.9),
+              _blk("TextItem", 5, "Figure 7: Costs over ten years.",
+                   caption_for="#/pictures/9")]
+    out = render_blocks(blocks, {}, "T")
+    assert "Figure 7: Costs over ten years." in out
+
+
+def test_folding_a_caption_twice_does_not_double_it():
+    """Re-rendering from a saved figures.json must be idempotent."""
+    once = fold_caption("<figure_description>x</figure_description>", "Figure 4.")
+    assert fold_caption(once, "Figure 4.") == once
+
+
+def test_a_figure_with_no_caption_is_left_alone():
+    xml = "<figure_description>x</figure_description>"
+    assert fold_caption(xml, None) == xml
+    assert fold_caption(xml, "   ") == xml
+
+
+def test_a_table_is_emitted_verbatim_on_its_own_lines():
+    """A rendered table must not be blockquoted, indented or prefixed, or it stops parsing."""
+    md = "| STRATEGY 1 | Total Costs |\n|---|---|\n| Landfill Solar Project | $80,000 |"
+    out = render_blocks([_blk("TableItem", 10, md)], {}, "T")
+    assert md in out
+    assert "> | STRATEGY 1" not in out
+
+
+def test_a_table_is_separated_from_the_prose_around_it():
+    """Butted against a paragraph, a markdown table does not render as a table."""
+    md = "| a | b |\n|---|---|\n| c | d |"
+    out = render_blocks([_blk("TextItem", 10, "Before."), _blk("TableItem", 10, md),
+                         _blk("TextItem", 10, "After.")], {}, "T")
+    assert f"\n\n{md}\n\n" in out

@@ -108,6 +108,41 @@ def figure_key(rec: dict) -> tuple:
             round(float(conf), 3) if conf is not None else None)
 
 
+_CLOSE_FIG = "</figure_description>"
+
+
+def fold_caption(xml: str, caption: str | None) -> str:
+    """Put a figure's printed caption inside its <figure_description>, as <caption_text>.
+
+    THE CAPTION IS DOCUMENT TEXT; EVERYTHING ELSE IN THAT BLOCK IS A READING. The rest of a
+    figure_description is what a vision model saw, which is why it is fenced off from the
+    prose. The caption is different in kind -- it is characters pdfplumber took off the page,
+    as citable as any sentence -- and it is the one part of the figure the document itself
+    wrote. Emitting it as a loose "**Figure (pie_chart, page 12):** ..." line above the block
+    left it looking like body prose that happened to sit near an image, which is exactly what
+    Caleb caught at lines 271 and 277.
+
+    Folding it in also keeps the pair together through every later stage: a caption that is
+    inside the block cannot be separated from the figure it describes by sectioning, by
+    reordering, or by a reader.
+
+    Idempotent -- a description that already carries a caption is returned untouched, so
+    re-rendering a saved figures.json cannot double it.
+    """
+    cap = (caption or "").strip()
+    if not cap or "<caption_text>" in xml or _CLOSE_FIG not in xml:
+        return xml
+    at = xml.rindex(_CLOSE_FIG)
+    head, tail = xml[:at], xml[at:]
+    # The caption goes on its own line, indented as a child, and the closing tag keeps
+    # whatever indentation it already had. Written inline it lands mid-line and the block
+    # stops being readable, which was the complaint that started this.
+    lead = head[len(head.rstrip()):]
+    close_indent = lead.rsplit("\n", 1)[-1] if "\n" in lead else ""
+    return (f"{head.rstrip()}\n  <caption_text>{cap}</caption_text>\n"
+            f"{close_indent}{tail}")
+
+
 def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                   page_markers: bool = False,
                   heading_shapes: set[str] | None = None,
@@ -225,11 +260,13 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             # No provenance comment emitted here -- render_figure_block() already writes a
             # richer one (deployment + extraction time). Two comments for one figure read
             # as two figures.
-            if cap:
-                out.append(f"**Figure ({b.get('top_label')}, page {fig_page}):** {cap}")
             xml = figure_xml.get(figure_key(b))
+            if cap and not xml:
+                # No extraction to fold it into, so the caption still has to appear -- it is
+                # text the document printed, and dropping it would lose content.
+                out.append(f"**Figure ({b.get('top_label')}, page {fig_page}):** {cap}")
             if xml:
-                out += ["", xml.strip()]
+                out += ["", fold_caption(xml, cap).strip()]
             else:
                 # NOT PROSE. A caption and a page footer render as blockquotes because
                 # they ARE text on the page; this is the pipeline talking about itself,
@@ -257,6 +294,16 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
                 out += ["", f"<!-- CONTENTS PAGE {b['page_no']}: its entries are recorded "
                             f"structurally; the dot-leader lines are this page's rendering, "
                             f"not its content -->", ""]
+            continue
+
+        if kind == "TableItem":
+            # VERBATIM, ON ITS OWN LINES. The text is already a rendered markdown table;
+            # every other emission path here prefixes, indents or blockquotes, and any of
+            # those would stop it being a table. Blank lines either side because a table
+            # butted against a paragraph does not parse as one.
+            mark_page(out)
+            out += ["", text, ""]
+            stats["tables"] = stats.get("tables", 0) + 1
             continue
 
         tag = ""
@@ -364,7 +411,12 @@ def render_blocks(blocks: list[dict], figure_xml: dict[int, str], title: str,
             # Two spaces per level is markdown's own nesting; the marker is re-emitted
             # rather than kept, because Docling normalises every bullet glyph to the same
             # character regardless of depth (see convert_blocks.assign_nesting).
-            out += [f"{'  ' * lvl}- {tag}{text.lstrip('-o• ').strip()}", ""]
+            # A NUMBERED LIST KEEPS ITS NUMBER. Docling consumes the marker when it
+            # recognises the item, so convert_blocks carries it forward: the CAP's seven
+            # strategies are referred to BY NUMBER throughout the plan, its contents page and
+            # five annual reports, and rendering them as dashes loses the reference.
+            marker = (f"{b['list_ordinal']}." if b.get("list_ordinal") else "-")
+            out += [f"{'  ' * lvl}{marker} {tag}{text.lstrip('-o• ').strip()}", ""]
             continue
 
         out += [f"{tag}{text}", ""]

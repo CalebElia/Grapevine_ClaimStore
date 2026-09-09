@@ -92,6 +92,9 @@ class DocumentRecord:
     period_flagged: bool
     page_count: int
     content_hash: str
+    # Set from the period registry, never parsed from the markdown -- a plan
+    # prints "APRIL 2020" on its cover, which is a month, not a date.
+    published_date: str | None = None
     period_source: str = "unknown"
     period_note: str | None = None
 
@@ -175,6 +178,11 @@ def plan(md_path: Path, links_path: Path | None = None,
         f["_conf"] = f.get("top_conf")
 
     ruling = read_period_registry(periods_path, md_path.stem.replace("-reviewed", ""))
+    # PUBLISHED IS NOT COVERED. documents.py warns "THREE DIFFERENT DATES, AND CONFLATING
+    # THEM BREAKS CHRONOLOGY". published_date has existed since v0.2 and nothing ever wrote
+    # to it, so every document-sourced claim has been undatable at publication.
+    if ruling and ruling.get("published_date"):
+        doc.published_date = ruling["published_date"]
     if ruling and not doc.covers_period_start:
         doc.covers_period_start = ruling["covers_period_start"]
         doc.covers_period_end = ruling["covers_period_end"]
@@ -207,6 +215,7 @@ def render_plan(p: dict, label: str) -> str:
            + (f"  OVERRIDE: {d.override_reason[:48]}" if d.override_reason else "")
            + f"   pages {d.page_count}   canonical {len(p['canonical'].text):,} chars",
            f"  hash {d.content_hash[:16]}…",
+           f"  published {d.published_date or '** NONE **'}\n" +
            (f"  period {d.covers_period_start} .. {d.covers_period_end} "
             f"({d.period_days} days)"
             + ("   ** NOT A YEAR — flagged, not repaired **" if d.period_flagged else "")
@@ -240,7 +249,8 @@ DSN = os.environ.get("GRAPEVINE_DSN",
 
 
 def write(p: dict, md_path: Path, jurisdiction_id: int, doc_type: str,
-          source_url: str | None, dsn: str) -> tuple[int, dict]:
+          source_url: str | None, dsn: str,
+          converter: str = "docling+pdfplumber") -> tuple[int, dict]:
     """Write the plan. Idempotent on the markdown path; refuses on a changed conversion.
 
     REFUSING ON A CHANGED HASH IS THE POINT. A span is an offset into one exact string. If
@@ -274,13 +284,20 @@ def write(p: dict, md_path: Path, jurisdiction_id: int, doc_type: str,
             cur.execute(
                 """INSERT INTO documents
                      (jurisdiction_id, doc_type, title, source_url, markdown_path,
-                      page_count, content_hash, covers_period_start, covers_period_end,
+                      page_count, content_hash, published_date,
+                      covers_period_start, covers_period_end,
                       covers_period_source, covers_period_note, converter,
                       converter_version, parse_verdict, parse_override_reason)
-                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                   RETURNING id""",
                 (jurisdiction_id, doc_type, p["title"], source_url, str(md_path),
-                 d.page_count, d.content_hash, d.covers_period_start, d.covers_period_end,
-                 d.period_source, d.period_note, "docling+pdfplumber",
+                 d.page_count, d.content_hash, d.published_date,
+                 d.covers_period_start, d.covers_period_end,
+                 # THE CONVERTER THAT ACTUALLY PRODUCED THIS TEXT. Hardcoding
+                 # "docling+pdfplumber" mislabels a document prepared by hand, and
+                 # documents.converter exists so a converter change is detectable
+                 # rather than merely survivable.
+                 d.period_source, d.period_note, converter,
                  p["converter_version"], d.verdict, d.override_reason))
             doc_id = cur.fetchone()[0]
 
@@ -305,9 +322,16 @@ def write(p: dict, md_path: Path, jurisdiction_id: int, doc_type: str,
                       crop_path, crop_dpi, extracted_by, prompt_version, raw_xml,
                       extracted_at, source_content_hash)
                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                (doc_id, f["page_no"], json.dumps(f.get("_bbox") or []),
+                # PROMPT VERSION AND DPI COME FROM THE RECORD. Both were hardcoded to
+                # this pipeline's own values, which is a lie about any reading it did
+                # not produce: a hand-prepared file's inline figure blocks carry no
+                # crop and a different prompt, and stamping them "xml-v1" at 600dpi
+                # would attribute our method to someone else's work.
+                (doc_id, f["page_no"],
+                 json.dumps(f.get("_bbox") or f.get("bbox") or []),
                  f.get("top_label") or "unknown", f.get("_conf"), f.get("crop_path"),
-                 600, f.get("deployment") or "unknown", "xml-v1",
+                 f.get("crop_dpi", 600), f.get("deployment") or "unknown",
+                 f.get("prompt_version") or "xml-v1",
                  f.get("xml") or "(empty)", f.get("extracted_at"), d.content_hash))
             fig_id = cur.fetchone()[0]
             # An ORNAMENTAL figure is stored with its verdict and NO data points. An
@@ -392,6 +416,9 @@ def main() -> int:
     ap.add_argument("--jurisdiction", type=int, default=1)
     ap.add_argument("--doc-type", default="annual_report")
     ap.add_argument("--source-url")
+    ap.add_argument("--converter", default="docling+pdfplumber",
+                    help="what actually produced this markdown. A hand-prepared wiki file "
+                         "is not this pipeline's output and must not claim to be.")
     ap.add_argument("--dsn", default=None)
     ap.add_argument("--label", default="")
     ap.add_argument("--refresh-flags", action="store_true",
@@ -417,7 +444,7 @@ def main() -> int:
     if a.dry_run:
         return 0
     doc_id, counts = write(p, Path(a.md), a.jurisdiction, a.doc_type,
-                           a.source_url, a.dsn or DSN)
+                           a.source_url, a.dsn or DSN, a.converter)
     print(f"\n[ingest] document {doc_id}: " +
           " · ".join(f"{k} {v}" for k, v in counts.items()))
     return 0

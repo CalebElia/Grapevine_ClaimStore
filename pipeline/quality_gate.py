@@ -225,6 +225,19 @@ def assess(text: str, page_map: list[tuple[int, int, int]], blocks: list[dict],
                                f"page {pb} starts at {sb} before page {pa} ends at {ea}"))
             break
 
+    # A DETECTED TABLE THAT REACHED NO BLOCK IS A SILENT LOSS. convert_docling's block pass
+    # keyed on `item.text`, which a TableItem does not have, so every table Docling found
+    # fell through both branches and was dropped before blocks.json was written -- 536 rows
+    # of the CAP, including the Action Summary Table, its densest carrier of fact. Nothing
+    # failed; the words simply arrived as loose sweep fragments with the columns interleaved.
+    # The regression is invisible from the output alone, so it is checked from the input.
+    n_tables = sum(1 for b in blocks if b.get("kind") == "TableItem")
+    declared = sum(1 for b in blocks if b.get("cells") is not None)
+    if declared and not n_tables:
+        out.append(Finding("tables_dropped", "high",
+                           f"{declared} table(s) were detected but none reached the "
+                           f"output -- their rows are somewhere in the prose"))
+
     truncated = []
     for b in blocks:
         if b.get("kind") in ("SectionHeaderItem", "TitleItem", "PictureItem"):

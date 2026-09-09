@@ -14,8 +14,12 @@ sign error would fail on the real thing.
 from __future__ import annotations
 
 from pipeline.convert_blocks import (
-    bbox_to_crop, build_evidence, decide_hyphen, flatten_block,
+    bbox_to_crop, box_overflows_text, build_evidence, choose_block_text,
+    decide_hyphen, flatten_block,
 )
+from pipeline.convert_blocks import (_TEXT_LAYER_MIN_WORDS, is_display_line,
+                                     join_split_thousands,
+                                     rejoin_open_sentences)
 
 
 # ── coordinate conversion ──────────────────────────────────────────────────────────────
@@ -1923,3 +1927,141 @@ def test_a_swept_heading_with_no_series_is_left_alone():
                 {**d, "kind": "UncoveredText", "text": "CLOSING 1 THOUGHT", "page_no": 3,
                  "_ord": 1.0}]
     assert place_swept_headings(resolved, {"closing 1"}) == 0
+
+
+# --- a box that cannot hold its own text -------------------------------------------------
+
+def _bl(l, t, r, b):
+    """A Docling bbox in BOTTOMLEFT coordinates, the orientation the converter receives."""
+    return (l, t, r, b)
+
+
+def test_a_box_that_fits_its_text_does_not_overflow():
+    """The CAP's median block fills 0.83 of its box; nothing near normal may trip this."""
+    assert not box_overflows_text(_bl(72, 500, 540, 400), "CoordOrigin.BOTTOMLEFT",
+                                  "x" * 800, 10.0)
+
+
+def test_the_merged_icon_grid_overflows_its_box():
+    """CAP page 7, measured: 79.4 x 23.3pt of box carrying 179 characters of 11.2pt type."""
+    grid = ("Improves local resilience Improves public health Cost savings accrued Supports "
+            "biodiversity preservation Benefits the most vulnerable Scalable or transferable "
+            "to other communities")
+    assert box_overflows_text(_bl(113.9, 91.0, 193.3, 67.7), "CoordOrigin.BOTTOMLEFT",
+                              grid, 11.2)
+
+
+def test_overflow_is_measured_in_ems_not_points():
+    """Capacity falls as the type grows, so the same box and text flip verdict on size alone.
+
+    200 x 100pt holds roughly 1,111 characters of 6pt type and 100 of 20pt. A points-based
+    threshold would have to be retuned per document; an em-based one does not.
+    """
+    box, text = _bl(0, 100, 200, 0), "x" * 400
+    assert box_overflows_text(box, "CoordOrigin.BOTTOMLEFT", text, 20.0)
+    assert not box_overflows_text(box, "CoordOrigin.BOTTOMLEFT", text, 10.0)
+
+
+def test_a_toplevel_origin_box_is_measured_the_same_way():
+    """Height is an absolute difference, so the flip must not change the verdict."""
+    grid = "y" * 179
+    assert (box_overflows_text(_bl(113.9, 91.0, 193.3, 67.7), "CoordOrigin.BOTTOMLEFT", grid, 11.2)
+            == box_overflows_text(_bl(113.9, 67.7, 193.3, 91.0), "CoordOrigin.TOPLEFT", grid, 11.2))
+
+
+def test_ocr_is_still_chosen_for_a_page_with_no_text_layer():
+    """Year 2's whole reason for existing: nine pdfplumber words against 445 from OCR."""
+    text, src = choose_block_text("a b", " ".join(["w"] * 40), allow_ocr=True)
+    assert src == "docling_ocr" and text.startswith("w")
+
+
+def test_refusing_the_fallback_keeps_pdfplumbers_characters():
+    """With the fallback withheld, the block keeps the two real words and loses the guess."""
+    text, src = choose_block_text("Improves local", " ".join(["w"] * 40), allow_ocr=False)
+    assert (text, src) == ("Improves local", "pdfplumber")
+
+
+def test_the_text_layer_floor_separates_the_two_real_documents():
+    """The floor is not a guess; it sits in a gap measured across both real corpora.
+
+    Counted with pdfplumber over every page: a2zero-year2.pdf -- the image-based report the
+    OCR fallback was built for -- peaks at 31 words on its busiest page, while cap-2020.pdf
+    has a median of 196. Nothing lies between. This test exists so that raising the floor to
+    "help" some future document cannot silently disarm the fallback on Year 2, which would
+    reproduce the corpus's signature 234-word failure.
+    """
+    YEAR2_BUSIEST_PAGE, CAP_MEDIAN_PAGE = 31, 196
+    assert YEAR2_BUSIEST_PAGE < _TEXT_LAYER_MIN_WORDS < CAP_MEDIAN_PAGE
+
+
+# --- an all-caps display line is not an unfinished sentence -------------------------------
+
+def test_letter_spaced_display_type_is_a_display_line():
+    """CAP page 12 sets "EMISSIONS SNAPSHOT" letter-spaced; pdfplumber reads it in pieces."""
+    assert is_display_line("EM ISSIO N S SN A P SH O T")
+
+
+def test_an_open_sentence_is_not_a_display_line():
+    """Year 3's real break, which must still weld to its continuation."""
+    assert not is_display_line("The Greenbelt reached 7,600 acres of farmland and")
+
+
+def test_a_line_with_no_letters_is_not_a_display_line():
+    """A bare figure or a run of punctuation asserts nothing either way."""
+    assert not is_display_line("$3,245,000")
+    assert not is_display_line("—— ——")
+
+
+def test_a_display_heading_is_not_welded_to_the_next_column():
+    """The whole point: the heading and the sentence below it stay two blocks."""
+    resolved = [{"kind": "UncoveredText", "text": "EM ISSIO N S SN A P SH O T",
+                 "page_no": 12, "_ord": 1.0},
+                {"kind": "UncoveredText", "text": "starting point as we race to zero.",
+                 "page_no": 12, "_ord": 2.0}]
+    assert rejoin_open_sentences(resolved) == 0
+    assert len(resolved) == 2
+
+
+def test_a_genuine_open_sentence_still_welds():
+    """The guard must not cost the repair it sits inside."""
+    resolved = [{"kind": "TextItem", "page_no": 2, "_ord": 1.0,
+                 "text": "The Greenbelt reached 7,600 acres of farmland and"},
+                {"kind": "TextItem", "page_no": 2, "_ord": 2.0,
+                 "text": "natural areas permanently protected."}]
+    assert rejoin_open_sentences(resolved) == 1
+    assert resolved[0]["text"].endswith("and natural areas permanently protected.")
+
+
+# --- a number the word splitter cut in half ----------------------------------------------
+
+def test_a_thousands_group_is_rejoined():
+    """CAP page 11: "$9,440,000" is drawn as two runs 2.3pt apart and read as two words."""
+    assert join_split_thousands("| Offsets | $9,440 ,000 |") == "| Offsets | $9,440,000 |"
+
+
+def test_a_decimal_group_is_rejoined_too():
+    assert join_split_thousands("1 .500") == "1.500"
+
+
+def test_a_comma_followed_by_a_space_is_left_alone():
+    """"In 2019 , 000 people" is not a number, and the space after the comma proves it."""
+    assert join_split_thousands("In 2019 , 000 people") == "In 2019 , 000 people"
+
+
+def test_a_group_of_other_than_three_digits_is_left_alone():
+    """A thousands group is exactly three digits; anything else is two separate tokens."""
+    assert join_split_thousands("5 ,00 x") == "5 ,00 x"
+    assert join_split_thousands("5 ,0000 x") == "5 ,0000 x"
+
+
+def test_ordinary_prose_and_lists_are_untouched():
+    assert join_split_thousands("reached 5.4MW in 2024") == "reached 5.4MW in 2024"
+    assert join_split_thousands("$3,245,000") == "$3,245,000"
+    assert join_split_thousands("AIR; $$; EQU; SCALE") == "AIR; $$; EQU; SCALE"
+
+
+def test_nothing_is_inserted_only_a_space_removed():
+    """The repair may never add a character; that would be the model writing text."""
+    src = "$9,440 ,000 and 298,500"
+    assert join_split_thousands(src).replace(",", "") .replace("$", "").replace(" ", "") \
+        == src.replace(",", "").replace("$", "").replace(" ", "")

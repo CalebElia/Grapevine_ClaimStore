@@ -214,3 +214,29 @@ def test_ordinary_camel_case_proper_nouns_are_not_garbled():
     assert not [x for x in assess("AmeriCorps", [(1, 0, 10)], blocks,
                                   reference_words=1, reference_numbers=[])
                 if x.check == "garbled_text"]
+
+
+# --- a detected table that reached no block -----------------------------------------------
+
+def _mini(blocks):
+    return assess("x", [(1, 0, 1)], blocks, reference_words=1, reference_numbers=set())
+
+
+def test_a_detected_table_that_produced_no_block_is_reported():
+    """The CAP's real failure: 536 rows detected, zero TableItem blocks, no error raised."""
+    blocks = [{"kind": "TextItem", "text": "prose", "page_no": 1, "cells": None},
+              {"kind": "TextItem", "text": "more", "page_no": 1,
+               "cells": [{"row": 0, "col": 0, "docling_text": "STRATEGY 1"}]}]
+    assert any(f.check == "tables_dropped" for f in _mini(blocks))
+
+
+def test_a_table_that_survived_is_not_reported():
+    blocks = [{"kind": "TableItem", "text": "| a |", "page_no": 1,
+               "cells": [{"row": 0, "col": 0, "docling_text": "a"}]}]
+    assert not any(f.check == "tables_dropped" for f in _mini(blocks))
+
+
+def test_a_document_with_no_tables_at_all_is_not_reported():
+    """Most documents have none, and absence must never read as loss."""
+    blocks = [{"kind": "TextItem", "text": "prose", "page_no": 1}]
+    assert not any(f.check == "tables_dropped" for f in _mini(blocks))

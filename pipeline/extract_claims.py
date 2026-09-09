@@ -235,18 +235,58 @@ def anchor_all(proposals: list[dict], section: str) -> Result:
 
 # ── the call ──────────────────────────────────────────────────────────────────────────
 
+# What a section IS, told to the model in the one case where reading the words alone gets it
+# wrong. Keyed on document_sections.section_topic.
+#
+# MEASURED, ON THE CAP'S IDEAS APPENDIX. Thirty-five sections of ideas the City received and
+# did not adopt. With no frame, extraction treated them arbitrarily: twenty-nine produced
+# nothing at all and seven produced sixty-nine claims, from identical content -- and those
+# sixty-nine came out `hypothetical`, the same modality an Action's Vision block carries. So
+# a commitment the Plan makes and an idea the Plan declined were indistinguishable.
+#
+# THE FRAME NEVER CHANGES WHAT THE WORDS SAY. It says what the section is, so the model can
+# read the words correctly; the verbatim is still the document's and still has to anchor.
+_TOPIC_FRAMES = {
+    "ideas_considered":
+        "This section is a list of ideas the author RECEIVED AND RECORDED BUT DID NOT ADOPT. "
+        "Each item is a suggestion from stakeholders, kept for the record. Extract each "
+        "distinct idea as one claim whose verbatim is the idea as written. What the document "
+        "asserts is that the idea WAS RAISED -- never that it is planned, funded, committed "
+        "to, or underway. Use modality 'attributed_to_other': the author is reporting "
+        "someone else's proposal, not making it.",
+    "assumptions":
+        "This section lists the conditions a projection depends on. Its items are "
+        "assumptions, not outcomes: extract them as hypothetical.",
+    "timeline":
+        "This section is a dated sequence of steps. Where an item carries a year, that year "
+        "is when the thing is said to happen, not when the document was written.",
+}
+
+
 def propose(section_text: str, heading: str | None,
-            deployment_env: str = "GRAPEVINE_DEPLOYMENT_EXTRACT") -> list[dict]:
+            deployment_env: str = "GRAPEVINE_DEPLOYMENT_EXTRACT",
+            topic: str | None = None) -> list[dict]:
     from openai import OpenAI
 
     from pipeline import config
+
+    # THE HEADING WAS ACCEPTED AND NEVER USED. propose() has taken `heading` since it was
+    # written and never put it in the prompt, so every section was read with no idea what it
+    # was part of -- "Financing" and "Energy Production" arriving as bare bullet lists with
+    # nothing to say they were an appendix of rejected ideas.
+    context = []
+    if heading:
+        context.append(f"Section heading: {heading}")
+    if topic and topic in _TOPIC_FRAMES:
+        context.append(_TOPIC_FRAMES[topic])
+    user = ("\n".join(context) + "\n\n---\n\n" + section_text) if context else section_text
 
     client = OpenAI(base_url=config.get("OPENAI_BASE_URL"),
                     api_key=config.get("OPENAI_API_KEY"))
     resp = client.chat.completions.create(
         model=config.get(deployment_env),
         messages=[{"role": "system", "content": PROMPT},
-                  {"role": "user", "content": section_text}],
+                  {"role": "user", "content": user}],
     )
     raw = (resp.choices[0].message.content or "").strip()
     raw = re.sub(r"^```(?:json)?|```$", "", raw, flags=re.M).strip()
@@ -441,7 +481,7 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
                       (s.human_verdict_hash IS NOT DISTINCT FROM s.content_hash)
                           AS verdict_current,
                       d.content_hash, d.covers_period_start, d.covers_period_end,
-                      d.covers_period_source
+                      d.covers_period_source, s.section_topic
                FROM document_sections s JOIN documents d ON d.id = s.document_id
                WHERE s.id = %s""", (section_id,)).fetchone()
     if not row:
@@ -467,7 +507,7 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
             c.commit()
         print(f"[extract] --replace: removed {existing} existing claim(s)")
     (doc_id, a, b, heading, tier, conf, md_path, hv, hv_by, hv_note,
-     hv_current, doc_hash, ps, pe, psrc) = row
+     hv_current, doc_hash, ps, pe, psrc, topic) = row
 
     # FAIL CLOSED, BUT A PERSON CAN OPEN IT DELIBERATELY.
     #
@@ -506,7 +546,7 @@ def run(section_id: int, dsn: str = DSN, dry_run: bool = False,
     period = (ps, pe, psrc) if ps else None
 
     t0 = time.time()
-    proposals = propose(section, heading)
+    proposals = propose(section, heading, topic=topic)
     res = anchor_all(proposals, section)
     # TWO CLAIMS ON ONE SPAN MEANS THE CONTRACT WAS NOT FOLLOWED. Not rejected -- the
     # verbatim is real -- but it is the exact defect the first hand-read found, so it is

@@ -229,6 +229,38 @@ def normalize_ocr_terms(text: str, terms: list[dict]) -> tuple[str, list[tuple[s
     return text, fixes
 
 
+# A list marker Docling consumed. Bounded because a list does not start at 4096, but a year
+# or a quantity may lead a line.
+_ORDINAL_MARKER = re.compile(r"^\s*(\d{1,2})\s*[.)]\s+")
+_MAX_ORDINAL = 99
+
+
+def leading_ordinal(pdf_text: str | None, docling_text: str | None) -> int | None:
+    """The list number Docling dropped, or None.
+
+    Docling recognises "1. Power our electrical grid..." as a ListItem and CONSUMES the
+    marker, so its text begins "Power our...". Trimming the pdfplumber read to match then
+    loses the number for good, and the CAP's seven strategies all rendered as dashes.
+
+    The number is not decoration: "Strategy 1" is referred to by number throughout the plan,
+    by its own contents page, and by five annual reports.
+
+    THE DISAGREEMENT IS THE EVIDENCE. A recovery fires only where pdfplumber has a marker and
+    Docling does not, so a line that merely begins with a number -- "2030 is the target year"
+    -- is untouched, because both reads agree about it.
+    """
+    m = _ORDINAL_MARKER.match(pdf_text or "")
+    if not m:
+        return None
+    if _ORDINAL_MARKER.match(docling_text or ""):
+        return None                       # kept by both; returning it would double the marker
+    rest = (pdf_text or "")[m.end():].strip()
+    if not rest or not (docling_text or "").strip().startswith(rest[:12]):
+        return None                       # a different disagreement, not a dropped marker
+    n = int(m.group(1))
+    return n if 1 <= n <= _MAX_ORDINAL else None
+
+
 def trim_to_docling(pdf_text: str, docling_text: str) -> str:
     """Cut an over-captured crop back to the block Docling actually described.
 
@@ -330,7 +362,80 @@ def adopt_rendered_case(pdf_text: str, docling_text: str) -> str:
     return pdf_text
 
 
-def choose_block_text(pdf_text: str, docling_text: str) -> tuple[str, str]:
+# A Docling box holding more than this many times the text it can physically fit is not a
+# boundary -- it is a merge. Measured across the CAP's 2,005 text blocks: the median block
+# fills 0.83 of its box and the 99th percentile 1.45, with exactly ONE outlier at 4.8.
+_BOX_OVERFLOW = 2.5
+
+# Below this many words a page HAS no text layer, so Docling's OCR is the only reading of it
+# and must be trusted however odd the geometry looks. Year 2 -- the image-based report the
+# OCR fallback exists for -- peaks at 31 words on its busiest page; the CAP's median is 196.
+_TEXT_LAYER_MIN_WORDS = 50
+
+# Roughly the average advance width of a character as a fraction of the type size. Only ever
+# used to ask "is this box the wrong ORDER OF MAGNITUDE for this text", never to lay anything
+# out, which is why one crude constant is enough.
+_CHAR_EM_FRAC = 0.5
+
+
+def box_overflows_text(bbox, coord_origin: str, docling_text: str, em: float) -> bool:
+    """True when a block's box is far too small to hold the text Docling assigned to it.
+
+    THE BOUNDARY DISAGREES WITH ITSELF, and that is the whole signal. Docling proposes block
+    boundaries and pdfplumber supplies the characters; when the proposed box cannot physically
+    contain the proposed text, the proposal is internally inconsistent and neither half of it
+    can be relied on.
+
+    The CAP's page 7 is the case. Its ten co-benefit labels are an icon grid, and Docling
+    merged six of them into one TextItem -- 179 characters -- while keeping a box of 79x23pt
+    that covers a single cell and holds exactly two words. Cropping pdfplumber to that box
+    therefore returned "Improves local", the OCR fallback saw two words against twenty-six and
+    concluded the page had no text layer, and 179 characters a MODEL read off pixels were
+    imported into a document whose text layer had them exactly. The page has 285 real words.
+
+    That is the failure this guards: not a formatting blemish but a provenance lie. The block
+    was marked [OCR], which tells every downstream stage the characters are a reading rather
+    than a quotation -- and here the reverse was true and available.
+    """
+    # NO COORDINATE FLIP, DELIBERATELY. Every other consumer of a Docling bbox has to know
+    # whether the origin is bottom-left, because it needs to know WHERE the box is. This one
+    # only needs to know how BIG it is, and an absolute difference is the same either way --
+    # so the parameter is accepted for call-site symmetry and the orientation bug that has
+    # bitten this pipeline twice cannot occur here at all.
+    l, t, r, b = bbox
+    area = abs(r - l) * abs(t - b)
+    em = max(float(em or 0), 1.0)
+    capacity = area / (em * em * _CHAR_EM_FRAC)
+    return capacity > 0 and len(docling_text) > _BOX_OVERFLOW * capacity
+
+
+# A digit, a space, then a comma or point and exactly three digits. That is a thousands
+# group that lost its number, never two separate tokens: no sentence in this corpus puts
+# ",000" after a numeral as a word of its own.
+_SPLIT_THOUSANDS = re.compile(r"(?<=\d) +(?=[.,]\d{3}(?!\d))")
+
+
+def join_split_thousands(text: str) -> str:
+    """Rejoin a number pdfplumber's word splitter cut at a thousands separator.
+
+    A WORD BREAK IS A PROPERTY OF THE READING, NOT OF THE DOCUMENT -- the same principle
+    already_present() is built on. The CAP draws "$9,440,000" as two runs 2.3 points apart,
+    which is inside pdfplumber's word gap, so the cell came back "$9,440 ,000". Docling read
+    it whole. Nothing about the page is ambiguous; only the tokenisation is.
+
+    Worth its own repair because of WHAT is broken. A split word is recoverable by a reader;
+    a split number is a different number, and "$9,440" understates a ten-year programme cost
+    by three orders of magnitude in a store whose whole purpose is holding such figures. One
+    occurrence in the CAP, and one is enough.
+
+    Deliberately narrow: it inserts nothing, deletes nothing but the space, and cannot join
+    two tokens that were not already adjacent digits and a thousands group.
+    """
+    return _SPLIT_THOUSANDS.sub("", text)
+
+
+def choose_block_text(pdf_text: str, docling_text: str,
+                      allow_ocr: bool = True) -> tuple[str, str]:
     """(text, source) for one block: pdfplumber's characters, or Docling's OCR.
 
     pdfplumber is PREFERRED wherever it actually has a text layer, because it is
@@ -350,7 +455,7 @@ def choose_block_text(pdf_text: str, docling_text: str) -> tuple[str, str]:
     Mixing the two silently would let an OCR guess be cited exactly like a quotation.
     """
     p_words, d_words = len(pdf_text.split()), len(docling_text.split())
-    if d_words >= _OCR_MIN_WORDS and p_words < _OCR_RATIO * d_words:
+    if allow_ocr and d_words >= _OCR_MIN_WORDS and p_words < _OCR_RATIO * d_words:
         return docling_text, "docling_ocr"
     return pdf_text, "pdfplumber"
 
@@ -667,6 +772,24 @@ def continues_dangling_entry(first: str, second: str) -> bool:
     return last in _DANGLING
 
 
+def is_display_line(text: str) -> bool:
+    """Whether a line reads as an all-caps display heading rather than open prose.
+
+    rejoin_open_sentences asks "does this end without terminal punctuation", and a HEADING
+    never has any -- so every untyped heading looked like an unfinished sentence and was
+    welded to whatever lowercase text followed it. CAP page 12 sets "EMISSIONS SNAPSHOT" as
+    letter-spaced display type, which pdfplumber reads as "EM ISSIO N S SN A P SH O T"; the
+    coverage sweep types it UncoveredText rather than SectionHeaderItem, so the kind guard
+    above could not see it, and it shipped fused to the sentence in the next column.
+
+    Case is the evidence the document itself supplies. A sentence that runs on ends on an
+    ordinary lowercase word -- "reached 7,600 acres of farmland and" -- and none of the
+    corpus's thirty genuine welds begins from an all-caps line.
+    """
+    letters = [c for c in text if c.isalpha()]
+    return bool(letters) and all(c.isupper() for c in letters)
+
+
 def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
                           hyph: set[str] | None = None) -> int:
     """Merge a block that ends mid-sentence with the block that finishes it.
@@ -723,6 +846,7 @@ def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
                 and not a.get("is_furniture") and not b.get("is_furniture")
                 and not a.get("caption_for") and not b.get("caption_for")
                 and not _OPEN_END.search(at)
+                and not is_display_line(at)
                 # A lowercase continuation is the ordinary case. A CAPITALISED one is
                 # accepted only when the first block ends on a dangling word, because a
                 # complete list entry never ends on "of" -- which is how the CAP's wrapped
@@ -750,7 +874,10 @@ def rejoin_open_sentences(resolved: list[dict], words: set[str] | None = None,
     # unfinished sentences and one continuation is an ambiguity, not a repair.
     for i, a in enumerate(resolved):
         at = (a.get("text") or "").strip()
-        if not at or not eligible(a) or _OPEN_END.search(at):
+        # THE SAME GUARD ON BOTH PASSES. Every fix in this module has had to be applied
+        # wherever the behaviour lives, not only on the first path anyone patched -- and a
+        # display heading is no more an unfinished sentence at a distance than adjacently.
+        if not at or not eligible(a) or _OPEN_END.search(at) or is_display_line(at):
             continue
         for j in range(i + 1, len(resolved)):
             b = resolved[j]
@@ -1634,6 +1761,19 @@ def associate_caption(cap: dict, pictures: list[dict]):
 _LINE_TOL_RATIO = 1.6
 _LINE_TOL_MIN = 14.0
 
+# THE SAME NUMBER CANNOT ANSWER BOTH QUESTIONS. The tolerance above asks "is this the same
+# BLOCK", and is deliberately generous so a 24pt-leaded heading stays whole. Grouping a
+# page's leftover words into VISUAL LINES asks the opposite question, and borrowing the
+# block tolerance for it merged consecutive lines and then interleaved them by x: CAP page
+# 12's two 7.1pt lines sit 8.5pt apart, well inside a tolerance the page's 10pt median
+# stretched to 16, and came out as "Our starting 2018 point greenhouse as we race gas to".
+#
+# Half a glyph height, measured against the SHORTER of the two words rather than the page
+# median, because a page that mixes 7pt captions with 10pt body has no single line spacing
+# and the median is nobody's.
+_SAME_LINE_RATIO = 0.5
+_SAME_LINE_MIN = 2.0
+
 
 _RUN_NEUTRAL = {
     "the", "a", "an", "of", "to", "and", "or", "in", "on", "for", "at", "by", "with",
@@ -1641,9 +1781,18 @@ _RUN_NEUTRAL = {
 }
 
 
-def missing_runs(page_words: list[str], assembled: str,
-                 min_run: int = 3) -> list[list[str]]:
-    """Runs of consecutive page words absent from the assembled text.
+def missing_run_indices(page_words: list[str], assembled: str,
+                        min_run: int = 3) -> list[list[int]]:
+    """Runs of consecutive page words absent from the assembled text, as INDICES.
+
+    Indices rather than strings because the caller needs to get back to the word's GEOMETRY.
+    This sweep works from content -- which words survived into the assembled text -- and for
+    a long time emitted what it found in pdfplumber's raw reading order with no box at all.
+    On a two-column page that order interleaves the columns, so CAP page 12 recovered
+    "EM ISSIO N S SN A P SH O T starting point as we race to": a display heading from the
+    left column woven into a sentence from the right. Handing the words back with their
+    boxes lets the same row-grouping and column-splitting the geometric sweep already uses
+    apply here too, instead of each sweep having its own half of the answer.
 
     The content counterpart to uncovered_words(), which asks only whether a block's BOX
     contains a word. Year 3 page 9 proves that insufficient: "the downtown, reducing
@@ -1676,24 +1825,31 @@ def missing_runs(page_words: list[str], assembled: str,
     # Treating function words as neutral -- they extend an open run but never start one
     # and never close one -- separates both cases.
     runs, cur = [], []
-    for w in page_words:
+    for i, w in enumerate(page_words):
         n = norm(w)
         if not n:
             continue
         if n in _RUN_NEUTRAL:
             if cur:
-                cur.append(w)
+                cur.append(i)
             continue
         if present(n):
             if len(cur) >= min_run:
                 runs.append(cur)
             cur = []
         else:
-            cur.append(w)
+            cur.append(i)
     if len(cur) >= min_run:
         runs.append(cur)
     return [r for r in runs
-            if sum(1 for w in r if norm(w) not in _RUN_NEUTRAL) >= min_run]
+            if sum(1 for i in r if norm(page_words[i]) not in _RUN_NEUTRAL) >= min_run]
+
+
+def missing_runs(page_words: list[str], assembled: str,
+                 min_run: int = 3) -> list[list[str]]:
+    """missing_run_indices(), resolved to the words themselves."""
+    return [[page_words[i] for i in run]
+            for run in missing_run_indices(page_words, assembled, min_run)]
 
 
 def already_present(candidate: str, assembled: str) -> bool:
@@ -1740,6 +1896,51 @@ def uncovered_words(words: list[dict], text_boxes: list[tuple]) -> list[dict]:
     return out
 
 
+# A horizontal gap this many times the type size is a COLUMN boundary, not a word space.
+# Every number here is measured off the CAP. Word gaps inside a line run 1.5 to 5 points.
+# The co-benefit icon grid on page 7 puts 127 to 163 points between its labels, and the
+# two-column body on page 12 has gutters of 64.3 and 45.4 points. That 45.4 is the TIGHTEST
+# real column boundary found, and it sits beside 10pt type, so four ems is what clears it --
+# still eight times the widest word gap in the document.
+_COLUMN_GAP_EMS = 4.0
+
+
+def split_row_on_gaps(row: list[dict]) -> list[list[dict]]:
+    """One baseline's words -> one run per column.
+
+    THE CAP LISTS ITS TEN CO-BENEFITS AS AN ICON GRID, and grouping leftovers by baseline
+    merged each ROW of that grid into a single line: "Improves local resilience Improves
+    public health Cost savings accrued Supports biodiversity preservation...". The labels are
+    not adjacent -- they are cells, far apart.
+
+    Expressed in ems rather than points so it scales: a 40pt gap is a column boundary in 10pt
+    type and ordinary leading in 60pt display. The same test separates the two columns of a
+    two-column page, which is the case this already had to get right elsewhere.
+    """
+    if not row:
+        return []
+    ordered = sorted(row, key=lambda w: w["x0"])
+    out: list[list[dict]] = [[ordered[0]]]
+    for prev, w in zip(ordered, ordered[1:]):
+        # SIZE, THEN HEIGHT, THEN A SANE DEFAULT. extract_words does not always carry a
+        # size, and falling back to 1.0 made the threshold eight POINTS, which split
+        # ordinary prose.
+        def _em(x: dict) -> float:
+            return float(x.get("size") or 0) or abs(float(x.get("bottom", 0))
+                                                    - float(x.get("top", 0))) or 10.0
+        # THE SMALLER OF THE TWO, NOT THE LARGER. A gutter is a property of the page's
+        # layout, and the type that sets its word spacing is the body text. When a
+        # 15.2pt display glyph abuts a 10pt column, scaling by the display size
+        # inflated the threshold to 76pt and swallowed a 45.4pt gutter whole,
+        # welding "EM ISSIO N S SN A P SH O T" onto the next column's sentence.
+        size = min(_em(w), _em(prev))
+        if w["x0"] - prev["x1"] > _COLUMN_GAP_EMS * size:
+            out.append([w])
+        else:
+            out[-1].append(w)
+    return out
+
+
 def group_uncovered(words: list[dict], page_no: int) -> list[dict]:
     """Leftover words -> synthetic UncoveredText blocks, so nothing is dropped in silence.
 
@@ -1750,17 +1951,49 @@ def group_uncovered(words: list[dict], page_no: int) -> list[dict]:
     """
     if not words:
         return []
+    # THREE STAGES, BECAUSE THERE ARE THREE QUESTIONS. Which words share a LINE; where a
+    # line crosses a COLUMN boundary; and which lines belong to the same BLOCK. One
+    # tolerance used to answer all three, and it could only ever be right about one: set
+    # generously enough to keep a 24pt-leaded heading whole, it also merged CAP page 12's
+    # two 7.1pt lines and interleaved them by x into "Our starting 2018 point greenhouse".
     rows = sorted(words, key=lambda w: (w["top"], w["x0"]))
-    heights = sorted(w["bottom"] - w["top"] for w in rows)
-    tol = max(_LINE_TOL_MIN, heights[len(heights) // 2] * _LINE_TOL_RATIO)
-    groups, cur = [], [rows[0]]
+    lines, cur = [], [rows[0]]
     for w in rows[1:]:
-        if w["top"] - cur[-1]["top"] <= tol:
+        h = min(w["bottom"] - w["top"], cur[-1]["bottom"] - cur[-1]["top"]) or 10.0
+        if w["top"] - cur[-1]["top"] <= max(_SAME_LINE_MIN, h * _SAME_LINE_RATIO):
             cur.append(w)
         else:
-            groups.append(cur)
+            lines.append(cur)
             cur = [w]
-    groups.append(cur)
+    lines.append(cur)
+
+    # A GRID ROW IS NOT A LINE. Each baseline is split where the horizontal gap is a column
+    # boundary rather than a word space, so the CAP's co-benefit labels stay separate.
+    lines = [ln for line in lines for ln in split_row_on_gaps(line)]
+
+    # AND CONSECUTIVE LINES OF ONE COLUMN ARE ONE BLOCK. A wrapped caption and a heading
+    # that runs to three lines both have to come back whole. The horizontal-overlap test is
+    # what makes this safe to do after splitting: two columns may sit on the same baselines
+    # all the way down the page, and without it they would simply re-merge.
+    lines.sort(key=lambda ln: (min(w["top"] for w in ln), min(w["x0"] for w in ln)))
+    groups: list[list[dict]] = []
+    for ln in lines:
+        x0, x1 = min(w["x0"] for w in ln), max(w["x1"] for w in ln)
+        top = min(w["top"] for w in ln)
+        h = max(w["bottom"] - w["top"] for w in ln) or 10.0
+        merged = False
+        for g in groups:
+            gx0, gx1 = min(w["x0"] for w in g), max(w["x1"] for w in g)
+            gbot = max(w["top"] for w in g)
+            gh = max(w["bottom"] - w["top"] for w in g) or 10.0
+            overlap = min(x1, gx1) - max(x0, gx0)
+            if (0 <= top - gbot <= max(_LINE_TOL_MIN, min(h, gh) * _LINE_TOL_RATIO)
+                    and overlap > 0):
+                g.extend(ln)
+                merged = True
+                break
+        if not merged:
+            groups.append(list(ln))
 
     # A RUN OF BARE BULLET GLYPHS IS NOT RECOVERED TEXT. Year 2 pages 12 and 13 emitted
     # "> o o o o o" and "> o o": the markers of a sub-list whose words Docling had already
@@ -1840,6 +2073,9 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
     from pdfplumber import utils as pdf_text
     from pathlib import Path
     from pipeline.convert_document import Conversion
+    from pipeline.tables import (build_grid, cell_text, is_degenerate,
+                                 split_spanning_cell,
+                                 to_markdown as table_markdown)
 
     if ocr_terms is None:
         ocr_terms = load_ocr_terms()
@@ -1849,18 +2085,48 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
 
     raws: list[str] = []
     ems: dict[int, float] = {}
+    n_words: dict[int, int] = {}
     n_snapped = 0
     with pdfplumber.open(str(pdf_path)) as pdf:
         for pno, page in enumerate(pdf.pages, 1):
             ink = [c for c in page.chars if not c["text"].isspace()]
             if ink:
                 ems[pno] = Counter(round(c["size"], 1) for c in ink).most_common(1)[0][0]
+            # Per PAGE, not per document. A report can be typeset text throughout and carry
+            # one scanned insert, and the question the OCR fallback asks -- "is there a text
+            # layer here at all" -- is only ever answerable about the page in hand.
+            n_words[pno] = len(page.extract_words())
         blocks = absorb_body_shaped_headings(blocks, ems)
         for b in blocks:
             if b["kind"] == "PictureItem":
                 raws.append("")
                 continue
             page = pdf.pages[b["page_no"] - 1]
+            if b.get("cells") is not None:
+                # A CELL IS A SMALL BLOCK. Each carries its own box, so the table needs no
+                # separate fidelity story: crop it, keep pdfplumber's characters, and fall
+                # back to Docling's reading only where the crop comes back empty.
+                # PER CELL, AND WITH THE CELL'S OWN ORIGIN. Docling hands back a table
+                # whose BLOCK bbox is BOTTOMLEFT while its CELL bboxes are TOPLEFT -- the
+                # same mixed-origin trap that has cost this pipeline two bugs already, which
+                # is why _table_cells records the origin per cell rather than assuming the
+                # parent's.
+                split: list[dict] = []
+                for c in b["cells"]:
+                    if not c.get("bbox"):
+                        split.append(c)
+                        continue
+                    origin = c.get("coord_origin") or b["coord_origin"]
+                    cbox = bbox_to_crop(tuple(c["bbox"]), origin, b["page_h"], b["page_w"])
+                    crop = page.crop(cbox)
+                    chars = dedupe_overprint(drop_placed_underlay(crop.chars))
+                    c["pdf_text"] = join_split_thousands(
+                        (pdf_text.extract_text(chars) if chars else "") or "")
+                    words = sorted(page_words(crop), key=lambda w: w["x0"])
+                    split.extend(split_spanning_cell(c, words))
+                b["cells"] = split
+                raws.append("")
+                continue
             box = bbox_to_crop(tuple(b["bbox"]), b["coord_origin"],
                                b["page_h"], b["page_w"])
             # THE PAD IS FOR GLYPHS, NOT FOR NEIGHBOURS. bbox_to_crop pads by 2pt so a
@@ -1897,7 +2163,10 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             fixed = [c for c in snapped
                      if true_box[1] <= (c["top"] + c["bottom"]) / 2 <= true_box[3]]
             n_snapped += moved
-            raws.append((pdf_text.extract_text(fixed) if fixed else "") or "")
+            # WHEREVER RAW CHARACTERS ENTER, not only on the path that showed the bug
+            # -- the standing lesson of this module.
+            raws.append(join_split_thousands(
+                (pdf_text.extract_text(fixed) if fixed else "") or ""))
 
     words, hyph = build_evidence("\n".join(raws))
 
@@ -1910,8 +2179,46 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
     for i, (b, raw) in enumerate(zip(blocks, raws)):
         if b["kind"] == "PictureItem":
             continue                      # no text; re-interleaved for the renderer below
+        if b.get("cells") is not None:
+            # BEFORE ANY PROSE HANDLING. Hyphen decisions, bullet splitting and sentence
+            # rejoining all assume a run of words; a rendered table is neither, and putting
+            # it through them would weld the last cell of one table to the next paragraph.
+            grid = build_grid(b["cells"], b.get("n_rows") or 0, b.get("n_cols") or 0)
+            if is_degenerate(grid):
+                # NOT A TABLE, BUT STILL TEXT. Dropping it here would lose the content
+                # outright: the sweep counts this block's box as covered, so nothing else
+                # would pick those words up. One row per block, because a one-column
+                # "table" over a run of paragraphs is a run of paragraphs.
+                for j, row in enumerate(grid):
+                    line = " ".join(cell_text(c) for c in row).strip()
+                    if line:
+                        resolved.append({**b, "kind": "TextItem", "text": line,
+                                         "_ord": float(i) + 0.001 * j,
+                                         "text_source": "pdfplumber", "cells": None,
+                                         "_caption_src": None})
+                continue
+            resolved.append({**b, "kind": "TableItem", "text": table_markdown(grid),
+                             "_ord": float(i), "text_source": "pdfplumber",
+                             "_caption_src": None})
+            continue
+        # BEFORE TRIMMING, because trimming to Docling is what loses the marker Docling
+        # consumed. The number is carried on the block and re-emitted by the renderer.
+        ordinal = (leading_ordinal(raw, b.get("docling_text") or "")
+                   if b["kind"] == "ListItem" else None)
         raw = trim_to_docling(raw, b.get("docling_text") or "")
-        raw, src = choose_block_text(raw, b.get("docling_text") or "")
+        # A BOX THAT CANNOT HOLD ITS OWN TEXT FORFEITS THE OCR FALLBACK. The crop under-
+        # covers because the boundary is wrong, not because the page is an image, and the
+        # fallback cannot tell those apart from the block alone -- both look like "Docling
+        # has far more words than pdfplumber". Asking the PAGE settles it: where a text
+        # layer exists, pdfplumber's two words are kept and the rest of the merged run is
+        # left uncovered, so the coverage sweep collects it from the text layer at its real
+        # geometry. Refusing the model's characters costs nothing here; accepting them
+        # imported 179 of them under an [OCR] mark that was simply untrue.
+        allow_ocr = not (n_words.get(b["page_no"], 0) >= _TEXT_LAYER_MIN_WORDS
+                         and box_overflows_text(tuple(b["bbox"]), b["coord_origin"],
+                                                b.get("docling_text") or "",
+                                                ems.get(b["page_no"], 10.0)))
+        raw, src = choose_block_text(raw, b.get("docling_text") or "", allow_ocr=allow_ocr)
         raw = adopt_rendered_case(raw, b.get("docling_text") or "")
         if src == "docling_ocr" and ocr_terms:
             # OCR-sourced only: a text layer's characters are authoritative, and A2ZERO
@@ -1940,6 +2247,7 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             continue                     # a page footer is not prose
         if text:
             resolved.append({**b, "text": text, "_ord": float(i), "text_source": src,
+                             "list_ordinal": ordinal,
                              "_caption_src": "docling" if b.get("caption_for") else None})
 
     # COVERAGE SWEEP. Anything pdfplumber can see on a page that no TEXT block claims is
@@ -2087,34 +2395,35 @@ def convert(pdf_path, blocks_path, ocr_terms: list[dict] | None = None):
             if not assembled:
                 continue
             page = pdf.pages[pno - 1]
-            words = [w["text"] for w in page_words(page)]
-            for run in missing_runs(words, assembled):
-                txt = " ".join(run)
-                if is_page_footer({"text": txt, "page_no": pno}):
-                    continue
-                if is_marker_run(run):
-                    continue        # bullet glyphs whose words are already assembled
+            wordlist = page_words(page)
+            words = [w["text"] for w in wordlist]
+            # THROUGH THE SAME GROUPER AS THE GEOMETRIC SWEEP. A recovered run is a set of
+            # words on a page, which is exactly what group_uncovered turns into blocks --
+            # rows by baseline, split where a gap is a column boundary, markers and footer
+            # numbers dropped. Emitting the run as one string in raw reading order instead
+            # is what wove CAP page 12's pie-chart labels through its body prose.
+            for idx in missing_run_indices(words, assembled):
+                for grp in group_uncovered([wordlist[i] for i in idx], pno):
+                    run, txt = grp["text"].split(), grp["text"]
+                    if is_page_footer({"text": txt, "page_no": pno}):
+                        continue
+                    if is_marker_run(run):
+                        continue    # bullet glyphs whose words are already assembled
                 # THE SECOND SWEEP NEEDS THE SAME GUARD AS THE FIRST. The coverage sweep
                 # already refuses mis-decoded runs; this one recovers text present on the
                 # page but absent from every block, and the CAP's cost infographics reach it
                 # by that route. Every fix in this module has had to be applied wherever raw
                 # characters enter, never only on the first path anyone patched.
-                if looks_mis_decoded(txt):
-                    # No geometry on this path -- the content sweep works from words, not
-                    # regions -- so the check falls back to page level for these.
-                    mis_decoded.append({"page_no": pno, "text": txt[:80]})
-                    continue
-                at = max((i for i, b in enumerate(resolved) if b["page_no"] <= pno),
-                         default=-1) + 1
-                prev = resolved[at - 1]["_ord"] if at > 0 else -1.0
-                resolved.insert(at, {"kind": "UncoveredText", "page_no": pno,
-                                     "text": txt, "_ord": prev + 0.0005,
-                                     "_swept": True, "caption_for": None,
-                                     "text_source": "pdfplumber", "bbox": None,
-                                     "coord_origin": "", "page_w": None,
-                                     "page_h": None, "self_ref": None,
-                                     "docling_text": ""})
-                content_recovered.append((pno, txt[:70]))
+                    if looks_mis_decoded(txt):
+                        mis_decoded.append({"page_no": pno, "text": txt[:80],
+                                            "bbox": grp.get("bbox")})
+                        continue
+                    at = max((i for i, b in enumerate(resolved) if b["page_no"] <= pno),
+                             default=-1) + 1
+                    prev = resolved[at - 1]["_ord"] if at > 0 else -1.0
+                    resolved.insert(at, {**grp, "_ord": prev + 0.0005,
+                                         "_swept": True, "text_source": "pdfplumber"})
+                    content_recovered.append((pno, txt[:70]))
 
     order_single_column_pages(resolved)
     place_swept_headings(resolved, heading_shapes(resolved))

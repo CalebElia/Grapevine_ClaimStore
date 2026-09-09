@@ -27,6 +27,33 @@ from pipeline.quality_gate import report as gate_report
 from pipeline.render_blocks import figure_key, render_blocks
 
 
+def reflag_extracted(blocks: list[dict], figs: list[dict]) -> int:
+    """Mark every picture that HAS an extraction as worth extracting. Returns how many.
+
+    AN EXTRACTED FIGURE IS BY DEFINITION WORTH EXTRACTING. worth_extraction is set in
+    convert_docling from the classifier label alone, and the targeted passes (action cards,
+    holes) then flip it True for regions a label like "photograph" or "other" would have
+    refused -- the CAP's cost infographics reach the document by exactly that route, and
+    they carry dollar figures the text layer decodes as "$$11,,016000,,000000".
+
+    Written back into blocks.json, that judgement survives only until the next Docling run
+    overwrites the file. One did, and 18 already-extracted figures silently vanished from the
+    output: no error, no finding, 66 vision calls of which 48 reached a reader.
+
+    So the flag is DERIVED from figures.json rather than trusted from the block. The
+    extraction record is the evidence of what was actually looked at, and it makes the join
+    idempotent under re-conversion, which a stored flag can never be.
+    """
+    have = {figure_key(f) for f in figs}
+    n = 0
+    for b in blocks:
+        if (b.get("kind") == "PictureItem" and not b.get("worth_extraction")
+                and figure_key(b) in have):
+            b["worth_extraction"] = True
+            n += 1
+    return n
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="block-based document assembly")
     ap.add_argument("--pdf", required=True)
@@ -108,8 +135,23 @@ def main() -> int:
             f"<!-- ORNAMENTAL FIGURE: {f.get('top_label')} on page {f['page_no']} was "
             f"examined by the vision pass and carries no data about this document's "
             f"subject; no data points extracted -->"))
+    # AN EXTRACTED FIGURE IS BY DEFINITION WORTH EXTRACTING. worth_extraction is set in
+    # convert_docling from the classifier label alone, and the targeted passes (action cards,
+    # holes) then flip it True for regions a label like "photograph" or "other" would have
+    # refused -- the CAP's cost infographics reach the document by that route. Written back
+    # into blocks.json, that judgement lives only until the next Docling run overwrites the
+    # file, and a re-run today silently dropped 18 already-extracted figures out of the
+    # output with nothing failing.
+    #
+    # So the flag is DERIVED here rather than trusted from the file. figures.json is the
+    # record of what was actually looked at, and a picture that has an extraction is one the
+    # pipeline decided to read, whatever its label says. This makes the join idempotent
+    # under re-conversion, which the stored flag never was.
+    restored = reflag_extracted(blocks, figs)
+
     print(f"[blocks] {len(keep)} figure(s) available, "
-          f"{len(decorative)} judged ornamental")
+          f"{len(decorative)} judged ornamental"
+          + (f", {restored} re-flagged from the extraction record" if restored else ""))
 
     # THE GATE, against the OTHER arm's read of the same PDF. Comparing a conversion
     # only against itself cannot detect that it lost the document: a converter that read

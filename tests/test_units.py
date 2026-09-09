@@ -16,7 +16,7 @@ already existed for this -- "what a % or count is OF" -- and was populated zero 
 """
 from __future__ import annotations
 
-from pipeline.units import split_unit
+from pipeline.units import UNITS, split_unit
 
 
 def test_a_real_measurement_unit_is_kept_and_has_no_basis():
@@ -96,3 +96,56 @@ def test_an_explicit_basis_wins_over_a_derived_one():
 def test_a_missing_unit_does_not_crash_the_insert():
     """`unit` is NOT NULL in the schema, so the splitter must always yield something."""
     assert _unit_pair({})[0] == "other"
+
+
+# ── a canonical unit must survive being fed back in ──────────────────────────────────────
+
+def test_every_canonical_unit_round_trips():
+    """split_unit EMITS these names, and the extraction model reads the vocabulary and often
+    answers with the exact canonical spelling. Five of sixteen were not accepted as input --
+    "metric_tons_co2e" came back ("count", "metric_tons_co2e") -- so the best-behaved model
+    responses were the ones demoted to a dimensionless count."""
+    for u in UNITS:
+        assert split_unit(u) == (u, None), u
+
+
+def test_the_underscored_spellings_specifically():
+    """These were the five that failed, and the reason: multi-word canonical names."""
+    for u in ("metric_tons_co2e", "metric_tons", "square_feet", "count", "other"):
+        assert split_unit(u) == (u, None)
+
+
+# ── a dimension may be renamed, never converted ──────────────────────────────────────────
+
+def test_weeks_do_not_silently_become_days():
+    """"week" mapped to days while value_low was left untouched, so "48 weeks" was stored as
+    48 DAYS -- a sevenfold error nothing downstream could detect."""
+    assert split_unit("weeks") == ("weeks", None)
+    assert split_unit("week") == ("weeks", None)
+    assert split_unit("days") == ("days", None)
+
+
+def test_months_and_hours_are_their_own_dimensions():
+    for raw, want in (("month", "months"), ("months", "months"),
+                      ("hour", "hours"), ("hours", "hours")):
+        assert split_unit(raw) == (want, None)
+
+
+# ── carbon mass, in the spellings the corpus actually uses ───────────────────────────────
+
+def test_every_written_form_of_co2e_is_recognised():
+    """The old pattern required the word "of" and ended on \\b after "co2", so it matched
+    NONE of the three ways this corpus writes its central unit."""
+    for raw in ("metric tons CO2e", "metric tons of CO2e", "MT CO2e", "MTCO2e", "mtco2e",
+                "metric tons carbon dioxide equivalent", "metric tons of carbon dioxide",
+                "MT CO2-e", "metric ton CO2"):
+        assert split_unit(raw) == ("metric_tons_co2e", None), raw
+
+
+def test_mass_that_is_not_asserted_to_be_carbon_stays_plain():
+    """The unit must never assert more than the text. Tons of MATERIAL diverted from landfill
+    is not CO2e, and the basis keeps what was actually weighed."""
+    assert split_unit("metric tons") == ("metric_tons", None)
+    assert split_unit("tons of material") == ("metric_tons", "material")
+    assert split_unit("tons of waste") == ("metric_tons", "waste")
+    assert split_unit("metric tons of recycling") == ("metric_tons", "recycling")
