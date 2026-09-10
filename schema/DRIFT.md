@@ -43,7 +43,7 @@ live is a strict superset.
 The snapshot is a **real `pg_dump`**, not a reconstruction:
 
 ```bash
-cd /Users/calebjohnson/Desktop/Grapevine/Coding_Projects/grapevine-claim-store
+cd /Users/calebjohnson/Developer/Grapevine/Coding_Projects/grapevine-claim-store
 /opt/miniconda3/envs/grapevine-db/bin/pg_dump \
     -h /tmp -p 5433 -U grapevine -d grapevine \
     --schema-only --no-owner --no-privileges \
@@ -332,7 +332,7 @@ done
 ## Commands used
 
 ```bash
-REPO=/Users/calebjohnson/Desktop/Grapevine/Coding_Projects/grapevine-claim-store
+REPO=/Users/calebjohnson/Developer/Grapevine/Coding_Projects/grapevine-claim-store
 cd "$REPO"
 
 # 1. the snapshot

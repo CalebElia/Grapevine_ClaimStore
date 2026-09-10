@@ -14,7 +14,7 @@ simply keeps no mention, which is the same state it was in before.
 Every command below runs from the repo root. It is one directory deeper than `Grapevine/`:
 
 ```bash
-cd ~/Desktop/Grapevine/Coding_Projects/grapevine-claim-store
+cd ~/Developer/Grapevine/Coding_Projects/grapevine-claim-store
 ```
 
 The database has to be up (`./scripts/db.sh start`). If a command reports it cannot find the

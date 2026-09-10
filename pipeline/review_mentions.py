@@ -32,7 +32,7 @@ def load(path: Path) -> list[dict]:
             f"[review] no queue at {path}\n"
             f"        You are in {Path.cwd()}\n"
             f"        Run this from the repo root:\n"
-            f"          cd ~/Desktop/Grapevine/Coding_Projects/grapevine-claim-store")
+            f"          cd ~/Developer/Grapevine/Coding_Projects/grapevine-claim-store")
     return json.loads(path.read_text())
 
 

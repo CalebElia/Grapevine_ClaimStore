@@ -12,7 +12,9 @@ import pytest
 from pipeline.adjudicate import (WINNER_PRIMARY, WINNER_SECOND, find_token_gaps,
                                  split_points, split_token, token_verdict)
 
-SRC = Path("/Users/calebjohnson/Desktop/Grapevine/Coding_Projects/docling-test/source_pdfs")
+# Relative to this repo, not to one machine's home directory: the tree moved once
+# already and this was the only test that noticed, by silently skipping.
+SRC = Path(__file__).resolve().parent.parent.parent / "docling-test" / "source_pdfs"
 Y3 = SRC / "AA_AnnualReport_2023.pdf"
 Y4 = SRC / "AA_AnnualReport_2024.pdf"
 
