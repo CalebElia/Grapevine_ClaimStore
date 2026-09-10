@@ -149,6 +149,7 @@ INSERT INTO vocabulary_terms (vocabulary, term, approved_by) VALUES
 -- would be technically true and lose exactly that.
 ('org_type','faith_group','schema-v0.5'),
 ('quantity_measure','generation_mix','caleb'),
+('affiliation_source','annual_report','caleb'),('quantity_unit','weeks','caleb'),
 ('parse_confidence','clean','schema-v0.5'),('parse_confidence','known_incomplete','schema-v0.5'),('parse_confidence','suspect','schema-v0.5'),('parse_confidence','unaudited','schema-v0.5'),
 ('section_topic','assumptions','schema-v0.5'),('section_topic','engagement_log','schema-v0.5'),('section_topic','ideas_considered','schema-v0.5'),('section_topic','roster','schema-v0.5'),('section_topic','timeline','schema-v0.5'),
 ('human_verdict','approved','schema-v0.5'),('human_verdict','approved_with_caveats','schema-v0.5'),('human_verdict','not_reviewed','schema-v0.5'),('human_verdict','rejected','schema-v0.5'),

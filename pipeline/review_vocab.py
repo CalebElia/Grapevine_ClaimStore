@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 
 DSN = os.environ.get("GRAPEVINE_DSN",
                      "host=/tmp port=5433 user=grapevine dbname=grapevine")
@@ -99,7 +100,9 @@ def approve(cur, pid: int, description: str, who: str, dry_run: bool = False) ->
     repointed = _repoint(cur, voc, written, term, dry_run)
     if not dry_run:
         _close(cur, pid, "approved", who)
-    return {"vocabulary": voc, "term": term, "repointed": repointed, "action": "approve"}
+    return {"vocabulary": voc, "term": term, "written_as": written,
+            "repointed": repointed, "action": "approve",
+            "warnings": _check_scope(cur, pid, repointed)}
 
 
 def map_to(cur, pid: int, existing: str, who: str, dry_run: bool = False) -> dict:
@@ -125,8 +128,30 @@ def map_to(cur, pid: int, existing: str, who: str, dry_run: bool = False) -> dic
     repointed = _repoint(cur, voc, written, existing, dry_run)
     if not dry_run:
         _close(cur, pid, f"mapped_to:{existing}", who)
-    return {"vocabulary": voc, "term": term, "mapped_to": existing,
-            "repointed": repointed, "action": "map"}
+    return {"vocabulary": voc, "term": term, "written_as": written, "mapped_to": existing,
+            "repointed": repointed, "action": "map",
+            "warnings": _check_scope(cur, pid, repointed)}
+
+
+def _check_scope(cur, pid: int, moved: dict) -> list[str]:
+    """Warn when a ruling would move more rows than the proposal ever saw.
+
+    _repoint moves EVERY row sitting on the fallback, because that is the only marker a
+    fallback leaves. If ten rows hold 'other' and only seven of them fell back from this
+    term, approving it relabels three rows that legitimately meant "none of the above" --
+    silently, and in the direction of looking more complete than the corpus is.
+
+    Not a refusal: on an open vocabulary the fallback rows usually ARE all from one term, and
+    on these three they matched exactly. But the reviewer should be told which case they are in.
+    """
+    cur.execute("SELECT occurrences FROM vocabulary_proposals WHERE id=%s", (pid,))
+    seen = (cur.fetchone() or [0])[0]
+    total = sum(moved.values())
+    if total > seen:
+        return [f"this ruling moves {total} row(s) but the term was only seen {seen} time(s); "
+                f"{total - seen} row(s) may have meant the fallback genuinely. Check before "
+                f"committing -- --dry-run shows the counts."]
+    return []
 
 
 def _repoint(cur, vocabulary: str, from_value: str, to_value: str, dry_run: bool) -> dict:
@@ -147,6 +172,56 @@ def _repoint(cur, vocabulary: str, from_value: str, to_value: str, dry_run: bool
             cur.execute(f"UPDATE {table} SET {column} = %s WHERE {column} = %s",
                         (to_value, from_value))
     return moved
+
+
+def write_migration(ruling: dict, who: str, root: Path | None = None) -> Path:
+    """Record a ruling as a migration, so it survives a rebuild.
+
+    WITHOUT THIS THE TOOL IS THE BUG IT WAS BUILT TO FIND. Rulings write to the live database;
+    `scripts/db.sh reset` applies only schema/, and tests/test_schema_drift.py compares
+    canonical against canonical-plus-migrations and never against live -- deliberately, so it
+    does not depend on a mutable thing. A term added by hand is therefore invisible to every
+    check in the repo, exactly as mention_method.core_phrase_verified was: live, used by the
+    code, claimed by no file, and gone the moment anyone rebuilt.
+    """
+    root = root or Path(__file__).parent.parent
+    mig = root / "migrations"
+    nxt = max((int(f.name[:3]) for f in mig.glob("[0-9][0-9][0-9]_*.sql")), default=0) + 1
+    voc, term = ruling["vocabulary"], ruling["term"]
+    slug = f"{voc}_{term}".lower().replace("-", "_").replace(" ", "_")[:40]
+    path = mig / f"{nxt:03d}_vocab_{slug}.sql"
+
+    if ruling["action"] == "approve":
+        body = (f"-- Approved by {who}: {voc}.{term}\n--\n"
+                f"-- {ruling.get('description', '')}\n\n"
+                f"INSERT INTO vocabulary_terms (vocabulary, term, description, approved_by)\n"
+                f"VALUES ({_q(voc)}, {_q(term)}, {_q(ruling.get('description',''))}, "
+                f"{_q(who)})\nON CONFLICT DO NOTHING;\n")
+    else:
+        to = ruling["mapped_to"]
+        body = (f"-- Mapped by {who}: {voc}.{term} is a spelling of {to}, NOT a new term.\n"
+                f"-- Adding it would leave the vocabulary with two dialects for one idea.\n"
+                f"-- Fix the boundary too, or the same spelling arrives again next ingest.\n\n")
+    # MATCH WHAT THE ROWS ACTUALLY HOLD. A row that fell back holds the FALLBACK, not the
+    # term that was refused -- that term was never stored anywhere. Emitting
+    # `WHERE unit = 'weeks'` produced a migration that ran clean and did nothing, which is
+    # worse than one that fails.
+    held = ruling.get("written_as") or term
+    for tc, n in (ruling.get("repointed") or {}).items():
+        table, col = tc.split(".")
+        target = ruling.get("mapped_to", term)
+        body += (f"-- {n} row(s) were sitting on {held!r}\n"
+                 f"UPDATE {table} SET {col} = {_q(target)} WHERE {col} = {_q(held)};\n")
+    body += (f"\nUPDATE vocabulary_proposals SET status = {_q(ruling['action'])}, "
+             f"resolved_by = {_q(who)}, resolved_at = now()\n"
+             f" WHERE vocabulary = {_q(voc)} AND proposed_term = {_q(term)} "
+             f"AND status = 'pending';\n")
+    path.write_text(body)
+    return path
+
+
+def _q(v: str) -> str:
+    return "'" + (v or "").replace("'", "''") + "'"
 
 
 def _close(cur, pid: int, status: str, who: str) -> None:
@@ -219,7 +294,15 @@ def main() -> int:
             print(f"[vocab] DRY RUN — rolled back")
         else:
             c.commit()
+        for w in r.get("warnings", []):
+            print(f"[vocab] WARNING: {w}")
         print(f"[vocab] {r}")
+        if not a.dry_run and r["action"] in ("approve", "map"):
+            r.setdefault("description", a.description or "")
+            m = write_migration(r, a.by)
+            print(f"[vocab] recorded in {m.relative_to(Path(__file__).parent.parent)}")
+            print(f"[vocab] fold the term into schema/vocabularies.sql too, or a rebuilt "
+                  f"database will not have it")
     return 0
 
 

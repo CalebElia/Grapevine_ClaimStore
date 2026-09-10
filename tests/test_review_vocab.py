@@ -126,3 +126,91 @@ def test_approving_requires_a_definition(db):
         approve(cur, pid, "a trade guild", "tester")
         cur.execute("SELECT description FROM vocabulary_terms WHERE term='guild'")
         assert cur.fetchone()[0]
+
+
+def test_a_ruling_that_moves_more_rows_than_it_saw_is_flagged(db):
+    """_repoint moves every row on the fallback, because that is the only marker a fallback
+    leaves. If more rows hold it than the term was ever seen, some meant it genuinely."""
+    with db.cursor() as cur:
+        cur.execute("INSERT INTO orgs (name, org_type) VALUES ('A','co-operative')")
+        cur.execute("INSERT INTO orgs (name, org_type) VALUES ('B','other')")
+        cur.execute("INSERT INTO orgs (name, org_type) VALUES ('C','other')")
+        cur.execute("SELECT id FROM vocabulary_proposals WHERE proposed_term='co-operative'")
+        pid = cur.fetchone()[0]
+        r = approve(cur, pid, "member-owned", "tester")
+        assert r["repointed"]["orgs.org_type"] == 3      # all three fallback rows moved
+        assert r["warnings"], "moving 3 rows for a term seen once should warn"
+        assert "seen 1 time" in r["warnings"][0]
+
+
+def test_no_warning_when_the_counts_match(db):
+    with db.cursor() as cur:
+        cur.execute("INSERT INTO orgs (name, org_type) VALUES ('A','co-operative')")
+        cur.execute("SELECT id FROM vocabulary_proposals WHERE proposed_term='co-operative'")
+        pid = cur.fetchone()[0]
+        r = approve(cur, pid, "member-owned", "tester")
+        assert r["warnings"] == []
+
+
+# ── a ruling has to leave a file behind ───────────────────────────────────────────────────
+#
+# Rulings write to the live database. scripts/db.sh reset applies only schema/, and the drift
+# test compares canonical against canonical-plus-migrations, never against live. So a term
+# added by hand is invisible to every check in the repo and disappears on the next rebuild --
+# which is exactly what happened to mention_method.core_phrase_verified.
+
+def _emit(tmp_path, ruling):
+    from pipeline.review_vocab import write_migration
+    (tmp_path / "migrations").mkdir(exist_ok=True)
+    return write_migration(ruling, "tester", tmp_path).read_text()
+
+
+def test_an_approval_emits_the_term(tmp_path):
+    sql = _emit(tmp_path, {"vocabulary": "quantity_unit", "term": "weeks",
+                           "written_as": "other", "action": "approve",
+                           "description": "A duration in weeks.", "repointed": {}})
+    assert "INSERT INTO vocabulary_terms" in sql and "'weeks'" in sql
+
+
+def test_a_mapping_emits_no_term(tmp_path):
+    """Adding it would leave the vocabulary with two dialects for one idea."""
+    sql = _emit(tmp_path, {"vocabulary": "vote_value", "term": "recused",
+                           "written_as": "recused", "mapped_to": "recuse",
+                           "action": "map", "repointed": {}})
+    assert "INSERT INTO vocabulary_terms" not in sql
+
+
+def test_the_repoint_matches_what_the_rows_actually_hold(tmp_path):
+    """A row that fell back holds the FALLBACK, not the term that was refused -- that term was
+    never stored anywhere. Emitting `WHERE unit = 'weeks'` produced a migration that ran clean
+    and did nothing, which is worse than one that fails."""
+    sql = _emit(tmp_path, {"vocabulary": "quantity_unit", "term": "weeks",
+                           "written_as": "other", "action": "approve",
+                           "description": "d", "repointed": {"quantities.unit": 1}})
+    assert "WHERE unit = 'other'" in sql
+    assert "WHERE unit = 'weeks'" not in sql, "that WHERE would match nothing"
+
+
+def test_a_mapping_repoints_from_the_raw_value_when_there_is_no_fallback(tmp_path):
+    """vote_value has a NULL fallback, so the trigger stored 'recused' verbatim."""
+    sql = _emit(tmp_path, {"vocabulary": "vote_value", "term": "recused",
+                           "written_as": "recused", "mapped_to": "recuse", "action": "map",
+                           "repointed": {"votes.vote_value": 9}})
+    assert "SET vote_value = 'recuse' WHERE vote_value = 'recused'" in sql
+
+
+def test_the_emitted_sql_quotes_apostrophes(tmp_path):
+    sql = _emit(tmp_path, {"vocabulary": "org_type", "term": "x", "written_as": "other",
+                           "action": "approve", "description": "the City's own body",
+                           "repointed": {}})
+    assert "the City''s own body" in sql
+
+
+def test_the_migration_number_follows_the_ones_already_there(tmp_path):
+    from pipeline.review_vocab import write_migration
+    (tmp_path / "migrations").mkdir(exist_ok=True)
+    (tmp_path / "migrations" / "041_something.sql").write_text("-- x")
+    p = write_migration({"vocabulary": "org_type", "term": "y", "written_as": "other",
+                         "action": "approve", "description": "d", "repointed": {}},
+                        "tester", tmp_path)
+    assert p.name.startswith("042_")

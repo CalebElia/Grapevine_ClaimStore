@@ -72,6 +72,28 @@ tracker — check `row still exists` before ruling.
 
 ---
 
+## Every ruling writes a migration
+
+`scripts/vocab.sh` writes to the **live** database. `scripts/db.sh reset` applies only
+`schema/`, and `tests/test_schema_drift.py` compares canonical against
+canonical-plus-migrations — never against live, deliberately, so the suite does not depend on a
+mutable thing someone may have hand-edited.
+
+A term added by hand is therefore invisible to every check in the repo and **disappears on the
+next rebuild**, folding its rows back to the fallback. That is precisely how
+`mention_method.core_phrase_verified` came to be live, written by the code on 46 rows, and
+claimed by no file at all.
+
+So each ruling emits `migrations/NNN_vocab_*.sql` and tells you where. Two things still need
+you:
+
+1. **Fold approved terms into `schema/vocabularies.sql`.** The migration gives the ruling
+   provenance; the canonical file is what a rebuild reads. The drift test fails until both
+   agree, which is the point.
+2. **Fix the boundary for mapped terms**, so the foreign spelling stops arriving.
+
+---
+
 ## Check your work
 
 ```bash
