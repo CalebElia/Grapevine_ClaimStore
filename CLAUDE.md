@@ -6,6 +6,35 @@ minutes, webpages, and — next wave — regulatory dockets.
 **Read `docs/PLAN.md` first.** It is the approved architecture and carries every decision, why it
 was made, and what was rejected. This file is orientation only.
 
+## Where this lives
+
+```
+~/Developer/Grapevine/Coding_Projects/grapevine-claim-store
+```
+
+**GitHub: `CalebElia/Grapevine_ClaimStore` (private).** `origin` points there. A second remote,
+`legacy`, still points at `Grapevine_Video2ClaimStore`, which is where the first 111 commits
+were made and which is left intact; nothing pushes to it.
+
+**NOT under `~/Desktop`, and not by accident.** Desktop is iCloud-synced, and iCloud is a
+writer rather than a snapshotter — it reaches into the directory and creates, restores and
+duplicates files there. It had written conflict copies *inside* `.git/`: an `index 2` beside
+the staging area git rewrites non-atomically on every add and commit, and a stale
+`refs/remotes/origin/main 2`, which is what `git fsck` was reporting. It had also restored 196
+weeks-old `name 2.ext` copies into the working tree mid-session, which pytest collected by
+glob — the suite silently grew from 1280 tests to 2395, half of them running stale code and
+passing.
+
+`.gitignore` now catches `* 2.*`, `* [0-9].*` and `* copy*`, but that only stops them reaching
+git and pytest; it does not stop a sync client racing a write. **Keep the code out of synced
+directories.** The project-management documents stay under `~/Desktop/Grapevine/`, where sync
+is the point.
+
+Paths to siblings are relative (`../a2zero-wiki`), and test fixtures resolve from the repo
+root, so the tree can move again without edits. When something breaks after a move it tends to
+break *quietly* — the one file with an absolute path skipped six tests with "source PDFs not
+present" and still reported a green run.
+
 ## What this replaces
 
 Two efforts that turned out to be the same effort:
@@ -83,9 +112,16 @@ migrations/   ordered, applied-once SQL
 pipeline/     S0–S9 stages (see PLAN.md Part V)
 registries/   per-jurisdiction config: ASR vocabulary, body rosters, Legistar ids
 scripts/      db.sh (local postgres) · check-arch.sh (native-toolchain guard)
+              status.sh (where the store stands) · review.sh (mention-review UI)
+              dedup.sh (duplicate subjects and orgs; proposes, never merges)
 tests/        pytest; fixtures/ holds copies of cached v1 intermediates
 docs/         PLAN.md (approved plan) · v1-code-review.md (evidence for the rewrite)
+              working-the-mention-queue.md (how to rule on queued mentions)
 ```
+
+Every `scripts/*.sh` cd's to the repo root first. `python3 -m pipeline.X` resolves only from
+there, and when it does not the failure is a `ModuleNotFoundError` on stderr that reads as
+"the command did nothing".
 
 ## Two architectural rules
 
