@@ -1,0 +1,46 @@
+{
+  "_why": [
+    "funding_source is a CATEGORY (federal_grant, state_grant, philanthropic, millage...).",
+    "The awarding body is recorded separately in awarding_org_id, and the programme in",
+    "program_id. What was missing is the step between them: once the body is resolved, its",
+    "category usually follows, but nothing was deriving it -- 45 of 75 rows sat on the",
+    "fallback 'other' while the store knew perfectly well that the money came from the EPA.",
+    "",
+    "org_type ALONE CANNOT DO THIS. The vocabulary types the EPA and the State of Michigan",
+    "both as 'government', because that is what they are; it does not encode which level of",
+    "government, and funding_source turns entirely on that. So the general rule below covers",
+    "only the cases org_type genuinely settles, and government bodies are named one by one.",
+    "",
+    "NAMED, NOT PATTERN-MATCHED. Deriving 'federal' from a leading 'U.S.' would work on this",
+    "corpus and break on the first 'U.S. Green Building Council', which is a nonprofit. There",
+    "are thirteen bodies; listing them costs less than a rule that is wrong in a way nobody",
+    "notices."
+  ],
+  "by_org_type": {
+    "nonprofit": "philanthropic",
+    "foundation": "philanthropic",
+    "advocacy_coalition": "philanthropic"
+  },
+  "by_org": {
+    "United States Environmental Protection Agency": "federal_grant",
+    "U.S. Department of Energy": "federal_grant",
+    "Federal Highway Administration": "federal_grant",
+    "USDA Forest Service": "federal_grant",
+    "AmeriCorps": "federal_grant",
+    "National Service Trust": "federal_grant",
+    "Southeast Michigan Council of Governments": "federal_grant",
+    "MI-HOPE": "state_grant",
+    "American Forests": "philanthropic"
+  },
+  "_judgement_calls": {
+    "Southeast Michigan Council of Governments": "SEMCOG is a regional council, not a federal agency, but its Carbon Reduction Program distributes federal IIJA formula funds. Categorised by where the money comes from rather than who hands it over, since that is what a funding_source query is asking. The vocabulary has no 'regional' term; add one if pass-through needs to be visible.",
+    "National Service Trust": "The trust behind AmeriCorps education awards -- federal, though the name says nothing about it.",
+    "MI-HOPE": "A Michigan homeowner assistance programme. Typed 'other' in orgs because the wiki had no actor-type for it.",
+    "American Forests": "A national conservation nonprofit, typed 'other' in orgs for the same reason, so the org_type rule below does not reach it."
+  },
+  "_never_guessed": [
+    "A body absent from both tables above leaves funding_source alone. 26 rows name no funder",
+    "at all and 8 have none recorded; there is nothing in the document to categorise, and",
+    "'other' is the honest answer rather than an inference from the amount or the purpose."
+  ]
+}

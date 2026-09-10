@@ -273,6 +273,66 @@ def resolve(section_id: int | None, dsn: str = DSN, wiki: Path = WIKI,
     return out
 
 
+_FUNDER_CATEGORIES = (Path(__file__).parent.parent / "registries" / "ann_arbor"
+                      / "funder_categories.json")
+
+
+def funder_categories(path: Path = _FUNDER_CATEGORIES) -> dict:
+    if not path.exists():
+        return {"by_org_type": {}, "by_org": {}}
+    d = json.loads(path.read_text())
+    return {"by_org_type": d.get("by_org_type", {}), "by_org": d.get("by_org", {})}
+
+
+def category_for(org_name: str | None, org_type: str | None, rules: dict) -> str | None:
+    """The funding_source a resolved awarding body implies, or None to leave it alone.
+
+    NAMED BODIES WIN OVER THE TYPE RULE, because the type rule cannot see what matters: the
+    EPA and the State of Michigan are both org_type 'government', and funding_source turns
+    entirely on which level of government it was.
+
+    Returning None is a real answer. 26 fiscal rows name no funder at all -- there is nothing
+    in the document to categorise, and inferring from the amount or the purpose would be
+    invention dressed as derivation.
+    """
+    if org_name and org_name in rules["by_org"]:
+        return rules["by_org"][org_name]
+    if org_type and org_type in rules["by_org_type"]:
+        return rules["by_org_type"][org_type]
+    return None
+
+
+def backfill_funding_source(dsn: str = DSN, dry_run: bool = False) -> dict:
+    """Derive funding_source from the already-resolved awarding body.
+
+    ONLY FILLS THE FALLBACK OR A NULL. A funding_source that is anything else was decided
+    against the document's own words -- "paid for by the millage", "from the general fund" --
+    and a registry edit does not get to overrule that.
+    """
+    import psycopg
+
+    rules = funder_categories()
+    changed, left = [], []
+    with psycopg.connect(dsn) as c, c.cursor() as cur:
+        cur.execute("""SELECT f.id, f.funding_source, f.funder_name_text, o.name, o.org_type
+                         FROM fiscal_references f
+                         LEFT JOIN orgs o ON o.id = f.awarding_org_id
+                        WHERE f.funding_source IS NULL OR f.funding_source = 'other'
+                        ORDER BY f.id""")
+        for fid, current, name_text, org_name, org_type in cur.fetchall():
+            cat = category_for(org_name, org_type, rules)
+            if not cat:
+                left.append((fid, name_text or org_name))
+                continue
+            changed.append((fid, org_name, current, cat))
+            if not dry_run:
+                cur.execute("UPDATE fiscal_references SET funding_source=%s WHERE id=%s",
+                            (cat, fid))
+        if not dry_run:
+            c.commit()
+    return {"changed": changed, "left_alone": left}
+
+
 def backfill_funders(dsn: str = DSN, dry_run: bool = False) -> list[tuple]:
     """Re-resolve stored funder names against the registry as it stands NOW.
 
